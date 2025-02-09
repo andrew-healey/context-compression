@@ -10,7 +10,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from hellaswag import render_example, iterate_examples
 
-try_hellaswag = False
+try_hellaswag = True
 
 
 
@@ -394,6 +394,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
 assert "CUDA_VISIBLE_DEVICES" in os.environ, "You have to pass in CUDA_VISIBLE_DEVICES"
+visible_device_ids = [int(id) for id in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
+assert len(visible_device_ids) == int(os.environ['WORLD_SIZE']), "CUDA_VISIBLE_DEVICES must have as many devices as WORLD_SIZE"
 
 # set up DDP (distributed data parallel).
 # torchrun command sets the env variables RANK, LOCAL_RANK, and WORLD_SIZE
@@ -405,7 +407,8 @@ if ddp:
     ddp_rank = int(os.environ['RANK'])
     ddp_local_rank = int(os.environ['LOCAL_RANK'])
     ddp_world_size = int(os.environ['WORLD_SIZE'])
-    device = f'cuda:{ddp_local_rank}'
+    device_id = visible_device_ids[ddp_local_rank]
+    device = f'cuda:{device_id}'
     torch.cuda.set_device(device)
     master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
 else:
@@ -415,6 +418,7 @@ else:
     ddp_world_size = 1
     master_process = True
     # attempt to autodetect device
+    device_id = -1
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda"
@@ -453,7 +457,7 @@ use_compile = False # torch.compile interferes with HellaSwag eval and Generatio
 if use_compile:
     model = torch.compile(model)
 if ddp:
-    model = DDP(model, device_ids=[ddp_local_rank])
+    model = DDP(model, device_ids=[device_id])
 raw_model = model.module if ddp else model # always contains the "raw" unwrapped model
 
 max_lr = 6e-4
@@ -479,10 +483,12 @@ optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4,
 # create the log directory we will write checkpoints to and log to
 assert os.environ["LOG_DIR"] is not None, "You have to pass in a log directory for this run"
 log_dir = os.environ["LOG_DIR"]
-os.makedirs(log_dir, exist_ok=False)
+if master_process:
+    os.makedirs(log_dir, exist_ok=False)
 log_file = os.path.join(log_dir, f"log2.txt")
-with open(log_file, "w") as f: # open for writing to clear the file
-    pass
+if master_process:
+    with open(log_file, "w") as f: # open for writing to clear the file
+        pass
 
 # At the start of your training script, add a resume checkpoint argument
 resume_checkpoint = os.environ.get("RESUME_CHECKPOINT", None)  # or get from args/env var
@@ -514,10 +520,10 @@ if resume_checkpoint is not None:
         train_loader.set_state(dataloader_state)
     
     if ddp:
-        model = DDP(model, device_ids=[ddp_local_rank])
+        model = DDP(model, device_ids=[device_id])
 
-eval_period = 250
-save_period = 2500
+eval_period = 5
+save_period = 5
 
 # Modify your training loop to start from start_step
 for step in range(start_step, max_steps):
@@ -526,7 +532,6 @@ for step in range(start_step, max_steps):
 
     # once in a while evaluate our validation loss
     if step % eval_period == 0 or last_step:
-        print("evaluating validation loss and checkpointing")
         model.eval()
         val_loader.reset()
         with torch.no_grad():
