@@ -407,8 +407,9 @@ if ddp:
     ddp_rank = int(os.environ['RANK'])
     ddp_local_rank = int(os.environ['LOCAL_RANK'])
     ddp_world_size = int(os.environ['WORLD_SIZE'])
-    device_id = visible_device_ids[ddp_local_rank]
+    device_id = ddp_local_rank
     device = f'cuda:{device_id}'
+    print(f"using device: {device}")
     torch.cuda.set_device(device)
     master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
 else:
