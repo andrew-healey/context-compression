@@ -353,10 +353,17 @@ class DataLoaderLite:
         }
 
     def set_state(self, state):
-        """Restore the dataloader state from a saved checkpoint."""
+        """Restore the dataloader state from a saved checkpoint.
+
+        Note:
+         - The checkpoint only contains the master process's state.
+         - We reconstruct the rank-specific offset by adding process_rank * (B*T)
+           to the master current_position.
+        """
         self.current_shard = state.get('current_shard', 0)
-        self.current_position = state.get('current_position', self.B * self.T * self.process_rank)
-        # Refresh the tokens from the resumed shard.
+        global_current_position = state.get('current_position', 0)
+        self.current_position = global_current_position + self.B * self.T * self.process_rank
+        # Refresh tokens from the resumed shard.
         self.tokens = load_tokens(self.shards[self.current_shard])
 
 # -----------------------------------------------------------------------------
@@ -504,14 +511,18 @@ if resume_checkpoint is not None:
     checkpoint = torch.load(resume_checkpoint)
     raw_model.load_state_dict(checkpoint['model'])
     start_step = checkpoint['step']  # Resume from next step
+
+    del checkpoint
     
     # Load optimizer checkpoint 
     optimizer_checkpoint = torch.load(resume_checkpoint.replace('model_', 'optimizer_'))
     optimizer.load_state_dict(optimizer_checkpoint['optimizer'])
+
     
     # Restore RNG state
     torch.set_rng_state(optimizer_checkpoint['rng_state'])
     torch.cuda.set_rng_state(optimizer_checkpoint['cuda_rng_state'])
+    del optimizer_checkpoint
     
     # --- ADDED: Restore the dataloader state if available ---
     resume_dataloader_checkpoint = resume_checkpoint.replace('model_', 'dataloader_')
@@ -519,9 +530,12 @@ if resume_checkpoint is not None:
         print(f"Resuming dataloader state from {resume_dataloader_checkpoint}")
         dataloader_state = torch.load(resume_dataloader_checkpoint)
         train_loader.set_state(dataloader_state)
+        del dataloader_state
     
     if ddp:
         model = DDP(model, device_ids=[device_id])
+
+torch.cuda.empty_cache()
 
 eval_period = 250
 save_period = 2500
