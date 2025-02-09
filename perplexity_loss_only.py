@@ -525,6 +525,10 @@ if resume_checkpoint is not None:
 eval_period = 5
 save_period = 5
 
+if master_process:
+    with open(log_file, "a") as f:
+        f.write(f'max_steps: {max_steps}\n')
+
 # Modify your training loop to start from start_step
 for step in range(start_step, max_steps):
     t0 = time.time()
