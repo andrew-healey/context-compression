@@ -522,8 +522,8 @@ if resume_checkpoint is not None:
     if ddp:
         model = DDP(model, device_ids=[device_id])
 
-eval_period = 5
-save_period = 5
+eval_period = 250
+save_period = 2500
 
 if master_process:
     with open(log_file, "a") as f:
