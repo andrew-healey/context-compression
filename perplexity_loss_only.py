@@ -496,7 +496,7 @@ if resume_checkpoint is not None:
     # Load model checkpoint
     checkpoint = torch.load(resume_checkpoint)
     raw_model.load_state_dict(checkpoint['model'])
-    start_step = checkpoint['step'] + 1  # Resume from next step
+    start_step = checkpoint['step']  # Resume from next step
     
     # Load optimizer checkpoint 
     optimizer_checkpoint = torch.load(resume_checkpoint.replace('model_', 'optimizer_'))
@@ -516,13 +516,16 @@ if resume_checkpoint is not None:
     if ddp:
         model = DDP(model, device_ids=[ddp_local_rank])
 
+eval_period = 250
+save_period = 2500
+
 # Modify your training loop to start from start_step
 for step in range(start_step, max_steps):
     t0 = time.time()
     last_step = (step == max_steps - 1)
 
     # once in a while evaluate our validation loss
-    if step % 250 == 0 or last_step:
+    if step % eval_period == 0 or last_step:
         print("evaluating validation loss and checkpointing")
         model.eval()
         val_loader.reset()
@@ -546,7 +549,7 @@ for step in range(start_step, max_steps):
             with open(log_file, "a") as f:
                 f.write(f"{step} val loss {val_loss_accum.item():.4f}\n")
                 f.write(f"{step} val perplexity {validation_perplexity:.4f}\n")
-            if step > 0 and (step % 2500 == 0 or last_step):
+            if step > 0 and (step % save_period == 0 or last_step):
                 # optionally write model checkpoints
                 checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
                 checkpoint = {
@@ -670,7 +673,7 @@ for step in range(start_step, max_steps):
     if master_process:
         print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
         with open(log_file, "a") as f:
-            f.write(f"{step} train {loss_accum.item():.6f}\n")
+            f.write(f"{step} train {loss_accum.item():.6f} (lr={lr:.4e}) (hash(x)={x.sum().item()})\n")
 
 if ddp:
     destroy_process_group()
