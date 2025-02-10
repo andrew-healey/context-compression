@@ -36,6 +36,7 @@ class Block(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return x, M
 
+from typing import Optional
 @dataclass
 class GPTConfig:
     attention_kind: AttentionKind
@@ -46,6 +47,7 @@ class GPTConfig:
     n_head: int = 12
     n_embd: int = 768
     epsilon: float = 0.1  # Weight for memory loss term
+    hard_pruning_constant: Optional[float] = None # to fix the pruning during inference
 
 class GPT(nn.Module):
     def __init__(self, config):

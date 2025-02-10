@@ -22,6 +22,7 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
 
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))
+        self.config = config
 
     def get_pruning_ratio(self, context_length):
         """
@@ -31,6 +32,9 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
           Linear interpolation from 1/2 to 1/5
         - Above FULL_PRUNING_CONTEXT: Maximum pruning (1/5)
         """
+        if self.config.hard_pruning_constant is not None:
+            return self.config.hard_pruning_constant
+
         if context_length < self.MIN_CONTEXT_FOR_PRUNING:
             return 1.0  # Keep all tokens
         elif context_length >= self.FULL_PRUNING_CONTEXT:
