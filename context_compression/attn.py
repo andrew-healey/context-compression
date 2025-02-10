@@ -156,12 +156,110 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
 
             y = torch.stack(outputs, dim=0)
 
-            # Cache the pruned context if requested
+            # --- BEGIN VECTORIZED COMPUTATION OF Y ---
+            # We want to compute a vectorized version of the pruned attention:
+            # For each (b, pos), we need a boolean mask (of length T) that is True for:
+            #   (a) the current token (always kept) and 
+            #   (b) the best (memory_budget - 1) tokens from the available ones (j > pos),
+            #      where "best" is determined by the lowest FF value (which we computed in FF).
+            #
+            # First, build a (T,T) mask for valid positions: valid if j > pos.
+            device = att.device
+            t_range = torch.arange(T, device=device)
+            valid_mask = t_range.unsqueeze(0) <= t_range.unsqueeze(1)  # shape (T, T); valid_mask[pos, j] is True if j <= pos
+
+            # Use FF_squeezed (shape [B, T, T]) and mask out invalid positions with +inf.
+            FF_mod = FF.squeeze(1).masked_fill(~valid_mask, float('inf'))
+            # sort valid FF values along the last dimension; the first k elements in each (b,pos) are the ones to select.
+            sorted_idx = torch.argsort(FF_mod, dim=-1)
+
+            # For each pos, the number of available tokens is (T - pos - 1). We want to select:
+            #    k = min(memory_budget - 1, T - pos - 1)
+            effective_k = torch.minimum(torch.full((T,), memory_budget - 1, device=device),
+                                          (t_range + 1))
+            # Now, for every (b, pos) we want to select the first effective_k[pos] from sorted_idx.
+            r = torch.arange(T, device=device).view(1, 1, T).expand(1, T, T)   # shape: (1, T, T)
+            effective_k_exp = effective_k.view(1, T, 1)         # shape: (1, T, 1)
+            sorted_sel_mask = (r < effective_k_exp)             # shape: (1, T, T); broadcast to (B, T, T)
+
+            # Build the vectorized keep_indices mask (same shape as keep_indices in the loop: [B, T, T])
+            keep_indices_v = torch.zeros((B, T, T), dtype=torch.bool, device=device)
+            # Always keep the current token:
+            keep_indices_v[:, torch.arange(T), torch.arange(T)] = True
+            # Now, for each (b, pos) select the token indices given by the first "effective_k" positions
+            sel_mask = sorted_sel_mask.expand(B, T, T)
+            nz = torch.nonzero(sel_mask)  # returns indices of all True elements in (B,T,T)
+            b_idx = nz[:, 0]
+            pos_idx = nz[:, 1]
+            rank_idx = nz[:, 2]
+            selected_j = sorted_idx[b_idx, pos_idx, rank_idx]
+            keep_indices_v[b_idx, pos_idx, selected_j] = True
+
+            # Now, use the vectorized keep_indices (expand dims along head dimension) to mask att.
+            att_masked = att.masked_fill(~keep_indices_v.unsqueeze(1), float('-inf'))
+            y_vectorized = (F.softmax(att_masked, dim=-1) @ v)  # shape: (B, n_head, T, head_dim)
+
+            # Assert that the two methods give the same result (both outputs are in raw shape: (B, n_head, T, head_dim)):
+            if not torch.allclose(y, y_vectorized, rtol=1e-1, atol=1e-1):
+                print(f"y: {y.shape}, y_vectorized: {y_vectorized.shape}")
+                print(f"y: {y[0, 0, 0, :10]}")
+                print(f"y_vectorized: {y_vectorized[0, 0, 0, :10]}")
+            torch.testing.assert_allclose(y, y_vectorized, rtol=1e-2, atol=1e-2)
+            y = y_vectorized
+            # --- END VECTORIZED COMPUTATION OF Y ---
+
+            # Cache the pruned context if requested (vectorized caching)
             if self.use_cache and cache_key is not None:
+                # Compute pruned lengths: for each (b, pos), number of kept tokens.
+                pruned_lengths_cache = keep_indices_v.sum(dim=-1)  # shape: (B, T)
+
+                # Build a padded tensor for pruned attention:
+                # att: shape (B, n_head, T, T); expand keep_indices_v over head dim to shape (B, 1, T, T)
+                pruned_att_cache = att.masked_fill(~keep_indices_v.unsqueeze(1), float('-inf'))
+
+                # Build a padded tensor for pruned value vectors.
+                # v: shape (B, n_head, T, head_dim). Expand v to shape (B, n_head, T, T, head_dim)
+                pruned_v_cache = v.unsqueeze(2).expand(B, self.n_head, T, T, v.size(-1)) \
+                                 .masked_fill(~keep_indices_v.unsqueeze(1).unsqueeze(-1), 0)
+
+                # -- Additional assertions to validate cache values --
+                # 1. Check pruned lengths against the loop-based computation.
+                loop_lengths = []
+                for b in range(B):
+                    lengths_b = []
+                    for p in range(T):
+                        # keep_indices was computed in the loop branch as keep_indices[b, 0][p]
+                        lengths_b.append(len(torch.where(keep_indices[b, 0][p])[0]))
+                    loop_lengths.append(torch.tensor(lengths_b, device=device, dtype=pruned_lengths_cache.dtype))
+                loop_lengths = torch.stack(loop_lengths, dim=0)  # shape: (B, T)
+                torch.testing.assert_allclose(loop_lengths, pruned_lengths_cache, rtol=1e-3, atol=1e-3)
+
+                # 2. For a subset of (b, pos), check that the cached pruned attention and value vectors match.
+                for b in range(min(B, 4)):  # check up to 4 batches
+                    for p in range(min(T, 10)):  # check first 10 positions
+                        indices = torch.where(keep_indices[b, 0][p])[0]
+                        if len(indices) > 0:
+                            expected_att = att[b, :, p][:, indices]
+                            cached_att = pruned_att_cache[b, :, p][:, indices]
+                            torch.testing.assert_allclose(cached_att, expected_att, rtol=1e-3, atol=1e-3)
+
+                            # For values: expected is v[b, :, indices, :], and cached is pruned_v_cache[b, :, p, indices, :]
+                            torch.testing.assert_allclose(pruned_v_cache[b, :, p, indices, :], v[b, :, indices, :], rtol=1e-3, atol=1e-3)
+
+                            # Also check that the non-kept positions are properly set.
+                            nonkept = torch.where(~keep_indices[b, 0][p])[0]
+                            if len(nonkept) > 0:
+                                torch.testing.assert_allclose(pruned_att_cache[b, :, p, nonkept],
+                                                               torch.full_like(pruned_att_cache[b, :, p, nonkept], float('-inf')),
+                                                               rtol=1e-3, atol=1e-3)
+                                torch.testing.assert_allclose(pruned_v_cache[b, :, p, nonkept, :],
+                                                               torch.zeros_like(pruned_v_cache[b, :, p, nonkept, :]),
+                                                               rtol=1e-3, atol=1e-3)
+
                 self.context_cache[cache_key] = {
-                    'att': pruned_att,
-                    'v': pruned_v,
-                    'lengths': pruned_lengths
+                    'att': pruned_att_cache,
+                    'v': pruned_v_cache,
+                    'lengths': pruned_lengths_cache
                 }
 
         else:
