@@ -1,0 +1,350 @@
+from torch import nn
+import torch
+import math
+import torch.nn.functional as F
+
+class CausalSelectiveSelfAttentionForInference(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        assert config.n_embd % config.n_head == 0
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        self.n_head = config.n_head
+        self.n_embd = config.n_embd
+
+        # Caching mechanism
+        self.context_cache = {}
+        self.use_cache = True
+
+        # Constants for dynamic pruning
+        self.MIN_CONTEXT_FOR_PRUNING = 256  # Only start pruning at this context length
+        self.FULL_PRUNING_CONTEXT = 1024    # Context length where we reach maximum pruning
+
+        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
+                                     .view(1, 1, config.block_size, config.block_size))
+
+    def get_pruning_ratio(self, context_length):
+        """
+        Dynamically determine pruning ratio based on context length:
+        - Below MIN_CONTEXT_FOR_PRUNING: No pruning (keep all tokens)
+        - Between MIN_CONTEXT_FOR_PRUNING and FULL_PRUNING_CONTEXT:
+          Linear interpolation from 1/2 to 1/5
+        - Above FULL_PRUNING_CONTEXT: Maximum pruning (1/5)
+        """
+        if context_length < self.MIN_CONTEXT_FOR_PRUNING:
+            return 1.0  # Keep all tokens
+        elif context_length >= self.FULL_PRUNING_CONTEXT:
+            return 0.2  # Keep 1/5 of tokens
+        else:
+            # Linear interpolation between 1/2 and 1/5
+            progress = (context_length - self.MIN_CONTEXT_FOR_PRUNING) / (self.FULL_PRUNING_CONTEXT - self.MIN_CONTEXT_FOR_PRUNING)
+            return 0.5 - (0.3 * progress)  # Smoothly transition from 0.5 to 0.2
+
+    def forward(self, x, cache_key=None):
+        B, T, C = x.size()
+
+        # Check if cached context is available and should be used
+        if self.use_cache and cache_key is not None and cache_key in self.context_cache:
+            cached_context = self.context_cache[cache_key]
+            pruned_att = cached_context['att']
+            pruned_v = cached_context['v']
+            pruned_lengths = cached_context['lengths']
+
+            outputs = []
+            head_dim = C // self.n_head
+
+            for b in range(B):
+                seq_outputs = []
+                for pos in range(T):
+                    idx = b * T + pos
+                    curr_att = pruned_att[idx]
+                    curr_v = pruned_v[idx]
+                    curr_att = F.softmax(curr_att, dim=-1)
+                    out = (curr_att.unsqueeze(-2) @ curr_v).squeeze(-2)
+                    seq_outputs.append(out)
+                batch_output = torch.stack(seq_outputs, dim=1)
+                outputs.append(batch_output)
+
+            y = torch.stack(outputs, dim=0)
+            y = y.transpose(1, 2).contiguous().view(B, T, C)
+            y = self.c_proj(y)
+
+            return y, None
+
+        # Existing attention computation logic
+        qkv = self.c_attn(x)
+        q, k, v = qkv.split(self.n_embd, dim=2)
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+
+        # Standard attention computation
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+
+        # Apply selective attention with forgetting
+        S = att[:, 0].clone()
+        S = F.relu(S)
+
+        S_masked = torch.zeros_like(S)
+        S_masked[..., 1:] = S[..., 1:]
+
+        eye_mask = 1 - torch.eye(T, device=S.device)
+        S = S_masked * eye_mask
+
+        S_shifted = torch.roll(S, 1, -2)
+        S_shifted[..., 0, :] = 0
+
+        FF = torch.cumsum(S_shifted, dim=-2)[:, None]
+
+        # Always apply forgetting regardless of context length
+        att -= FF
+
+        # Determine if and how much to prune based on context length
+        pruning_ratio = self.get_pruning_ratio(T)
+        memory_budget = max(1, int(T * pruning_ratio))
+
+        if pruning_ratio < 1.0:  # Only prune if ratio is less than 1
+            keep_indices = torch.zeros((B, 1, T, T), dtype=torch.bool, device=att.device)
+            FF_squeezed = FF.squeeze(1)
+
+            for b in range(B):
+                for pos in range(T):
+                    ff_vals = FF_squeezed[b, pos]
+                    available_tokens = torch.arange(pos + 1, device=ff_vals.device)
+
+                    if len(available_tokens) > 0:
+                        available_ff_vals = ff_vals[available_tokens]
+                        k = min(memory_budget - 1, len(available_tokens))
+                        _, top_indices = torch.topk(available_ff_vals,
+                                                k=k,
+                                                largest=False)
+                        keep_mask = torch.zeros(T, dtype=torch.bool, device=ff_vals.device)
+                        keep_mask[pos] = True  # Always keep current token
+                        keep_mask[available_tokens[top_indices]] = True
+                        keep_indices[b, 0, pos] = keep_mask
+
+            # Apply pruning
+            pruned_lengths = []
+            pruned_att = []
+            pruned_v = []
+
+            for b in range(B):
+                seq_keep_indices = keep_indices[b, 0]
+
+                for pos in range(T):
+                    pos_keep = seq_keep_indices[pos]
+                    indices_to_keep = torch.where(pos_keep)[0]
+                    pruned_lengths.append(len(indices_to_keep))
+                    pruned_att.append(att[b, :, pos, indices_to_keep])
+                    pruned_v.append(v[b, :, indices_to_keep])
+
+            outputs = []
+            head_dim = C // self.n_head
+
+            for b in range(B):
+                seq_outputs = []
+                for pos in range(T):
+                    idx = b * T + pos
+                    curr_att = pruned_att[idx]
+                    curr_v = pruned_v[idx]
+                    curr_att = F.softmax(curr_att, dim=-1)
+                    out = (curr_att.unsqueeze(-2) @ curr_v).squeeze(-2)
+                    seq_outputs.append(out)
+                batch_output = torch.stack(seq_outputs, dim=1)
+                outputs.append(batch_output)
+
+            y = torch.stack(outputs, dim=0)
+
+            # Cache the pruned context if requested
+            if self.use_cache and cache_key is not None:
+                self.context_cache[cache_key] = {
+                    'att': pruned_att,
+                    'v': pruned_v,
+                    'lengths': pruned_lengths
+                }
+
+        else:
+            # Standard attention for small contexts
+            att = F.softmax(att, dim=-1)
+            y = att @ v
+
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        y = self.c_proj(y)
+
+        if pruning_ratio < 1.0:
+            avg_kept_tokens = sum(pruned_lengths) / (B * T)
+            # print(f"Context length: {T}, Pruning ratio: {pruning_ratio:.2f}, Average tokens kept: {avg_kept_tokens:.2f}")
+
+        return y, None
+
+    def clear_cache(self):
+        """Clear the entire context cache."""
+        self.context_cache.clear()
+
+    def remove_cache_entry(self, cache_key):
+        """Remove a specific entry from the context cache."""
+        if cache_key in self.context_cache:
+            del self.context_cache[cache_key]
+
+class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        assert config.n_embd % config.n_head == 0
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        self.n_head = config.n_head
+        self.n_embd = config.n_embd
+        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
+                                     .view(1, 1, config.block_size, config.block_size))
+        self.tau = 1.0  # Clamping parameter for FF scores
+
+    def forward(self, x):
+        B, T, C = x.size()
+        qkv = self.c_attn(x)
+        q, k, v = qkv.split(self.n_embd, dim=2)
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+
+        # Standard attention computation
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+
+        # Selective attention computation
+        S = att[:, 0].clone()
+        S = F.relu(S)
+
+        S_masked = torch.zeros_like(S)
+        S_masked[..., 1:] = S[..., 1:]
+
+        eye_mask = 1 - torch.eye(T, device=S.device)
+        S = S_masked * eye_mask
+
+        S_shifted = torch.roll(S, 1, -2)
+        S_shifted[..., 0, :] = 0
+
+        FF = torch.cumsum(S_shifted, dim=-2)[:, None]
+
+        # Calculate memory requirements M_i^l
+        FF_clamped = torch.clamp(FF, 0, self.tau)  # Clamp FF values between 0 and tau
+        FF_sum = FF_clamped.sum(dim=-1)  # Sum over k dimension
+
+        # Calculate M_i^l = i - Σ(min(FF^l_(i,k), τ))/τ
+        positions = torch.arange(T, device=x.device).float()  # [0, 1, ..., T-1]
+        positions = positions.view(1, 1, T, 1)  # Add batch and head dimensions
+        M = positions - FF_sum / self.tau  # Calculate memory requirements
+
+        # Continue with attention computation
+        att -= FF
+        att = F.softmax(att, dim=-1)
+
+        y = att @ v
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        y = self.c_proj(y)
+
+        return y, M
+
+class CausalSelectiveSelfAttention(nn.Module):
+
+    def __init__(self, config):
+        super().__init__()
+        assert config.n_embd % config.n_head == 0
+        # key, query, value projections for all heads, but in a batch
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        # output projection
+        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        # regularization
+        self.n_head = config.n_head
+        self.n_embd = config.n_embd
+        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
+                                     .view(1, 1, config.block_size, config.block_size))
+
+    def forward(self, x):
+        B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
+        # calculate query, key, values for all heads in batch and move head forward to be the batch dim
+        qkv = self.c_attn(x)
+        q, k, v = qkv.split(self.n_embd, dim=2)
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+
+        # Standard attention computation
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+
+        # Apply selective attention
+        S = att[:, 0].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
+        S = F.relu(S)  # Only positive selection
+
+        # Use torch.zeros_like to safely modify without inplace ops
+        S_masked = torch.zeros_like(S)  # Create a mask to avoid in-place ops
+        S_masked[..., 1:] = S[..., 1:]  # Do not mask <BOS> token, leave it unchanged
+
+        eye_mask = 1 - torch.eye(T, device=S.device)  # Do not mask self
+        S = S_masked * eye_mask  # Apply the masking to avoid self-attention
+
+        S_shifted = torch.roll(S, 1, -2)  # Shift to mask strictly in the future
+        S_shifted[..., 0, :] = 0  # Ensure future masking without inplace
+
+        att -= torch.cumsum(S_shifted, dim=-2)[:, None]   # Subtract accumulated attention from original logits
+
+        att = F.softmax(att, dim=-1)
+
+        y = att @ v
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        y = self.c_proj(y)
+        return y, None
+
+class CausalSelfAttention(nn.Module):
+
+    def __init__(self, config):
+        super().__init__()
+        assert config.n_embd % config.n_head == 0
+        # key, query, value projections for all heads, but in a batch
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        # output projection
+        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        self.c_proj.NANOGPT_SCALE_INIT = 1
+        # regularization
+        self.n_head = config.n_head
+        self.n_embd = config.n_embd
+
+    def forward(self, x):
+        B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
+        # calculate query, key, values for all heads in batch and move head forward to be the batch dim
+        # nh is "number of heads", hs is "head size", and C (number of channels) = nh * hs
+        # e.g. in GPT-2 (124M), n_head=12, hs=64, so nh*hs=C=768 channels in the Transformer
+        qkv = self.c_attn(x)
+        q, k, v = qkv.split(self.n_embd, dim=2)
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True) # flash attention
+        y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
+        # output projection
+        y = self.c_proj(y)
+        return y, None
+
+from enum import StrEnum, auto
+
+class AttentionKind(StrEnum):
+    SELECTIVE = auto()
+    SELECTIVE_WITH_MEMORY_PENALTY = auto()
+    SELF = auto()
+
+def get_attention_cls(kind: AttentionKind, for_inference: bool) -> nn.Module:
+    if kind == AttentionKind.SELECTIVE:
+        if for_inference:
+            return CausalSelectiveSelfAttentionForInference
+        else:
+            return CausalSelectiveSelfAttention
+    elif kind == AttentionKind.SELECTIVE_WITH_MEMORY_PENALTY:
+        if for_inference:
+            return CausalSelectiveSelfAttentionForInference
+        else:
+            return CausalSelectiveSelfAttentionWithMemoryPenalty
+    elif kind == AttentionKind.SELF:
+        return CausalSelfAttention
+    else:
+        raise ValueError(f"Invalid attention kind: {kind}")
