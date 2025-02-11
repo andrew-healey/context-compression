@@ -1,3 +1,4 @@
+print('starting')
 import os
 import math
 import time
@@ -6,8 +7,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from context_compression.hellaswag import render_example, iterate_examples
-from context_compression.data import get_most_likely_row
+import tiktoken
 
 try_hellaswag = True
 
@@ -20,9 +20,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
 
-from data import DataLoaderLite
-from model import GPT, GPTConfig
-from attn import AttentionKind
+from .data import DataLoaderLite, get_most_likely_row
+from .model import GPT, GPTConfig
+from .attn import AttentionKind
+from .hellaswag import render_example, iterate_examples
 
 # -----------------------------------------------------------------------------
 # simple launch:
@@ -92,11 +93,10 @@ val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_w
 
 torch.set_float32_matmul_precision('high')
 
-assert os.environ["USE_SELECTIVE"] in ["true", "false"], "USE_SELECTIVE must be true or false"
-use_selective = os.environ["USE_SELECTIVE"] == "true"
+attention_kind = AttentionKind(os.environ["ATTENTION_KIND"])
 
 # create model
-model = GPT(GPTConfig(vocab_size=50304, attention_kind=AttentionKind.SELECTIVE, for_inference=False))
+model = GPT(GPTConfig(vocab_size=50304, attention_kind=attention_kind, for_inference=False))
 # model = GPT.from_pretrained("gpt2") # or init from OpenAI GPT-2
 model.to(device)
 use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix
