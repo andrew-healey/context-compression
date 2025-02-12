@@ -24,6 +24,7 @@ from .data import DataLoaderLite, get_most_likely_row
 from .model import GPT, GPTConfig
 from .attn import AttentionKind
 from .hellaswag import render_example, iterate_examples
+from .add_a_head import grow_qkv_o
 
 # -----------------------------------------------------------------------------
 # simple launch:
@@ -96,7 +97,8 @@ torch.set_float32_matmul_precision('high')
 attention_kind = AttentionKind(os.environ["ATTENTION_KIND"])
 
 # create model
-model = GPT(GPTConfig(vocab_size=50304, attention_kind=attention_kind, for_inference=False))
+config = GPTConfig(vocab_size=50304, attention_kind=attention_kind, for_inference=False)
+model = GPT(config)
 # model = GPT.from_pretrained("gpt2") # or init from OpenAI GPT-2
 model.to(device)
 use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix
@@ -138,29 +140,36 @@ if master_process:
 
 # At the start of your training script, add a resume checkpoint argument
 resume_checkpoint = os.environ.get("RESUME_CHECKPOINT", None)  # or get from args/env var
+resume_optimizer = None
+
+add_a_head = os.environ.get("ADD_A_HEAD", None) == "true"
 
 # Initialize step counter
 start_step = 0
 
 # Load checkpoint if resuming
 if resume_checkpoint is not None:
+
+    assert os.environ["RESUME_OPTIMIZER"] in ["true", "false"], "RESUME_OPTIMIZER must be true or false"
+    resume_optimizer = os.environ["RESUME_OPTIMIZER"] == "true"
+
     print(f"Resuming from {resume_checkpoint}")
     # Load model checkpoint
     checkpoint = torch.load(resume_checkpoint)
     raw_model.load_state_dict(checkpoint['model'])
-    start_step = checkpoint['step']  # Resume from next step
 
     del checkpoint
-    
-    # Load optimizer checkpoint 
-    optimizer_checkpoint = torch.load(resume_checkpoint.replace('model_', 'optimizer_'))
-    optimizer.load_state_dict(optimizer_checkpoint['optimizer'])
 
-    
-    # Restore RNG state
-    torch.set_rng_state(optimizer_checkpoint['rng_state'])
-    torch.cuda.set_rng_state(optimizer_checkpoint['cuda_rng_state'])
-    del optimizer_checkpoint
+    if resume_optimizer:
+        start_step = checkpoint['step']  # Resume from next step
+        # Load optimizer checkpoint 
+        optimizer_checkpoint = torch.load(resume_checkpoint.replace('model_', 'optimizer_'))
+        optimizer.load_state_dict(optimizer_checkpoint['optimizer'])
+
+        # Restore RNG state
+        torch.set_rng_state(optimizer_checkpoint['rng_state'])
+        torch.cuda.set_rng_state(optimizer_checkpoint['cuda_rng_state'])
+        del optimizer_checkpoint
     
     # --- ADDED: Restore the dataloader state if available ---
     resume_dataloader_checkpoint = resume_checkpoint.replace('model_', 'dataloader_')
@@ -172,6 +181,14 @@ if resume_checkpoint is not None:
     
     if ddp:
         model = DDP(model, device_ids=[device_id])
+
+if add_a_head:
+    print("ADDING A HEAD")
+    assert resume_optimizer != True, "if adding a head, you're not allowed to reuse your optimizer"
+    grow_qkv_o(config,model)
+
+    # create a new optimizer for the new parameters
+    optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type)
 
 torch.cuda.empty_cache()
 
