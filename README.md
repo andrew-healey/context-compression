@@ -43,9 +43,22 @@ rm -rf yorth_run_0_continued; RESUME_CHECKPOINT=/root/.cache/huggingface/hub/mod
 rm -rf yorth_run_0_continued_with_head; RESUME_CHECKPOINT=/root/.cache/huggingface/hub/models--Yorth--selective1/snapshots/1d3d987c90be4b8d6f58de60749ba5823f0ecd29/model.pt RESUME_OPTIMIZER=false ATTENTION_KIND=selective ADD_A_HEAD=true LOG_DIR=yorth_run_0_continued_with_head CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=29503 --nproc_per_node=4 -m context_compression.train &> yorth_run_0_continued_with_head.txt
 ```
 
-## Converting a self-attention model to a selective attention model (without crazy loss spike)
+## Experiments on CPT
+
+Throwing out optimizer state, pretraining the self-attention model on more data
 
 ```
-rm -rf self_to_selective_run_0; RESUME_CHECKPOINT=unselective_run_0/model_09999.pt RESUME_OPTIMIZER=false ATTENTION_KIND=selective LOG_DIR=self_to_selective_run_0 ADD_A_HEAD=true ADD_HEAD_TO_START=true CUDA_VISIBLE_DEVICES=0,1,2,3 torch
-run --master_port=29503 --nproc_per_node=4 -m context_compression.train &> self_to_selective_run_0.txt
+rm -rf unselective_run_0_restarted; RESUME_CHECKPOINT=unselective_run_0/model_09999.pt RESUME_OPTIMIZER=false ATTENTION_KIND=self LOG_DIR=unselective_run_0_restarted CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=29504 --nproc_per_node=4 -m context_compression.train &> unselective_run_0_restarted.txt
+```
+
+Pretraining the self-attention model on more data, WITH an extra head
+
+```
+rm -rf unselective_run_0_restarted_with_head; RESUME_CHECKPOINT=unselective_run_0/model_09999.pt RESUME_OPTIMIZER=false ATTENTION_KIND=self LOG_DIR=unselective_run_0_restarted_with_head ADD_A_HEAD=true ADD_HEAD_TO_START=true CUDA_VISIBLE_DEVICES=4,5,6,7 torchrun --master_port=29503 --nproc_per_node=4 -m context_compression.train &> unselective_run_0_restarted_with_head.txt
+```
+
+Pretraining the selective attention model on more data, WITH a new selective head (DONE, see `self_to_selective_run_0`)
+
+```
+rm -rf self_to_selective_run_0; RESUME_CHECKPOINT=unselective_run_0/model_09999.pt RESUME_OPTIMIZER=false ATTENTION_KIND=selective LOG_DIR=self_to_selective_run_0 ADD_A_HEAD=true ADD_HEAD_TO_START=true CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=29505 --nproc_per_node=4 -m context_compression.train &> self_to_selective_run_0.txt
 ```
