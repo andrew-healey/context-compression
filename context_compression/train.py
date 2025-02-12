@@ -153,7 +153,7 @@ if resume_checkpoint is not None:
     print(f"Resuming from {resume_checkpoint}")
     # Load model checkpoint
     checkpoint = torch.load(resume_checkpoint)
-    raw_model.load_state_dict(checkpoint['model'])
+    raw_model.load_state_dict(checkpoint['model'], strict=False)
 
     del checkpoint
 

@@ -43,3 +43,9 @@ rm -rf yorth_run_0_continued; RESUME_CHECKPOINT=/root/.cache/huggingface/hub/mod
 rm -rf yorth_run_0_continued_with_head; RESUME_CHECKPOINT=/root/.cache/huggingface/hub/models--Yorth--selective1/snapshots/1d3d987c90be4b8d6f58de60749ba5823f0ecd29/model.pt RESUME_OPTIMIZER=false ATTENTION_KIND=selective ADD_A_HEAD=true LOG_DIR=yorth_run_0_continued_with_head CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=29503 --nproc_per_node=4 -m context_compression.train &> yorth_run_0_continued_with_head.txt
 ```
 
+## Converting a self-attention model to a selective attention model (without crazy loss spike)
+
+```
+rm -rf self_to_selective_run_0; RESUME_CHECKPOINT=unselective_run_0/model_09999.pt RESUME_OPTIMIZER=false ATTENTION_KIND=selective LOG_DIR=self_to_selective_run_0 ADD_A_HEAD=true ADD_HEAD_TO_START=true CUDA_VISIBLE_DEVICES=0,1,2,3 torch
+run --master_port=29503 --nproc_per_node=4 -m context_compression.train &> self_to_selective_run_0.txt
+```
