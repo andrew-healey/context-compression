@@ -7,9 +7,10 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
     def __init__(self, config):
         super().__init__()
         assert config.n_embd % config.n_head == 0
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_head * config.head_dim)
+        self.c_proj = nn.Linear(config.n_head * config.head_dim, config.n_embd)
         self.n_head = config.n_head
+        self.head_dim = config.head_dim
         self.n_embd = config.n_embd
 
         # Caching mechanism
@@ -55,7 +56,6 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
             pruned_lengths = cached_context['lengths']
 
             outputs = []
-            head_dim = C // self.n_head
 
             for b in range(B):
                 seq_outputs = []
@@ -70,17 +70,17 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
                 outputs.append(batch_output)
 
             y = torch.stack(outputs, dim=0)
-            y = y.transpose(1, 2).contiguous().view(B, T, C)
+            y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim)
             y = self.c_proj(y)
 
             return y, None
 
         # Existing attention computation logic
         qkv = self.c_attn(x)
-        q, k, v = qkv.split(self.n_embd, dim=2)
-        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
-        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
-        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        q, k, v = qkv.split(self.n_head * self.head_dim, dim=2)
+        k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
+        q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
+        v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
 
         # Standard attention computation
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
@@ -149,7 +149,7 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
             att = F.softmax(att, dim=-1)
             y = att @ v
 
-        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim)
         y = self.c_proj(y)
 
         return y, None
@@ -167,9 +167,10 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
     def __init__(self, config):
         super().__init__()
         assert config.n_embd % config.n_head == 0
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_head * config.head_dim)
+        self.c_proj = nn.Linear(config.n_head * config.head_dim, config.n_embd)
         self.n_head = config.n_head
+        self.head_dim = config.head_dim
         self.n_embd = config.n_embd
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))
@@ -178,10 +179,10 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
     def forward(self, x):
         B, T, C = x.size()
         qkv = self.c_attn(x)
-        q, k, v = qkv.split(self.n_embd, dim=2)
-        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
-        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
-        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        q, k, v = qkv.split(self.n_head * self.head_dim, dim=2)
+        k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
+        q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
+        v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
 
         # Standard attention computation
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
@@ -216,7 +217,7 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
         att = F.softmax(att, dim=-1)
 
         y = att @ v
-        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim)
         y = self.c_proj(y)
 
         return y, M
@@ -227,11 +228,12 @@ class CausalSelectiveSelfAttention(nn.Module):
         super().__init__()
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_head * config.head_dim)
         # output projection
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        self.c_proj = nn.Linear(config.n_head * config.head_dim, config.n_embd)
         # regularization
         self.n_head = config.n_head
+        self.head_dim = config.head_dim
         self.n_embd = config.n_embd
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))
@@ -240,10 +242,10 @@ class CausalSelectiveSelfAttention(nn.Module):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         qkv = self.c_attn(x)
-        q, k, v = qkv.split(self.n_embd, dim=2)
-        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        q, k, v = qkv.split(self.n_head * self.head_dim, dim=2)
+        k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+        q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+        v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
 
         # Standard attention computation
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
@@ -268,7 +270,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         att = F.softmax(att, dim=-1)
 
         y = att @ v
-        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim)
         y = self.c_proj(y)
         return y, None
 
@@ -278,13 +280,14 @@ class CausalSelfAttention(nn.Module):
         super().__init__()
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_head * config.head_dim)
         # output projection
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        self.c_proj = nn.Linear(config.n_head * config.head_dim, config.n_embd)
         self.c_proj.NANOGPT_SCALE_INIT = 1
         # regularization
         self.n_head = config.n_head
         self.n_embd = config.n_embd
+        self.head_dim = config.head_dim
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -292,12 +295,12 @@ class CausalSelfAttention(nn.Module):
         # nh is "number of heads", hs is "head size", and C (number of channels) = nh * hs
         # e.g. in GPT-2 (124M), n_head=12, hs=64, so nh*hs=C=768 channels in the Transformer
         qkv = self.c_attn(x)
-        q, k, v = qkv.split(self.n_embd, dim=2)
-        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        q, k, v = qkv.split(self.n_head * self.head_dim, dim=2)
+        k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+        q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+        v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
         y = F.scaled_dot_product_attention(q, k, v, is_causal=True) # flash attention
-        y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
+        y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim) # re-assemble all head outputs side by side
         # output projection
         y = self.c_proj(y)
         return y, None

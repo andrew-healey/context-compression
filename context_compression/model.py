@@ -32,6 +32,7 @@ class Block(nn.Module):
     def forward(self, x):
         # Get both attention output and memory requirements
         attn_out, M = self.attn(self.ln_1(x))
+        assert attn_out.shape == x.shape
         x = x + attn_out
         x = x + self.mlp(self.ln_2(x))
         return x, M
@@ -45,6 +46,7 @@ class GPTConfig:
     vocab_size: int = 50257
     n_layer: int = 12
     n_head: int = 12
+    head_dim: int = 64
     n_embd: int = 768
     epsilon: float = 0.1  # Weight for memory loss term
     hard_pruning_constant: Optional[float] = None # to fix the pruning during inference
