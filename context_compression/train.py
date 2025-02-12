@@ -158,8 +158,6 @@ if resume_checkpoint is not None:
     checkpoint = torch.load(resume_checkpoint)
     raw_model.load_state_dict(checkpoint['model'], strict=False)
 
-    del checkpoint
-
     if resume_optimizer:
         start_step = checkpoint['step']  # Resume from next step
         # Load optimizer checkpoint 
@@ -172,6 +170,9 @@ if resume_checkpoint is not None:
         del optimizer_checkpoint
     else:
         optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type)
+
+    del checkpoint
+
     
     # --- ADDED: Restore the dataloader state if available ---
     resume_dataloader_checkpoint = resume_checkpoint.replace('model_', 'dataloader_')
