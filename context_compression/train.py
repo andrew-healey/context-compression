@@ -194,8 +194,9 @@ if ddp:
 
 torch.cuda.empty_cache()
 
-eval_period = 250
+eval_period = 25
 save_period = 2500
+hellaswag_period = 250
 
 if master_process:
     with open(log_file, "a") as f:
@@ -251,7 +252,7 @@ for step in range(start_step, max_steps):
                 torch.save(train_loader.get_state(), os.path.join(log_dir, f"dataloader_{step:05d}.pt"))
 
     # once in a while evaluate hellaswag
-    if try_hellaswag and (step % 250 == 0 or last_step) and (not use_compile):
+    if try_hellaswag and (step % hellaswag_period == 0 or last_step) and (not use_compile):
         num_correct_norm = 0
         num_total = 0
         for i, example in enumerate(iterate_examples("val")):
