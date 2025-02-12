@@ -71,8 +71,10 @@ def grow_qkv_o(
             assert old_c_attn_bias.shape == (3 * old_n_head * config.head_dim,), f"I expect old_c_attn_bias.shape == (3 * old_n_head * config.head_dim), but got {old_c_attn_bias.shape} != {(3 * old_n_head * config.head_dim)}"
             old_c_attn_bias = old_c_attn_bias.view(3, old_n_head, config.head_dim)
 
-            if add_head_config.zero_out_new_head:
-                new_c_attn_bias[:] = 0
+            # we always zero this bias - otherwise it *kills* the perf of the rest of the model
+            # I think the structure of the weight initialization protects them
+            # b/c they start out small, and the o is multiplied by the v, so you get small * small = very small contribution to y from the new head.
+            new_c_attn_bias[:] = 0
             
             if add_head_config.add_head_to_start:
                 new_c_attn_bias[:, 1:, :] = old_c_attn_bias
