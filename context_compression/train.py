@@ -210,6 +210,7 @@ if should_add_a_head:
         print("ADDING A HEAD")
     assert resume_optimizer != True, "if adding a head, you're not allowed to reuse your optimizer"
     add_head_to_start = os.environ.get("ADD_HEAD_TO_START", None) == "true"
+    zero_out_new_head = os.environ.get("ZERO_OUT_NEW_HEAD", None) == "true"
     add_a_head(config, raw_model, AddHeadConfig(add_head_kind=AddHeadKind.GROW_QKV_O, add_head_to_start=add_head_to_start))
 
     # create a new optimizer for the new parameters
