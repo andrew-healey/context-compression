@@ -1,4 +1,3 @@
-print('starting')
 import os
 import math
 import time
@@ -9,7 +8,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 import tiktoken
 
-try_hellaswag = True
+try_hellaswag = os.environ.get("HELLASWAG", "true") == "true"
 
 
 
@@ -24,7 +23,7 @@ from .data import DataLoaderLite, get_most_likely_row
 from .model import GPT, GPTConfig
 from .attn import AttentionKind
 from .hellaswag import render_example, iterate_examples
-from .add_a_head import grow_qkv_o
+from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head
 
 # -----------------------------------------------------------------------------
 # simple launch:
@@ -39,12 +38,12 @@ import torch.distributed as dist
 
 assert "CUDA_VISIBLE_DEVICES" in os.environ, "You have to pass in CUDA_VISIBLE_DEVICES"
 visible_device_ids = [int(id) for id in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
-assert len(visible_device_ids) == int(os.environ['WORLD_SIZE']), "CUDA_VISIBLE_DEVICES must have as many devices as WORLD_SIZE"
 
 # set up DDP (distributed data parallel).
 # torchrun command sets the env variables RANK, LOCAL_RANK, and WORLD_SIZE
 ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
 if ddp:
+    assert len(visible_device_ids) == int(os.environ['WORLD_SIZE']), "CUDA_VISIBLE_DEVICES must have as many devices as WORLD_SIZE"
     # use of DDP atm demands CUDA, we set the device appropriately according to rank
     assert torch.cuda.is_available(), "for now i think we need CUDA for DDP"
     init_process_group(backend='nccl')
@@ -104,9 +103,7 @@ model.to(device)
 use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix
 if use_compile:
     model = torch.compile(model)
-if ddp:
-    model = DDP(model, device_ids=[device_id])
-raw_model = model.module if ddp else model # always contains the "raw" unwrapped model
+raw_model = model # always contains the "raw" unwrapped model
 
 max_lr = 6e-4
 min_lr = max_lr * 0.1
@@ -142,7 +139,7 @@ if master_process:
 resume_checkpoint = os.environ.get("RESUME_CHECKPOINT", None)  # or get from args/env var
 resume_optimizer = None
 
-add_a_head = os.environ.get("ADD_A_HEAD", None) == "true"
+should_add_a_head = os.environ.get("ADD_A_HEAD", None) == "true"
 
 # Initialize step counter
 start_step = 0
@@ -170,25 +167,30 @@ if resume_checkpoint is not None:
         torch.set_rng_state(optimizer_checkpoint['rng_state'])
         torch.cuda.set_rng_state(optimizer_checkpoint['cuda_rng_state'])
         del optimizer_checkpoint
+    else:
+        optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type)
     
     # --- ADDED: Restore the dataloader state if available ---
     resume_dataloader_checkpoint = resume_checkpoint.replace('model_', 'dataloader_')
-    if resume_dataloader_checkpoint is not None:
+    if os.path.exists(resume_dataloader_checkpoint):
         print(f"Resuming dataloader state from {resume_dataloader_checkpoint}")
         dataloader_state = torch.load(resume_dataloader_checkpoint)
         train_loader.set_state(dataloader_state)
         del dataloader_state
     
-    if ddp:
-        model = DDP(model, device_ids=[device_id])
 
-if add_a_head:
-    print("ADDING A HEAD")
+if should_add_a_head:
+    if master_process:
+        print("ADDING A HEAD")
     assert resume_optimizer != True, "if adding a head, you're not allowed to reuse your optimizer"
-    grow_qkv_o(config,model)
+    add_head_to_start = os.environ.get("ADD_HEAD_TO_START", None) == "true"
+    add_a_head(config, raw_model, AddHeadConfig(add_head_kind=AddHeadKind.GROW_QKV_O, add_head_to_start=add_head_to_start))
 
     # create a new optimizer for the new parameters
     optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type)
+
+if ddp:
+    model = DDP(model, device_ids=[device_id])
 
 torch.cuda.empty_cache()
 

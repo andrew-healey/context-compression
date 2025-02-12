@@ -33,7 +33,6 @@ def grow_qkv_o(
         model: GPT,
         add_head_config: AddHeadConfig
     ):
-    print("Growing QKV and O matrices")
 
     old_n_head = config.n_head
 
@@ -45,13 +44,17 @@ def grow_qkv_o(
         new_c_attn = nn.Linear(config.n_embd, 3 * config.n_head * config.head_dim, device=block.attn.c_attn.weight.device, dtype=block.attn.c_attn.weight.dtype)
         new_c_proj = nn.Linear(config.n_head * config.head_dim, config.n_embd, device=block.attn.c_proj.weight.device, dtype=block.attn.c_proj.weight.dtype)
 
+        old_c_attn = block.attn.c_attn
+        old_c_proj = block.attn.c_proj
+        block.attn.n_head = config.n_head
+
         with torch.no_grad():
 
             new_c_attn_weight = new_c_attn.weight.T
             assert new_c_attn_weight.shape == (config.n_embd, 3 * config.n_head * config.head_dim), f"I expect new_c_attn_weight.shape == (config.n_embd, 3 * config.n_head * config.head_dim), but got {new_c_attn_weight.shape} != {(config.n_embd, 3 * config.n_head * config.head_dim)}"
             new_c_attn_weight = new_c_attn_weight.view(config.n_embd, 3, config.n_head, config.head_dim)
             
-            old_c_attn_weight = block.attn.c_attn.weight.T
+            old_c_attn_weight = old_c_attn.weight.T
             assert old_c_attn_weight.shape == (config.n_embd, 3 * old_n_head * config.head_dim), f"I expect old_c_attn_weight.shape == (config.n_embd, 3 * old_n_head * config.head_dim), but got {old_c_attn_weight.shape} != {(config.n_embd, 3 * old_n_head * config.head_dim)}"
             old_c_attn_weight = old_c_attn_weight.view(config.n_embd, 3, old_n_head, config.head_dim)
 
@@ -67,7 +70,7 @@ def grow_qkv_o(
             new_c_attn_bias = new_c_attn.bias
             assert new_c_attn_bias.shape == (3 * config.n_head * config.head_dim,), f"I expect new_c_attn_bias.shape == (3 * config.n_head * config.head_dim), but got {new_c_attn_bias.shape} != {(3 * config.n_head * config.head_dim)}"
             new_c_attn_bias = new_c_attn_bias.view(3, config.n_head, config.head_dim)
-            old_c_attn_bias = block.attn.c_attn.bias
+            old_c_attn_bias = old_c_attn.bias
             assert old_c_attn_bias.shape == (3 * old_n_head * config.head_dim,), f"I expect old_c_attn_bias.shape == (3 * old_n_head * config.head_dim), but got {old_c_attn_bias.shape} != {(3 * old_n_head * config.head_dim)}"
             old_c_attn_bias = old_c_attn_bias.view(3, old_n_head, config.head_dim)
 
@@ -88,7 +91,7 @@ def grow_qkv_o(
             assert new_c_proj_weight.shape == (config.n_head * config.head_dim, config.n_embd), f"I expect new_c_proj_weight.shape == (config.n_head * config.head_dim, config.n_embd), but got {new_c_proj_weight.shape} != {(config.n_head * config.head_dim, config.n_embd)}"
             new_c_proj_weight = new_c_proj_weight.view(config.n_head, config.head_dim, config.n_embd)
             
-            old_c_proj_weight = block.attn.c_proj.weight.T
+            old_c_proj_weight = old_c_proj.weight.T
             assert old_c_proj_weight.shape == (old_n_head * config.head_dim, config.n_embd), f"I expect old_c_proj_weight.shape == (old_n_head * config.head_dim, config.n_embd), but got {old_c_proj_weight.shape} != {(old_n_head * config.head_dim, config.n_embd)}"
             old_c_proj_weight = old_c_proj_weight.view(old_n_head, config.head_dim, config.n_embd)
 
@@ -101,8 +104,6 @@ def grow_qkv_o(
                 new_c_proj_weight[:-1, :, :] = old_c_proj_weight
             
             # we don't need to modify the bias for c_proj
-            new_c_proj.bias = block.attn.c_proj.bias
+            new_c_proj.bias = old_c_proj.bias
 
             block.attn.c_proj = new_c_proj
-
-        block.attn.n_head = config.n_head

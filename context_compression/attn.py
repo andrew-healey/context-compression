@@ -250,7 +250,6 @@ class CausalSelectiveSelfAttention(nn.Module):
         # Standard attention computation
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
-
         # Apply selective attention
         S = att[:, 0].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
         S = F.relu(S)  # Only positive selection
@@ -265,7 +264,9 @@ class CausalSelectiveSelfAttention(nn.Module):
         S_shifted = torch.roll(S, 1, -2)  # Shift to mask strictly in the future
         S_shifted[..., 0, :] = 0  # Ensure future masking without inplace
 
-        att -= torch.cumsum(S_shifted, dim=-2)[:, None]   # Subtract accumulated attention from original logits
+        # Use out-of-place subtraction to preserve computation graph integrity
+        cs = torch.cumsum(S_shifted, dim=-2)[:, None]
+        att = att - cs
 
         att = F.softmax(att, dim=-1)
 

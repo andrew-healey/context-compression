@@ -101,7 +101,7 @@ class GPT(nn.Module):
 
         # Collect memory requirements from all layers
         memory_reqs = []
-        for block in self.transformer.h:
+        for i, block in enumerate(self.transformer.h):
             x, M = block(x)
             memory_reqs.append(M)
 
