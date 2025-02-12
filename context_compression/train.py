@@ -149,19 +149,32 @@ start_step = 0
 
 # Load checkpoint if resuming
 if resume_checkpoint is not None:
+    from huggingface_hub import hf_hub_download
 
     assert os.environ["RESUME_OPTIMIZER"] in ["true", "false"], "RESUME_OPTIMIZER must be true or false"
     resume_optimizer = os.environ["RESUME_OPTIMIZER"] == "true"
 
     print(f"Resuming from {resume_checkpoint}")
     # Load model checkpoint
-    checkpoint = torch.load(resume_checkpoint)
+    if resume_checkpoint.startswith("hf://"):
+        # Download from HuggingFace
+        repo_id = "/".join(resume_checkpoint[len("hf://"):].split("/")[:2])
+        rel_path = "/".join(resume_checkpoint[len("hf://"):].split("/")[2:])
+        print(f"Downloading from {repo_id} to {rel_path}")
+        checkpoint = torch.load(hf_hub_download(repo_id, rel_path))
+    else:
+        checkpoint = torch.load(resume_checkpoint)
     raw_model.load_state_dict(checkpoint['model'], strict=False)
 
     if resume_optimizer:
         start_step = checkpoint['step']  # Resume from next step
         # Load optimizer checkpoint 
-        optimizer_checkpoint = torch.load(resume_checkpoint.replace('model_', 'optimizer_'))
+        if resume_checkpoint.startswith("hf://"):
+            repo_id = "/".join(resume_checkpoint[len("hf://"):].split("/")[:2])
+            rel_path = "/".join(resume_checkpoint[len("hf://"):].split("/")[2:])
+            optimizer_checkpoint = torch.load(hf_hub_download(repo_id, rel_path.replace('model_', 'optimizer_')))
+        else:
+            optimizer_checkpoint = torch.load(resume_checkpoint.replace('model_', 'optimizer_'))
         optimizer.load_state_dict(optimizer_checkpoint['optimizer'])
 
         # Restore RNG state
@@ -175,13 +188,22 @@ if resume_checkpoint is not None:
 
     
     # --- ADDED: Restore the dataloader state if available ---
-    resume_dataloader_checkpoint = resume_checkpoint.replace('model_', 'dataloader_')
-    if os.path.exists(resume_dataloader_checkpoint):
-        print(f"Resuming dataloader state from {resume_dataloader_checkpoint}")
-        dataloader_state = torch.load(resume_dataloader_checkpoint)
-        train_loader.set_state(dataloader_state)
-        del dataloader_state
-    
+    if resume_checkpoint.startswith("hf://"):
+        repo_id = "/".join(resume_checkpoint[len("hf://"):].split("/")[:2])
+        rel_path = "/".join(resume_checkpoint[len("hf://"):].split("/")[2:])
+        dataloader_path = hf_hub_download(repo_id, rel_path.replace('model_', 'dataloader_'))
+        if os.path.exists(dataloader_path):
+            print(f"Resuming dataloader state from {dataloader_path}")
+            dataloader_state = torch.load(dataloader_path)
+            train_loader.set_state(dataloader_state)
+            del dataloader_state
+    else:
+        resume_dataloader_checkpoint = resume_checkpoint.replace('model_', 'dataloader_')
+        if os.path.exists(resume_dataloader_checkpoint):
+            print(f"Resuming dataloader state from {resume_dataloader_checkpoint}")
+            dataloader_state = torch.load(resume_dataloader_checkpoint)
+            train_loader.set_state(dataloader_state)
+            del dataloader_state
 
 if should_add_a_head:
     if master_process:
