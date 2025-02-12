@@ -109,6 +109,9 @@ max_lr = 6e-4
 min_lr = max_lr * 0.1
 warmup_steps = 715
 max_steps = 10000 # 19,073 steps is ~1 epoch, if data is 10B tokens and batch size 0.5M tokens
+if os.environ.get("MAX_STEPS") is not None:
+    max_steps = int(os.environ["MAX_STEPS"])
+
 def get_lr(it):
     # 1 linear warmup for warmup_iters steps
     if it < warmup_steps:

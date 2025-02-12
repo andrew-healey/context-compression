@@ -62,3 +62,15 @@ Pretraining the selective attention model on more data, WITH a new selective hea
 ```
 rm -rf self_to_selective_run_0; RESUME_CHECKPOINT=unselective_run_0/model_09999.pt RESUME_OPTIMIZER=false ATTENTION_KIND=selective LOG_DIR=self_to_selective_run_0 ADD_A_HEAD=true ADD_HEAD_TO_START=true CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=29505 --nproc_per_node=4 -m context_compression.train &> self_to_selective_run_0.txt
 ```
+
+Continuing pretraining for the last 2500 steps, with the same optimizer
+
+```
+rm -rf unselective_run_0_continued; RESUME_CHECKPOINT=unselective_run_0/model_07500.pt RESUME_OPTIMIZER=true ATTENTION_KIND=selective LOG_DIR=unselective_run_0_continued CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=29506 --nproc_per_node=4 -m context_compression.train &> unselective_run_0_continued.txt
+```
+
+Continuing pretraining for the last 2500 steps, with a new optimizer (and a new lr schedule)
+
+```
+rm -rf unselective_run_0_continued_with_new_optimizer; RESUME_CHECKPOINT=unselective_run_0/model_07500.pt RESUME_OPTIMIZER=false ATTENTION_KIND=selective LOG_DIR=unselective_run_0_continued_with_new_optimizer MAX_STEPS=2500 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=29507 --nproc_per_node=4 -m context_compression.train &> unselective_run_0_continued_with_new_optimizer.txt
+```
