@@ -167,7 +167,11 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
 
 ## Experiments on selective-head surgery CPT
 
-Using an O-zeroed-out new head. This will probably have much higher initial loss than the KO-zeroed-out head. I bet it'll have higher final loss too.
+Using an O-zeroed-out new head.
+
+Hypothesis: this will probably have much higher initial loss than the KO-zeroed-out head. I bet it'll have higher final loss too.
+
+Result: unclear. I'm gonna run some more seeds later.
 
 ```
 torchrun --nproc_per_node=gpu -m context_compression.train \
@@ -182,7 +186,11 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_1_restarted_with_o_zero.txt
 ```
 
-Using a K-zeroed-out new head. This will probably be identical to the KO-zeroed-out head.
+Using a K-zeroed-out new head.
+
+Hypothesis: This will probably be identical to the KO-zeroed-out head.
+
+Result: Unclear. I'm gonna run some more seeds later.
 
 ```
 torchrun --nproc_per_node=gpu -m context_compression.train \
@@ -198,7 +206,13 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_1_restarted_with_k_zero.txt
 ```
 
-Using a memory loss term. This will do worse than everything so far on CE loss, but it'll do better than everything else at aggressive memory thresholds.
+Using a memory loss term.
+
+Hypothesis: This will do worse than everything so far on CE loss, but it'll do better than everything else at aggressive memory thresholds.
+
+Result: I still don't know, actually! HF_TOKEN bug means I don't have the model artefact. I have to re-run this to see.
+
+FWIW, it had much CE loss than all the other CPT selective runs (but still better than unselective, which is v interesting! TODO think more later about what this means).
 
 ```
 torchrun --nproc_per_node=gpu -m context_compression.train \
@@ -214,6 +228,10 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
 ```
 
 With the BOS token unprotected - to compare to the magnitude of differences Leviathan measures.
+
+Hypothesis: this'll be noticeably worse than the default KO-zero runs, like leviathan said it is.
+
+Result: honestly not noticeably different. Makes me think my resolution is super bad compared to his (he pretrains from scratch, for like 50x longer than me). Let's try harder to reproduce his results in future experiments.
 
 ```
 torchrun --nproc_per_node=gpu -m context_compression.train \
@@ -233,7 +251,16 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
 
 ## More experiments on selective-head surgery CPT
 
-Using a lower penalty for memory in the loss function. e=0.02.
+(results are [here](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=zx6asbynpfb&panelDisplayName=train_loss_ce&panelSectionName=Charts))
+
+
+
+Using a lower penalty for memory in the loss function. e=0.02. (17813137)
+
+Hypothesis: this will do much better than the epsilon=0.1 run, as measured by CE loss on the validation set.
+And it'll do slightly better, as measured by CE loss with aggressive pruning.
+
+Result: idk. The CE loss with no pruning is much lower, and the memory loss is much higher. BUT I didn't upload the model OR the logfile to huggingface properly. So I don't know about the important thing, gotta re-run this.
 
 ```
 torchrun --nproc_per_node=gpu -m context_compression.train \
@@ -249,7 +276,10 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_1_restarted_with_memory_penalty_0.02.txt
 ```
 
-Using a normal QKVO init for the new head.
+Using a normal QKVO init for the new head. (17813138)
+Hypothesis: this'll start off much worse, but will end up doing about as well as the KO initialization.
+
+Result: this was acc v bad. Its running-avg training CE loss was better than no selection runs, BUT it's abt as bad as the o-zero init run. (which is to say, p bad!)
 
 ```
 torchrun --nproc_per_node=gpu -m context_compression.train \
@@ -264,7 +294,12 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_1_restarted_with_normal_init.txt
 ```
 
-Putting the new head at the end, not the start.
+Putting the new head at the end, not the start. (17813139)
+Hypothesis: this'll get better loss than an unselective run, but worse than a normal-initted selective run.
+
+Result: this was surprisingly bad. Did just as badly as an unselective run with ko=zero.
+I guess models can't work miracles - it's just rly hard to make the existing circuitry for arbitrarily-chosen head=1 *also* be a good selection head.
+I do still wonder about the linear layer thing. I'll try it eventually. Maybe after lunch.
 
 ```
 torchrun --nproc_per_node=gpu -m context_compression.train \
@@ -280,7 +315,13 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_1_restarted_head_at_end.txt
 ```
 
-Rerun of the o zero init run, with a new random seed.
+Rerun of the o zero init run, with a new random seed. (17813144)
+
+Hypothesis: same hypothesis as before - it'll have a higher initial and final loss than the ko-zero run.
+
+Result: it was a little unclear when looking at the valid losses, but from looking at the running-avg training losses, this looks definitely worse than the ko-zero run and the k-zero runs.
+
+Seems maybe a little better than the normal-init run, but not much. Makes some sense - the head is less confused than normal init at first, b/c it's not contributing to the final attn output. But it's still super bad, b/c the head is mostly just wreaking havoc on the rest of the attn heads.
 
 ```
 torchrun --nproc_per_node=gpu -m context_compression.train \
@@ -297,7 +338,11 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_2_restarted_with_o_zero.txt
 ```
 
-Rerun of the k zero init run, with a new random seed.
+Rerun of the k zero init run, with a new random seed. (17813147)
+
+Hypothesis: same as before - it'll be identical to ko-zero.
+
+Result: seems like maybe. It might be a little better. I'm not sure, will probably do one more ko run and one more k run to be sure. But the strong default is that I'm keeping ko-zero (more stable initial loss, and high switching cost b/c previous experiments used it).
 
 ```
 torchrun --nproc_per_node=gpu -m context_compression.train \
@@ -313,3 +358,63 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   --kill_self_after_run \
   &> self_to_selective_run_2_restarted_with_k_zero.txt
 ```
+
+## selective-head surgery CPT 5
+
+Another seed for ko-zero.
+
+Hypothesis: it'll be basically as good as the k-zero runs.
+
+```
+```
+
+Another seed for k-zero.
+
+Hypothesis: it'll be basically as good as the ko-zero runs.
+
+```
+```
+
+Another seed for unprotected BOS token.
+
+Hypothesis: taken with the other run, it'll be a tiny bit worse than the ko-zero baseline.
+
+```
+```
+
+A third seed for unprotected BOS token.
+
+Hypothesis: taken with the other runs, it'll be a tiny bit worse than the ko-zero baseline.
+
+```
+```
+
+Re-run of the memory loss run with eps=0.1.
+
+Hypothesis: CE loss will be much better than everything else with pruning. But worse than eps=0.02 with pruning.
+
+```
+```
+
+Re-run of the memory loss run with eps=0.02.
+
+Hypothesis: CE loss about as good as eps=0. But better than eps=0.1 with pruning.
+
+```
+```
+
+Allow tokens to mask themselves.
+
+Hypothesis: between the two seeds, this'll show some tiny but nonzero difference vs. the ko-zero baseline. i.e. it's worse.
+
+```
+```
+
+Allow tokens to mask themselves, with a new seed.
+
+Hypothesis: between the two seeds, this'll show some tiny but nonzero difference vs. the ko-zero baseline. i.e. it's worse.
+
+```
+```
+
+
