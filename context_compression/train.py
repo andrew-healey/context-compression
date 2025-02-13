@@ -13,6 +13,13 @@ import shutil
 from huggingface_hub import hf_hub_download, HfApi
 import wandb
 
+from .data import DataLoaderLite, get_most_likely_row
+from .model import GPT, GPTConfig
+from .attn import AttentionKind
+from .hellaswag import render_example, iterate_examples
+from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head, NewHeadInit
+
+
 # Parse command-line arguments for custom configuration
 parser = argparse.ArgumentParser(description="Train GPT with context compression.")
 parser.add_argument("--hellaswag", dest="hellaswag", action="store_true",
@@ -50,12 +57,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
-
-from .data import DataLoaderLite, get_most_likely_row
-from .model import GPT, GPTConfig
-from .attn import AttentionKind
-from .hellaswag import render_example, iterate_examples
-from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head, NewHeadInit
 
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -159,11 +160,13 @@ if master_process:
     # ANDREWTODO write config metadata to the log file
     with open(os.path.join(log_dir, f"args.json"), "w") as f:
         # let's just write the args to the config file
-        json.dump(args, f)
+        json.dump(vars(args), f)
         
     # Initialize wandb for logging (only for the master process)
     wandb.init(project="context_compression", 
                config=vars(args), 
+               group=args.group,
+               name=os.path.basename(args.log_dir),
                dir=log_dir,
                mode="online" if args.use_wandb else "disabled")
 

@@ -3,4 +3,6 @@ __pycache__
 *.npy
 *.pt
 *.jsonl
-
+*.json
+*.log
+wandb
