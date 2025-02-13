@@ -6,7 +6,6 @@ import torch.nn.functional as F
 class CausalSelectiveSelfAttentionForInference(nn.Module):
     def __init__(self, config):
         super().__init__()
-        assert config.n_embd % config.n_head == 0
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_head * config.head_dim)
         self.c_proj = nn.Linear(config.n_head * config.head_dim, config.n_embd)
         self.n_head = config.n_head
