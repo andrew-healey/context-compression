@@ -48,6 +48,8 @@ parser.add_argument("--group", type=str, default=None,
                     help="Group name for the run")
 parser.add_argument("--no-wandb", dest="use_wandb", action="store_false",
                     help="Disable wandb logging")
+parser.add_argument("--kill_self_after_run", action="store_true",
+                    help="Kill my own instance after run completes")
 parser.set_defaults(use_wandb=True)
 args = parser.parse_args()
 
@@ -441,6 +443,10 @@ if master_process:
         repo_type="model"
     )
     wandb.finish()
+
+if args.kill_self_after_run:
+    print("Run succeeded, killing my own instance")
+    os.system("vastai stop instance $CONTAINER_ID;")
 
 if ddp:
     destroy_process_group()
