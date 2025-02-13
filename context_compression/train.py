@@ -2,15 +2,43 @@ import os
 import math
 import time
 import inspect
+import json
 from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import tiktoken
+import argparse
+import shutil
+from huggingface_hub import hf_hub_download, HfApi
 
-try_hellaswag = os.environ.get("HELLASWAG", "true") == "true"
+# Parse command-line arguments for custom configuration
+parser = argparse.ArgumentParser(description="Train GPT with context compression.")
+parser.add_argument("--hellaswag", dest="hellaswag", action="store_true",
+                    help="Enable HellaSwag evaluation (default: True)")
+parser.add_argument("--no-hellaswag", dest="hellaswag", action="store_false",
+                    help="Disable HellaSwag evaluation")
+parser.set_defaults(hellaswag=True)
 
-
+parser.add_argument("--attention_kind", type=lambda x: AttentionKind(x.lower()), required=True,
+                    help="Attention type to use (e.g., self, selective)")
+parser.add_argument("--log_dir", type=str, required=True,
+                    help="Directory to save logs and checkpoints")
+parser.add_argument("--resume_checkpoint", type=str, default=None,
+                    help="Checkpoint path to resume training from")
+parser.add_argument("--resume_optimizer", action="store_true",
+                    help="Resume optimizer state when resuming checkpoint")
+parser.add_argument("--add_a_head", action="store_true",
+                    help="Add an additional head")
+parser.add_argument("--add_head_to_start", action="store_true",
+                    help="Place the new head at the start")
+parser.add_argument("--new_head_init", type=lambda x: NewHeadInit(x.lower()), default=NewHeadInit.NORMAL,
+                    help="Initialization type for the new head (e.g., normal, o_rescaled, o_zero, ko_zero)")
+parser.add_argument("--max_steps", type=int, default=10000,
+                    help="Maximum number of training steps")
+parser.add_argument("--group", type=str, default=None,
+                    help="Group name for the run")
+args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
 import math
@@ -25,25 +53,16 @@ from .attn import AttentionKind
 from .hellaswag import render_example, iterate_examples
 from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head, NewHeadInit
 
-# -----------------------------------------------------------------------------
-# simple launch:
-# python train_gpt2.py
-# DDP launch for e.g. 8 GPUs:
-# torchrun --standalone --nproc_per_node=8 train_gpt2.py
-
-# run the training loop
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
-assert "CUDA_VISIBLE_DEVICES" in os.environ, "You have to pass in CUDA_VISIBLE_DEVICES"
-visible_device_ids = [int(id) for id in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
 
 # set up DDP (distributed data parallel).
 # torchrun command sets the env variables RANK, LOCAL_RANK, and WORLD_SIZE
 ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
 if ddp:
-    assert len(visible_device_ids) == int(os.environ['WORLD_SIZE']), "CUDA_VISIBLE_DEVICES must have as many devices as WORLD_SIZE"
+    assert torch.cuda.device_count() == int(os.environ['WORLD_SIZE']), "CUDA_VISIBLE_DEVICES must have as many devices as WORLD_SIZE"
     # use of DDP atm demands CUDA, we set the device appropriately according to rank
     assert torch.cuda.is_available(), "for now i think we need CUDA for DDP"
     init_process_group(backend='nccl')
@@ -70,7 +89,6 @@ else:
         device = "mps"
     print(f"using device: {device}")
 
-# added after video, pytorch can be serious about it's device vs. device_type distinction
 device_type = "cuda" if device.startswith("cuda") else "cpu"
 
 torch.manual_seed(1337)
@@ -93,12 +111,9 @@ val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_w
 
 torch.set_float32_matmul_precision('high')
 
-attention_kind = AttentionKind(os.environ["ATTENTION_KIND"])
-
 # create model
-config = GPTConfig(vocab_size=50304, attention_kind=attention_kind, for_inference=False)
+config = GPTConfig(vocab_size=50304, attention_kind=args.attention_kind, for_inference=False)
 model = GPT(config)
-# model = GPT.from_pretrained("gpt2") # or init from OpenAI GPT-2
 model.to(device)
 use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix
 non_compiled_model = model
@@ -109,9 +124,7 @@ raw_model = model # always contains the "raw" unwrapped model
 max_lr = 6e-4
 min_lr = max_lr * 0.1
 warmup_steps = 715
-max_steps = 10000 # 19,073 steps is ~1 epoch, if data is 10B tokens and batch size 0.5M tokens
-if os.environ.get("MAX_STEPS") is not None:
-    max_steps = int(os.environ["MAX_STEPS"])
+max_steps = args.max_steps
 
 def get_lr(it):
     # 1 linear warmup for warmup_iters steps
@@ -130,31 +143,32 @@ def get_lr(it):
 optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type)
 
 # create the log directory we will write checkpoints to and log to
-assert os.environ["LOG_DIR"] is not None, "You have to pass in a log directory for this run"
-log_dir = os.environ["LOG_DIR"]
+assert args.log_dir is not None, "You have to pass in a log directory for this run"
+log_dir = args.log_dir
 if master_process:
+
+    # rmdir if it exists
+    if os.path.exists(log_dir):
+        shutil.rmtree(log_dir)
+
     os.makedirs(log_dir, exist_ok=False)
     # ANDREWTODO write config metadata to the log file
+    with open(os.path.join(log_dir, f"args.json"), "w") as f:
+        # let's just write the args to the config file
+        json.dump(args, f)
+
 log_file = os.path.join(log_dir, f"log2.txt")
 if master_process:
     with open(log_file, "w") as f: # open for writing to clear the file
         pass
 
-# At the start of your training script, add a resume checkpoint argument
-resume_checkpoint = os.environ.get("RESUME_CHECKPOINT", None)  # or get from args/env var
-resume_optimizer = None
-
-should_add_a_head = os.environ.get("ADD_A_HEAD", None) == "true"
+resume_checkpoint = args.resume_checkpoint
 
 # Initialize step counter
 start_step = 0
 
 # Load checkpoint if resuming
 if resume_checkpoint is not None:
-    from huggingface_hub import hf_hub_download
-
-    assert os.environ["RESUME_OPTIMIZER"] in ["true", "false"], "RESUME_OPTIMIZER must be true or false"
-    resume_optimizer = os.environ["RESUME_OPTIMIZER"] == "true"
 
     print(f"Resuming from {resume_checkpoint}")
     # Load model checkpoint
@@ -168,7 +182,7 @@ if resume_checkpoint is not None:
         checkpoint = torch.load(resume_checkpoint)
     raw_model.load_state_dict(checkpoint['model'], strict=False)
 
-    if resume_optimizer:
+    if args.resume_optimizer:
         start_step = checkpoint['step']  # Resume from next step
         # Load optimizer checkpoint 
         if resume_checkpoint.startswith("hf://"):
@@ -207,16 +221,20 @@ if resume_checkpoint is not None:
             train_loader.set_state(dataloader_state)
             del dataloader_state
 
-if should_add_a_head:
+if args.add_a_head:
     if master_process:
         print("ADDING A HEAD")
-    assert resume_optimizer != True, "if adding a head, you're not allowed to reuse your optimizer"
-    add_head_to_start = os.environ.get("ADD_HEAD_TO_START", None) == "true"
-    new_head_init = NewHeadInit(os.environ.get("NEW_HEAD_INIT", "NORMAL").lower())
-    add_a_head(config, raw_model, AddHeadConfig(add_head_kind=AddHeadKind.GROW_QKV_O, add_head_to_start=add_head_to_start, new_head_init=new_head_init))
+    assert not args.resume_optimizer, "if adding a head, you're not allowed to reuse your optimizer"
+    add_head_to_start = args.add_head_to_start
+    new_head_init = NewHeadInit(args.new_head_init.lower())
+    add_a_head(config, raw_model, AddHeadConfig(add_head_kind=AddHeadKind.GROW_QKV_O,
+                                                 add_head_to_start=add_head_to_start,
+                                                 new_head_init=new_head_init))
 
     # create a new optimizer for the new parameters
-    optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type)
+    optimizer = raw_model.configure_optimizers(weight_decay=0.1,
+                                                 learning_rate=6e-4,
+                                                 device_type=device_type)
 
 if ddp:
     model = DDP(model, device_ids=[device_id])
@@ -277,11 +295,10 @@ for step in range(start_step, max_steps):
                     'rng_state': torch.get_rng_state(),
                     'cuda_rng_state': torch.cuda.get_rng_state()
                 }, os.path.join(log_dir, f"optimizer_{step:05d}.pt"))
-                # --- ADDED: Save the dataloader state for resuming ---
                 torch.save(train_loader.get_state(), os.path.join(log_dir, f"dataloader_{step:05d}.pt"))
 
     # once in a while evaluate hellaswag
-    if try_hellaswag and (step % hellaswag_period == 0 or last_step) and (not use_compile):
+    if args.try_hellaswag and (step % hellaswag_period == 0 or last_step) and (not use_compile):
         num_correct_norm = 0
         num_total = 0
         for i, example in enumerate(iterate_examples("val")):
@@ -388,9 +405,6 @@ for step in range(start_step, max_steps):
             f.write(f"{step} train {loss_accum.item():.6f} (lr={lr:.4e}) (hash(x)={x.sum().item()})\n")
 
 if master_process:
-    # let's upload the whole run to huggingface
-    # i.e. everything in the log_dir
-    from huggingface_hub import HfApi
     api = HfApi()
     log_dir_basename = os.path.basename(log_dir)
     api.upload_folder(
