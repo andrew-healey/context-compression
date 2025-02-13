@@ -11,6 +11,7 @@ import tiktoken
 import argparse
 import shutil
 from huggingface_hub import hf_hub_download, HfApi
+import wandb
 
 # Parse command-line arguments for custom configuration
 parser = argparse.ArgumentParser(description="Train GPT with context compression.")
@@ -38,6 +39,9 @@ parser.add_argument("--max_steps", type=int, default=10000,
                     help="Maximum number of training steps")
 parser.add_argument("--group", type=str, default=None,
                     help="Group name for the run")
+parser.add_argument("--no-wandb", dest="use_wandb", action="store_false",
+                    help="Disable wandb logging")
+parser.set_defaults(use_wandb=True)
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -156,6 +160,12 @@ if master_process:
     with open(os.path.join(log_dir, f"args.json"), "w") as f:
         # let's just write the args to the config file
         json.dump(args, f)
+        
+    # Initialize wandb for logging (only for the master process)
+    wandb.init(project="context_compression", 
+               config=vars(args), 
+               dir=log_dir,
+               mode="online" if args.use_wandb else "disabled")
 
 log_file = os.path.join(log_dir, f"log2.txt")
 if master_process:
@@ -277,6 +287,11 @@ for step in range(start_step, max_steps):
             with open(log_file, "a") as f:
                 f.write(f"{step} val loss {val_loss_accum.item():.4f}\n")
                 f.write(f"{step} val perplexity {validation_perplexity:.4f}\n")
+            wandb.log({
+                "step": step,
+                "val_loss": val_loss_accum.item(),
+                "val_perplexity": validation_perplexity.item() # ANDREWTODO be honest abt loss, so I can get good memory loss plots
+            }, step=step)
             if step > 0 and (step % save_period == 0 or last_step):
                 # optionally write model checkpoints
                 checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
@@ -298,7 +313,7 @@ for step in range(start_step, max_steps):
                 torch.save(train_loader.get_state(), os.path.join(log_dir, f"dataloader_{step:05d}.pt"))
 
     # once in a while evaluate hellaswag
-    if args.try_hellaswag and (step % hellaswag_period == 0 or last_step) and (not use_compile):
+    if args.hellaswag and (step % hellaswag_period == 0 or last_step) and (not use_compile):
         num_correct_norm = 0
         num_total = 0
         for i, example in enumerate(iterate_examples("val")):
@@ -329,6 +344,7 @@ for step in range(start_step, max_steps):
             print(f"HellaSwag accuracy: {num_correct_norm}/{num_total}={acc_norm:.4f}")
             with open(log_file, "a") as f:
                 f.write(f"{step} hella {acc_norm:.4f}\n")
+            wandb.log({"step": step, "hellaswag_accuracy": acc_norm}, step=step)
 
     # once in a while generate from the model (except step 0, which is noise)
     if ((step > 0 and step % 250 == 0) or last_step) and (not use_compile):
@@ -394,12 +410,20 @@ for step in range(start_step, max_steps):
         param_group['lr'] = lr
     optimizer.step()
     if device_type == "cuda":
-        torch.cuda.synchronize() # wait for the GPU to finish work
+        torch.cuda.synchronize()
     t1 = time.time()
-    dt = t1 - t0 # time difference in seconds
+    dt = t1 - t0
     tokens_processed = train_loader.B * train_loader.T * grad_accum_steps * ddp_world_size
     tokens_per_sec = tokens_processed / dt
     if master_process:
+        wandb.log({
+            "step": step,
+            "train_loss": loss_accum.item(),
+            "lr": lr,
+            "grad_norm": norm,
+            "dt_ms": dt * 1000,
+            "tokens_per_sec": tokens_per_sec
+        }, step=step)
         print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
         with open(log_file, "a") as f:
             f.write(f"{step} train {loss_accum.item():.6f} (lr={lr:.4e}) (hash(x)={x.sum().item()})\n")
@@ -413,6 +437,7 @@ if master_process:
         path_in_repo=log_dir_basename,
         repo_type="model"
     )
+    wandb.finish()
 
 if ddp:
     destroy_process_group()
