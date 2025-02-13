@@ -181,12 +181,15 @@ if master_process:
         json.dump(vars(args), f)
         
     # Initialize wandb for logging (only for the master process)
+
+    use_wandb = args.use_wandb and not (os.environ.get('SKIP_WANDB', 'false').lower() == 'true')
+
     wandb.init(project="context_compression", 
                config=vars(args), 
                group=args.group,
                name=os.path.basename(args.log_dir),
                dir=log_dir,
-               mode="online" if args.use_wandb else "disabled")
+               mode="online" if use_wandb else "disabled")
 
 log_file = os.path.join(log_dir, f"log2.txt")
 if master_process:
@@ -336,7 +339,7 @@ for step in range(start_step, max_steps):
                 torch.save(train_loader.get_state(), os.path.join(log_dir, f"dataloader_{step:05d}.pt"))
 
     # once in a while evaluate hellaswag
-    if args.hellaswag and (step % hellaswag_period == 0 or last_step) and (not use_compile):
+    if args.hellaswag and not (os.environ.get('SKIP_HELLASWAG', 'false').lower() == 'true') and (step % hellaswag_period == 0 or last_step) and (not use_compile):
         num_correct_norm = 0
         num_total = 0
         for i, example in enumerate(iterate_examples("val")):
