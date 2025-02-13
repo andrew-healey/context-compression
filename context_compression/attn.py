@@ -100,6 +100,8 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         eye_mask = 1 - torch.eye(T, device=S.device)
         if self.prevent_from_masking_myself:
             S = S_masked * eye_mask
+        else:
+            S = S_masked
 
         S_shifted = torch.roll(S, 1, -2)
         S_shifted[..., 0, :] = 0
@@ -208,6 +210,8 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
         eye_mask = 1 - torch.eye(T, device=S.device)
         if self.prevent_from_masking_myself:
             S = S_masked * eye_mask
+        else:
+            S = S_masked
 
         S_shifted = torch.roll(S, 1, -2)
         S_shifted[..., 0, :] = 0
@@ -277,6 +281,8 @@ class CausalSelectiveSelfAttention(nn.Module):
         eye_mask = 1 - torch.eye(T, device=S.device)  # Do not mask self
         if self.prevent_from_masking_myself:
             S = S_masked * eye_mask  # Apply the masking to avoid self-attention
+        else:
+            S = S_masked
 
         S_shifted = torch.roll(S, 1, -2)  # Shift to mask strictly in the future
         S_shifted[..., 0, :] = 0  # Ensure future masking without inplace
