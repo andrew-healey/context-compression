@@ -361,12 +361,12 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
 
 ## selective-head surgery CPT 5
 
-Another seed for ko-zero.
+Another seed for ko-zero. (17817259)
 
 Hypothesis: it'll be basically as good as the k-zero runs.
 
 ```
-torchrun --nproc_per_node=gpu -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_5 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -380,12 +380,12 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_2_restarted_with_ko_zero.txt
 ```
 
-Another seed for k-zero.
+Another seed for k-zero. (17816804)
 
 Hypothesis: it'll be basically as good as the ko-zero runs.
 
 ```
-torchrun --nproc_per_node=gpu -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_5 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -399,12 +399,12 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_3_restarted_with_k_zero.txt
 ```
 
-Another seed for unprotected BOS token.
+Another seed for unprotected BOS token. (17816805)
 
 Hypothesis: taken with the other run, it'll be a tiny bit worse than the ko-zero baseline.
 
 ```
-torchrun --nproc_per_node=gpu -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_5 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -419,12 +419,12 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_2_restarted_with_unprotected_bos.txt
 ```
 
-A third seed for unprotected BOS token.
+A third seed for unprotected BOS token. (17816806)
 
 Hypothesis: taken with the other runs, it'll be a tiny bit worse than the ko-zero baseline.
 
 ```
-torchrun --nproc_per_node=gpu -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_5 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -439,12 +439,12 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_3_restarted_with_unprotected_bos.txt
 ```
 
-Re-run of the memory loss run with eps=0.1.
+Re-run of the memory loss run with eps=0.1. (17816814)
 
 Hypothesis: CE loss will be much better than everything else with pruning. But worse than eps=0.02 with pruning.
 
 ```
-torchrun --nproc_per_node=gpu -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_5 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -457,12 +457,12 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_2_restarted_with_memory_penalty_0.1.txt
 ```
 
-Re-run of the memory loss run with eps=0.02.
+Re-run of the memory loss run with eps=0.02. (17816816)
 
 Hypothesis: CE loss about as good as eps=0. But better than eps=0.1 with pruning.
 
 ```
-torchrun --nproc_per_node=gpu -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_5 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -475,12 +475,12 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_2_restarted_with_memory_penalty_0.02.txt
 ```
 
-Allow tokens to mask themselves.
+Allow tokens to mask themselves. (17816920)
 
 Hypothesis: between the two seeds, this'll show some tiny but nonzero difference vs. the ko-zero baseline. i.e. it's worse.
 
 ```
-torchrun --nproc_per_node=gpu -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_5 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -495,12 +495,12 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_1_restarted_with_allow_masking_myself.txt
 ```
 
-Allow tokens to mask themselves, with a new seed.
+Allow tokens to mask themselves, with a new seed. (17816921)
 
 Hypothesis: between the two seeds, this'll show some tiny but nonzero difference vs. the ko-zero baseline. i.e. it's worse.
 
 ```
-torchrun --nproc_per_node=gpu -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_5 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
