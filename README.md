@@ -179,7 +179,6 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   --add_a_head \
   --add_head_to_start \
   --new_head_init o_zero \
-  --kill_self_after_run \
   &> self_to_selective_run_1_restarted_with_o_zero.txt
 ```
 
@@ -211,7 +210,6 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   --add_a_head \
   --add_head_to_start \
   --new_head_init ko_zero \
-  --kill_self_after_run \
   &> self_to_selective_run_1_restarted_with_memory_penalty.txt
 ```
 
@@ -230,4 +228,88 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   --no_protect_bos_token \
   --kill_self_after_run \
   &> self_to_selective_run_1_restarted_with_unprotected_bos.txt
+```
+
+
+## More experiments on selective-head surgery CPT
+
+Using a lower penalty for memory in the loss function. e=0.02.
+
+```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_4 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective_with_memory_penalty \
+  --log_dir self_to_selective_run_1_restarted_with_memory_penalty_0.02 \
+  --add_a_head \
+  --new_head_init ko_zero \
+  --memory_penalty_epsilon 0.02 \
+  --kill_self_after_run \
+  &> self_to_selective_run_1_restarted_with_memory_penalty_0.02.txt
+```
+
+Using a normal QKVO init for the new head.
+
+```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_4 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_1_restarted_with_normal_init \
+  --add_a_head \
+  --new_head_init normal \
+  --kill_self_after_run \
+  &> self_to_selective_run_1_restarted_with_normal_init.txt
+```
+
+Putting the new head at the end, not the start.
+
+```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_4 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_1_restarted_head_at_end \
+  --add_a_head \
+  --add_head_to_end \
+  --new_head_init ko_zero \
+  --kill_self_after_run \
+  &> self_to_selective_run_1_restarted_head_at_end.txt
+```
+
+Rerun of the o zero init run, with a new random seed.
+
+```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_4 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_2_restarted_with_o_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init o_zero \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> self_to_selective_run_2_restarted_with_o_zero.txt
+```
+
+Rerun of the k zero init run, with a new random seed.
+
+```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_4 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_2_restarted_with_k_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init k_zero \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> self_to_selective_run_2_restarted_with_k_zero.txt
 ```

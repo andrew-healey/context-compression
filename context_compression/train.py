@@ -40,6 +40,9 @@ parser.add_argument("--add_a_head", action="store_true",
                     help="Add an additional head")
 parser.add_argument("--add_head_to_start", action="store_true",
                     help="Place the new head at the start")
+parser.set_defaults(add_head_to_start=True)
+parser.add_argument("--add_head_to_end", action="store_false", dest="add_head_to_start",
+                    help="Place the new head at the end")
 parser.add_argument("--new_head_init", type=lambda x: NewHeadInit(x.lower()), default=NewHeadInit.NORMAL,
                     help="Initialization type for the new head (e.g., normal, o_rescaled, o_zero, ko_zero)")
 parser.add_argument("--protect_bos_token", action="store_true",
@@ -55,6 +58,10 @@ parser.add_argument("--no-wandb", dest="use_wandb", action="store_false",
                     help="Disable wandb logging")
 parser.add_argument("--kill_self_after_run", action="store_true",
                     help="Kill my own instance after run completes")
+parser.add_argument("--random_seed", type=int, default=1337,
+                    help="Random seed for the run")
+parser.add_argument("--memory_penalty_epsilon", type=float, default=0.1,
+                    help="Epsilon for the memory penalty")
 parser.set_defaults(use_wandb=True)
 args = parser.parse_args()
 
@@ -103,9 +110,9 @@ else:
 
 device_type = "cuda" if device.startswith("cuda") else "cpu"
 
-torch.manual_seed(1337)
+torch.manual_seed(args.random_seed)
 if torch.cuda.is_available():
-    torch.cuda.manual_seed(1337)
+    torch.cuda.manual_seed(args.random_seed)
 
 enc = tiktoken.get_encoding("gpt2")
 
@@ -124,7 +131,7 @@ val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_w
 torch.set_float32_matmul_precision('high')
 
 # create model
-config = GPTConfig(vocab_size=50304, attention_kind=args.attention_kind, for_inference=False, protect_bos_token=args.protect_bos_token)
+config = GPTConfig(vocab_size=50304, attention_kind=args.attention_kind, for_inference=False, protect_bos_token=args.protect_bos_token, epsilon=args.memory_penalty_epsilon)
 model = GPT(config)
 model.to(device)
 use_compile = True
