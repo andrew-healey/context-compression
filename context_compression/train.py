@@ -454,7 +454,7 @@ if master_process:
     )
     wandb.finish()
 
-if args.kill_self_after_run:
+if master_process and args.kill_self_after_run:
     print("Run succeeded, killing my own instance")
     os.system("vastai destroy instance $CONTAINER_ID;")
 
