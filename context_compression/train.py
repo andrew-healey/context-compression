@@ -23,7 +23,7 @@ from .data import DataLoaderLite, get_most_likely_row
 from .model import GPT, GPTConfig
 from .attn import AttentionKind
 from .hellaswag import render_example, iterate_examples
-from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head
+from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head, NewHeadInit
 
 # -----------------------------------------------------------------------------
 # simple launch:
@@ -79,7 +79,7 @@ if torch.cuda.is_available():
 
 enc = tiktoken.get_encoding("gpt2")
 
-total_batch_size = 491520 # 2**19, ~0.5M, in number of tokens
+total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
 B = 8 # micro batch size
 T = 1024 # sequence length
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
@@ -101,6 +101,7 @@ model = GPT(config)
 # model = GPT.from_pretrained("gpt2") # or init from OpenAI GPT-2
 model.to(device)
 use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix
+non_compiled_model = model
 if use_compile:
     model = torch.compile(model)
 raw_model = model # always contains the "raw" unwrapped model
@@ -133,6 +134,7 @@ assert os.environ["LOG_DIR"] is not None, "You have to pass in a log directory f
 log_dir = os.environ["LOG_DIR"]
 if master_process:
     os.makedirs(log_dir, exist_ok=False)
+    # ANDREWTODO write config metadata to the log file
 log_file = os.path.join(log_dir, f"log2.txt")
 if master_process:
     with open(log_file, "w") as f: # open for writing to clear the file
@@ -210,8 +212,8 @@ if should_add_a_head:
         print("ADDING A HEAD")
     assert resume_optimizer != True, "if adding a head, you're not allowed to reuse your optimizer"
     add_head_to_start = os.environ.get("ADD_HEAD_TO_START", None) == "true"
-    zero_out_new_head = os.environ.get("ZERO_OUT_NEW_HEAD", None) == "true"
-    add_a_head(config, raw_model, AddHeadConfig(add_head_kind=AddHeadKind.GROW_QKV_O, add_head_to_start=add_head_to_start))
+    new_head_init = NewHeadInit(os.environ.get("NEW_HEAD_INIT", "NORMAL").lower())
+    add_a_head(config, raw_model, AddHeadConfig(add_head_kind=AddHeadKind.GROW_QKV_O, add_head_to_start=add_head_to_start, new_head_init=new_head_init))
 
     # create a new optimizer for the new parameters
     optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type)
@@ -293,7 +295,7 @@ for step in range(start_step, max_steps):
             # get the logits
             with torch.no_grad():
                 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                    logits, loss = model(tokens)
+                    logits, loss = non_compiled_model(tokens)
                 pred_norm = get_most_likely_row(tokens, mask, logits)
             num_total += 1
             num_correct_norm += int(pred_norm == label)
@@ -326,7 +328,7 @@ for step in range(start_step, max_steps):
             # forward the model to get the logits
             with torch.no_grad():
                 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                    logits, loss = model(xgen) # (B, T, vocab_size)
+                    logits, loss = non_compiled_model(xgen) # (B, T, vocab_size)
                 # take the logits at the last position
                 logits = logits[:, -1, :] # (B, vocab_size)
                 # get the probabilities
@@ -384,6 +386,19 @@ for step in range(start_step, max_steps):
         print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
         with open(log_file, "a") as f:
             f.write(f"{step} train {loss_accum.item():.6f} (lr={lr:.4e}) (hash(x)={x.sum().item()})\n")
+
+if master_process:
+    # let's upload the whole run to huggingface
+    # i.e. everything in the log_dir
+    from huggingface_hub import HfApi
+    api = HfApi()
+    log_dir_basename = os.path.basename(log_dir)
+    api.upload_folder(
+        repo_id="andrew-healey/context-compression",
+        folder_path=log_dir,
+        path_in_repo=log_dir_basename,
+        repo_type="model"
+    )
 
 if ddp:
     destroy_process_group()

@@ -80,3 +80,45 @@ Continuing pretraining for the last 2500 steps, with a new optimizer (and a new 
 ```
 rm -rf unselective_run_0_continued_with_new_optimizer; RESUME_CHECKPOINT=unselective_run_0/model_07500.pt RESUME_OPTIMIZER=false MAX_STEPS=2500 ATTENTION_KIND=self LOG_DIR=unselective_run_0_continued_with_new_optimizer CUDA_VISIBLE_DEVICES=4,5,6,7 torchrun --master_port=29505 --nproc_per_node=4 -m context_compression.train &> unselective_run_0_continued_with_new_optimizer.txt
 ```
+
+## Experiments on selective-head surgery CPT
+
+We increased the dataset size, so let's restart the run with no modifications.
+
+I expect this'll have basically the same results as unselective_run_0_restarted.
+
+```
+rm -rf unselective_run_1_restarted; GROUP=selective_surgery_2 RESUME_CHECKPOINT=hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt RESUME_OPTIMIZER=false MAX_STEPS=2500 ATTENTION_KIND=self LOG_DIR=unselective_run_1_restarted CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=29501 --nproc_per_node=8 -m context_compression.train &> unselective_run_1_restarted.txt
+```
+
+Using a 5x-downscaled-O new head.
+I expect this'll act like the restarted-run, but with slightly lower loss. It'll have much lower initial validation loss than the full-qkvo restarted run from last experiment, and so will do better relative to this restarted run than the old full-qkvo run did relative to the old restarted run.
+
+```
+rm -rf unselective_run_1_restarted_with_o_rescaled; GROUP=selective_surgery_2 RESUME_CHECKPOINT=hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt RESUME_OPTIMIZER=false MAX_STEPS=2500 ATTENTION_KIND=self LOG_DIR=unselective_run_1_restarted_with_o_rescaled ADD_A_HEAD=true ADD_HEAD_TO_START=true NEW_HEAD_INIT=O_RESCALED CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=29501 --nproc_per_node=8 -m context_compression.train &> unselective_run_1_restarted_with_o_rescaled.txt
+```
+
+Using a O-zeroed-out new head.
+
+I expect this'll have lower initial loss and lower final loss than the 5x-downscaled-O head. And all its weights will be nonzero.
+
+```
+rm -rf unselective_run_1_restarted_with_o_zero; GROUP=selective_surgery_2 RESUME_CHECKPOINT=hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt RESUME_OPTIMIZER=false MAX_STEPS=2500 ATTENTION_KIND=self LOG_DIR=unselective_run_1_restarted_with_o_zero ADD_A_HEAD=true ADD_HEAD_TO_START=true NEW_HEAD_INIT=O_ZERO CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=29503 --nproc_per_node=8 -m context_compression.train &> unselective_run_1_restarted_with_o_zero.txt
+```
+
+Using a KO-zeroed-out new head.
+
+I expect this'll have a bit worse final loss than the O-zeroed-out head, since it'll have a harder time learning. And all its weights will be nonzero.
+
+```
+rm -rf unselective_run_1_restarted_with_ko_zero; GROUP=selective_surgery_2 RESUME_CHECKPOINT=hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt RESUME_OPTIMIZER=false MAX_STEPS=2500 ATTENTION_KIND=self LOG_DIR=unselective_run_1_restarted_with_ko_zero ADD_A_HEAD=true ADD_HEAD_TO_START=true NEW_HEAD_INIT=KO_ZERO CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=29503 --nproc_per_node=8 -m context_compression.train &> unselective_run_1_restarted_with_ko_zero.txt
+```
+
+Using a KO-zeroed-out new SELECTIVE head.
+
+I expect this'll be the best - it'll be pareto-better than the KO-zeroed-out new head. And all its weights will be nonzero by the end.
+
+```
+rm -rf self_to_selective_run_1_restarted_with_ko_zero; GROUP=selective_surgery_2 RESUME_CHECKPOINT=hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt RESUME_OPTIMIZER=false MAX_STEPS=2500 ATTENTION_KIND=selective LOG_DIR=self_to_selective_run_1_restarted_with_ko_zero ADD_A_HEAD=true ADD_HEAD_TO_START=true NEW_HEAD_INIT=KO_ZERO CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=29503 --nproc_per_node=8 -m context_compression.train &> self_to_selective_run_1_restarted_with_ko_zero.txt
+```
+

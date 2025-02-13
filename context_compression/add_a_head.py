@@ -3,17 +3,25 @@ import torch
 import torch.nn as nn
 
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import StrEnum, auto
 
-class AddHeadKind(Enum):
+class AddHeadKind(StrEnum):
     GROW_QKV_O = auto()
     NONE = auto()
+
+class NewHeadInit(StrEnum):
+    NORMAL = auto()
+    ZERO = auto()
+    KO_ZERO = auto()
+    O_ZERO = auto()
+    O_RESCALED = auto()
+
 
 @dataclass
 class AddHeadConfig:
     add_head_kind: AddHeadKind = AddHeadKind.GROW_QKV_O
+    new_head_init: NewHeadInit = NewHeadInit.NORMAL
     add_head_to_start: bool = True
-    zero_out_new_head: bool = False
 
 def add_a_head(
         config: GPTConfig,
@@ -58,8 +66,12 @@ def grow_qkv_o(
             assert old_c_attn_weight.shape == (config.n_embd, 3 * old_n_head * config.head_dim), f"I expect old_c_attn_weight.shape == (config.n_embd, 3 * old_n_head * config.head_dim), but got {old_c_attn_weight.shape} != {(config.n_embd, 3 * old_n_head * config.head_dim)}"
             old_c_attn_weight = old_c_attn_weight.view(config.n_embd, 3, old_n_head, config.head_dim)
 
-            if add_head_config.zero_out_new_head:
+            if add_head_config.new_head_init == NewHeadInit.ZERO:
                 new_c_attn_weight[:, :, :, :] = 0
+            elif add_head_config.new_head_init == NewHeadInit.NORMAL:
+                pass
+            elif add_head_config.new_head_init == NewHeadInit.KO_ZERO:
+                new_c_attn_weight[:, 1, :, :] = 0
 
             if add_head_config.add_head_to_start:
                 new_c_attn_weight[:, :, 1:, :] = old_c_attn_weight
@@ -95,8 +107,14 @@ def grow_qkv_o(
             assert old_c_proj_weight.shape == (old_n_head * config.head_dim, config.n_embd), f"I expect old_c_proj_weight.shape == (old_n_head * config.head_dim, config.n_embd), but got {old_c_proj_weight.shape} != {(old_n_head * config.head_dim, config.n_embd)}"
             old_c_proj_weight = old_c_proj_weight.view(old_n_head, config.head_dim, config.n_embd)
 
-            if add_head_config.zero_out_new_head:
+            if add_head_config.new_head_init in [NewHeadInit.ZERO, NewHeadInit.O_ZERO, NewHeadInit.KO_ZERO]:
                 new_c_proj_weight[:, :, :] = 0
+            elif add_head_config.new_head_init == NewHeadInit.NORMAL:
+                pass
+            elif add_head_config.new_head_init == NewHeadInit.O_RESCALED:
+                new_c_proj_weight[:, :, :] /= 5.0
+            else:
+                raise ValueError(f"Invalid new head init: {add_head_config.new_head_init}")
 
             if add_head_config.add_head_to_start:
                 new_c_proj_weight[1:, :, :] = old_c_proj_weight
