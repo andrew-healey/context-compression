@@ -15,6 +15,7 @@ class NewHeadInit(StrEnum):
     KO_ZERO = auto()
     O_ZERO = auto()
     O_RESCALED = auto()
+    K_ZERO = auto()
 
 
 @dataclass
@@ -70,7 +71,7 @@ def grow_qkv_o(
                 new_c_attn_weight[:, :, :, :] = 0
             elif add_head_config.new_head_init == NewHeadInit.NORMAL:
                 pass
-            elif add_head_config.new_head_init == NewHeadInit.KO_ZERO:
+            elif add_head_config.new_head_init == NewHeadInit.KO_ZERO or add_head_config.new_head_init == NewHeadInit.K_ZERO:
                 new_c_attn_weight[:, 1, :, :] = 0
 
             if add_head_config.add_head_to_start:
@@ -109,7 +110,7 @@ def grow_qkv_o(
 
             if add_head_config.new_head_init in [NewHeadInit.ZERO, NewHeadInit.O_ZERO, NewHeadInit.KO_ZERO]:
                 new_c_proj_weight[:, :, :] = 0
-            elif add_head_config.new_head_init == NewHeadInit.NORMAL:
+            elif add_head_config.new_head_init == NewHeadInit.NORMAL or add_head_config.new_head_init == NewHeadInit.K_ZERO:
                 pass
             elif add_head_config.new_head_init == NewHeadInit.O_RESCALED:
                 new_c_proj_weight[:, :, :] /= 5.0

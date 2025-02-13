@@ -101,7 +101,6 @@ Using a 5x-downscaled-O new head.
 I expect this'll act like the restarted-run, but with slightly lower loss. It'll have much lower initial validation loss than the full-qkvo restarted run from last experiment, and so will do better relative to this restarted run than the old full-qkvo run did relative to the old restarted run.
 
 ```
-(instance id 17805019 iirc)
 torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_2 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
@@ -119,7 +118,6 @@ Using a O-zeroed-out new head.
 I expect this'll have lower initial loss and lower final loss than the 5x-downscaled-O head. And all its weights will be nonzero.
 
 ```
-(instance id 17805048 iirc)
 torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_2 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
@@ -137,7 +135,6 @@ Using a KO-zeroed-out new head.
 I expect this'll have a bit worse final loss than the O-zeroed-out head, since it'll have a harder time learning. And all its weights will be nonzero.
 
 ```
-(instance id 17805053 iirc)
 torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_2 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
@@ -155,7 +152,6 @@ Using a KO-zeroed-out new SELECTIVE head.
 I expect this'll be the best - it'll be pareto-better than the KO-zeroed-out new head. And all its weights will be nonzero by the end.
 
 ```
-(instance id 17805085 iirc)
 torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_2 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
@@ -168,3 +164,70 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
   &> self_to_selective_run_1_restarted_with_ko_zero.txt
 ```
 
+
+## Experiments on selective-head surgery CPT
+
+Using an O-zeroed-out new head. This will probably have much higher initial loss than the KO-zeroed-out head. I bet it'll have higher final loss too.
+
+```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_3 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_1_restarted_with_o_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init o_zero \
+  --kill_self_after_run \
+  &> self_to_selective_run_1_restarted_with_o_zero.txt
+```
+
+Using a K-zeroed-out new head. This will probably be identical to the KO-zeroed-out head.
+
+```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_3 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_1_restarted_with_k_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init k_zero \
+  --kill_self_after_run \
+  &> self_to_selective_run_1_restarted_with_k_zero.txt
+```
+
+Using a memory loss term. This will do worse than everything so far on CE loss, but it'll do better than everything else at aggressive memory thresholds.
+
+```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_3 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective_with_memory_penalty \
+  --log_dir self_to_selective_run_1_restarted_with_memory_penalty \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --kill_self_after_run \
+  &> self_to_selective_run_1_restarted_with_memory_penalty.txt
+```
+
+With the BOS token unprotected - to compare to the magnitude of differences Leviathan measures.
+
+```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_2 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_1_restarted_with_unprotected_bos \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --no_protect_bos_token \
+  --kill_self_after_run \
+  &> self_to_selective_run_1_restarted_with_unprotected_bos.txt
+```

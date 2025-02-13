@@ -23,6 +23,7 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))
         self.config = config
+        self.protect_bos_token = config.protect_bos_token
 
     def get_pruning_ratio(self, context_length):
         """
@@ -90,7 +91,10 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         S = F.relu(S)
 
         S_masked = torch.zeros_like(S)
-        S_masked[..., 1:] = S[..., 1:]
+        if self.protect_bos_token:
+            S_masked[..., 1:] = S[..., 1:]
+        else:
+            S_masked[...] = S
 
         eye_mask = 1 - torch.eye(T, device=S.device)
         S = S_masked * eye_mask
@@ -174,6 +178,7 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))
         self.tau = 1.0  # Clamping parameter for FF scores
+        self.protect_bos_token = config.protect_bos_token
 
     def forward(self, x):
         B, T, C = x.size()
@@ -192,7 +197,10 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
         S = F.relu(S)
 
         S_masked = torch.zeros_like(S)
-        S_masked[..., 1:] = S[..., 1:]
+        if self.protect_bos_token:
+            S_masked[..., 1:] = S[..., 1:]
+        else:
+            S_masked[...] = S
 
         eye_mask = 1 - torch.eye(T, device=S.device)
         S = S_masked * eye_mask
@@ -236,6 +244,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         self.n_embd = config.n_embd
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))
+        self.protect_bos_token = config.protect_bos_token
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -255,7 +264,10 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         # Use torch.zeros_like to safely modify without inplace ops
         S_masked = torch.zeros_like(S)  # Create a mask to avoid in-place ops
-        S_masked[..., 1:] = S[..., 1:]  # Do not mask <BOS> token, leave it unchanged
+        if self.protect_bos_token:
+            S_masked[..., 1:] = S[..., 1:]  # Do not mask <BOS> token, leave it unchanged
+        else:
+            S_masked[...] = S
 
         eye_mask = 1 - torch.eye(T, device=S.device)  # Do not mask self
         S = S_masked * eye_mask  # Apply the masking to avoid self-attention

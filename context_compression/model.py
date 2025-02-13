@@ -50,6 +50,7 @@ class GPTConfig:
     n_embd: int = 768
     epsilon: float = 0.1  # Weight for memory loss term
     hard_pruning_constant: Optional[float] = None # to fix the pruning during inference
+    protect_bos_token: bool = True
 
 class GPT(nn.Module):
     def __init__(self, config):
@@ -121,7 +122,7 @@ class GPT(nn.Module):
             }
 
             # Combine losses: L_mem = L_ppl + ε * Σ(max_i(M_i^l))/(L * n_nonpad)
-            if self.config.attention_kind == AttentionKind.SELECTIVE and any([M is not None for M in memory_reqs]):
+            if self.config.attention_kind != AttentionKind.SELF and any([M is not None for M in memory_reqs]):
                 # Calculate memory loss
                 memory_loss = self.calculate_memory_loss(memory_reqs, T)
                 loss = loss + self.config.epsilon * memory_loss
