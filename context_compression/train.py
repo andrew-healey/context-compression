@@ -456,7 +456,7 @@ if master_process:
 
 if args.kill_self_after_run:
     print("Run succeeded, killing my own instance")
-    os.system("vastai stop instance $CONTAINER_ID;")
+    os.system("vastai destroy instance $CONTAINER_ID;")
 
 if ddp:
     destroy_process_group()
