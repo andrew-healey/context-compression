@@ -122,7 +122,7 @@ torch.set_float32_matmul_precision('high')
 config = GPTConfig(vocab_size=50304, attention_kind=args.attention_kind, for_inference=False)
 model = GPT(config)
 model.to(device)
-use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix
+use_compile = True
 non_compiled_model = model
 if use_compile:
     model = torch.compile(model)
@@ -159,7 +159,6 @@ if master_process:
         shutil.rmtree(log_dir)
 
     os.makedirs(log_dir, exist_ok=False)
-    # ANDREWTODO write config metadata to the log file
     with open(os.path.join(log_dir, f"args.json"), "w") as f:
         # let's just write the args to the config file
         json.dump(vars(args), f)
@@ -296,7 +295,7 @@ for step in range(start_step, max_steps):
                 "step": step,
                 "val_loss": val_loss_accum.item(),
                 **{"val_loss_" + k: v.item() for k, v in losses.items()},
-                "val_perplexity": validation_perplexity.item() # ANDREWTODO be honest abt loss, so I can get good memory loss plots
+                "val_perplexity": validation_perplexity.item()
             }, step=step)
             if step > 0 and (step % save_period == 0 or last_step):
                 # optionally write model checkpoints

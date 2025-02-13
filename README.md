@@ -88,7 +88,7 @@ We increased the dataset size, so let's restart the run with no modifications.
 I expect this'll have basically the same results as unselective_run_0_restarted.
 
 ```
-torchrun --nproc_per_node=8 -m context_compression.train \
+torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_2 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -101,7 +101,7 @@ Using a 5x-downscaled-O new head.
 I expect this'll act like the restarted-run, but with slightly lower loss. It'll have much lower initial validation loss than the full-qkvo restarted run from last experiment, and so will do better relative to this restarted run than the old full-qkvo run did relative to the old restarted run.
 
 ```
-torchrun --nproc_per_node=8 -m context_compression.train \
+torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_2 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -118,7 +118,7 @@ Using a O-zeroed-out new head.
 I expect this'll have lower initial loss and lower final loss than the 5x-downscaled-O head. And all its weights will be nonzero.
 
 ```
-torchrun --nproc_per_node=8 -m context_compression.train \
+torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_2 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -135,7 +135,7 @@ Using a KO-zeroed-out new head.
 I expect this'll have a bit worse final loss than the O-zeroed-out head, since it'll have a harder time learning. And all its weights will be nonzero.
 
 ```
-torchrun --nproc_per_node=8 -m context_compression.train \
+torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_2 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
@@ -152,7 +152,7 @@ Using a KO-zeroed-out new SELECTIVE head.
 I expect this'll be the best - it'll be pareto-better than the KO-zeroed-out new head. And all its weights will be nonzero by the end.
 
 ```
-torchrun --nproc_per_node=8 -m context_compression.train \
+torchrun --nproc_per_node=gpu -m context_compression.train \
   --group selective_surgery_2 \
   --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
   --max_steps 2500 \
