@@ -280,7 +280,7 @@ for step in range(start_step, max_steps):
                 x, y = val_loader.next_batch()
                 x, y = x.to(device), y.to(device)
                 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                    logits, loss = model(x, y)
+                    logits, loss, losses = model(x, y)
                 loss = loss / val_loss_steps
                 val_loss_accum += loss.detach()
         if ddp:
@@ -295,6 +295,7 @@ for step in range(start_step, max_steps):
             wandb.log({
                 "step": step,
                 "val_loss": val_loss_accum.item(),
+                **{"val_loss_" + k: v.item() for k, v in losses.items()},
                 "val_perplexity": validation_perplexity.item() # ANDREWTODO be honest abt loss, so I can get good memory loss plots
             }, step=step)
             if step > 0 and (step % save_period == 0 or last_step):
@@ -304,7 +305,8 @@ for step in range(start_step, max_steps):
                     'model': raw_model.state_dict(),
                     'config': raw_model.config,
                     'step': step,
-                    'val_loss': val_loss_accum.item()
+                    'val_loss': val_loss_accum.item(),
+                    **{"val_loss_" + k: v.item() for k, v in losses.items()}
                 }
                 # you might also want to add optimizer.state_dict() and
                 # rng seeds etc., if you wanted to more exactly resume training
@@ -332,7 +334,7 @@ for step in range(start_step, max_steps):
             # get the logits
             with torch.no_grad():
                 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                    logits, loss = non_compiled_model(tokens)
+                    logits, loss, losses = non_compiled_model(tokens)
                 pred_norm = get_most_likely_row(tokens, mask, logits)
             num_total += 1
             num_correct_norm += int(pred_norm == label)
@@ -366,7 +368,7 @@ for step in range(start_step, max_steps):
             # forward the model to get the logits
             with torch.no_grad():
                 with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                    logits, loss = non_compiled_model(xgen) # (B, T, vocab_size)
+                    logits, loss, losses = non_compiled_model(xgen) # (B, T, vocab_size)
                 # take the logits at the last position
                 logits = logits[:, -1, :] # (B, vocab_size)
                 # get the probabilities
@@ -398,7 +400,7 @@ for step in range(start_step, max_steps):
         if ddp:
             model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
         with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-            logits, loss = model(x, y)
+            logits, loss, losses = model(x, y)
         # we have to scale the loss to account for gradient accumulation,
         # because the gradients just add on each successive backward().
         # addition of gradients corresponds to a SUM in the objective, but
@@ -408,6 +410,11 @@ for step in range(start_step, max_steps):
         loss.backward()
     if ddp:
         dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
+    
+    if loss_accum.isnan():
+        print("Loss is NaN, stopping the run! VERY BAD NEWS!")
+        exit(1)
+
     norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     # determine and set the learning rate for this iteration
     lr = get_lr(step)
@@ -424,6 +431,7 @@ for step in range(start_step, max_steps):
         wandb.log({
             "step": step,
             "train_loss": loss_accum.item(),
+            **{"train_loss_" + k: v.item() for k, v in losses.items()},
             "lr": lr,
             "grad_norm": norm,
             "dt_ms": dt * 1000,

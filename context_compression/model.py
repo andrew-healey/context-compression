@@ -111,18 +111,24 @@ class GPT(nn.Module):
 
         # Calculate losses
         loss = None
+        losses = {}
         if targets is not None:
             # Calculate standard cross-entropy loss (L_ppl)
             ce_loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
             loss = ce_loss
+            losses = {
+                "ce": ce_loss,
+            }
 
             # Combine losses: L_mem = L_ppl + ε * Σ(max_i(M_i^l))/(L * n_nonpad)
             if self.config.attention_kind == AttentionKind.SELECTIVE and any([M is not None for M in memory_reqs]):
                 # Calculate memory loss
                 memory_loss = self.calculate_memory_loss(memory_reqs, T)
                 loss = loss + self.config.epsilon * memory_loss
+                losses["memory"] = memory_loss
+            losses["total"] = loss
 
-        return logits, loss
+        return logits, loss, losses
 
     @classmethod
     def from_pretrained(cls, model_type):
