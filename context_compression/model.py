@@ -51,6 +51,7 @@ class GPTConfig:
     epsilon: float = 0.1  # Weight for memory loss term
     hard_pruning_constant: Optional[float] = None # to fix the pruning during inference
     protect_bos_token: bool = True
+    prevent_from_masking_myself: bool = True
 
 class GPT(nn.Module):
     def __init__(self, config):

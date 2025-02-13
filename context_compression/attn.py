@@ -24,6 +24,7 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
                                      .view(1, 1, config.block_size, config.block_size))
         self.config = config
         self.protect_bos_token = config.protect_bos_token
+        self.prevent_from_masking_myself = config.prevent_from_masking_myself
 
     def get_pruning_ratio(self, context_length):
         """
@@ -97,7 +98,8 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
             S_masked[...] = S
 
         eye_mask = 1 - torch.eye(T, device=S.device)
-        S = S_masked * eye_mask
+        if self.prevent_from_masking_myself:
+            S = S_masked * eye_mask
 
         S_shifted = torch.roll(S, 1, -2)
         S_shifted[..., 0, :] = 0
@@ -179,6 +181,7 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
                                      .view(1, 1, config.block_size, config.block_size))
         self.tau = 1.0  # Clamping parameter for FF scores
         self.protect_bos_token = config.protect_bos_token
+        self.prevent_from_masking_myself = config.prevent_from_masking_myself
 
     def forward(self, x):
         B, T, C = x.size()
@@ -203,7 +206,8 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
             S_masked[...] = S
 
         eye_mask = 1 - torch.eye(T, device=S.device)
-        S = S_masked * eye_mask
+        if self.prevent_from_masking_myself:
+            S = S_masked * eye_mask
 
         S_shifted = torch.roll(S, 1, -2)
         S_shifted[..., 0, :] = 0
@@ -245,6 +249,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))
         self.protect_bos_token = config.protect_bos_token
+        self.prevent_from_masking_myself = config.prevent_from_masking_myself
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -270,7 +275,8 @@ class CausalSelectiveSelfAttention(nn.Module):
             S_masked[...] = S
 
         eye_mask = 1 - torch.eye(T, device=S.device)  # Do not mask self
-        S = S_masked * eye_mask  # Apply the masking to avoid self-attention
+        if self.prevent_from_masking_myself:
+            S = S_masked * eye_mask  # Apply the masking to avoid self-attention
 
         S_shifted = torch.roll(S, 1, -2)  # Shift to mask strictly in the future
         S_shifted[..., 0, :] = 0  # Ensure future masking without inplace

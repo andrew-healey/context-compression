@@ -366,6 +366,18 @@ Another seed for ko-zero.
 Hypothesis: it'll be basically as good as the k-zero runs.
 
 ```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_5 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_2_restarted_with_ko_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> self_to_selective_run_2_restarted_with_ko_zero.txt
 ```
 
 Another seed for k-zero.
@@ -373,6 +385,18 @@ Another seed for k-zero.
 Hypothesis: it'll be basically as good as the ko-zero runs.
 
 ```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_5 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_3_restarted_with_k_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init k_zero \
+  --random_seed 1339 \
+  --kill_self_after_run \
+  &> self_to_selective_run_3_restarted_with_k_zero.txt
 ```
 
 Another seed for unprotected BOS token.
@@ -380,6 +404,19 @@ Another seed for unprotected BOS token.
 Hypothesis: taken with the other run, it'll be a tiny bit worse than the ko-zero baseline.
 
 ```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_5 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_2_restarted_with_unprotected_bos \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1338 \
+  --no_protect_bos_token \
+  --kill_self_after_run \
+  &> self_to_selective_run_2_restarted_with_unprotected_bos.txt
 ```
 
 A third seed for unprotected BOS token.
@@ -387,6 +424,19 @@ A third seed for unprotected BOS token.
 Hypothesis: taken with the other runs, it'll be a tiny bit worse than the ko-zero baseline.
 
 ```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_5 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_3_restarted_with_unprotected_bos \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1339 \
+  --no_protect_bos_token \
+  --kill_self_after_run \
+  &> self_to_selective_run_3_restarted_with_unprotected_bos.txt
 ```
 
 Re-run of the memory loss run with eps=0.1.
@@ -394,6 +444,17 @@ Re-run of the memory loss run with eps=0.1.
 Hypothesis: CE loss will be much better than everything else with pruning. But worse than eps=0.02 with pruning.
 
 ```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_5 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective_with_memory_penalty \
+  --log_dir self_to_selective_run_2_restarted_with_memory_penalty_0.1 \
+  --add_a_head \
+  --new_head_init ko_zero \
+  --memory_penalty_epsilon 0.1 \
+  --kill_self_after_run \
+  &> self_to_selective_run_2_restarted_with_memory_penalty_0.1.txt
 ```
 
 Re-run of the memory loss run with eps=0.02.
@@ -401,6 +462,17 @@ Re-run of the memory loss run with eps=0.02.
 Hypothesis: CE loss about as good as eps=0. But better than eps=0.1 with pruning.
 
 ```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_5 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective_with_memory_penalty \
+  --log_dir self_to_selective_run_2_restarted_with_memory_penalty_0.02 \
+  --add_a_head \
+  --new_head_init ko_zero \
+  --memory_penalty_epsilon 0.02 \
+  --kill_self_after_run \
+  &> self_to_selective_run_2_restarted_with_memory_penalty_0.02.txt
 ```
 
 Allow tokens to mask themselves.
@@ -408,6 +480,19 @@ Allow tokens to mask themselves.
 Hypothesis: between the two seeds, this'll show some tiny but nonzero difference vs. the ko-zero baseline. i.e. it's worse.
 
 ```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_5 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_1_restarted_with_allow_masking_myself \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1337 \
+  --allow_masking_myself \
+  --kill_self_after_run \
+  &> self_to_selective_run_1_restarted_with_allow_masking_myself.txt
 ```
 
 Allow tokens to mask themselves, with a new seed.
@@ -415,6 +500,19 @@ Allow tokens to mask themselves, with a new seed.
 Hypothesis: between the two seeds, this'll show some tiny but nonzero difference vs. the ko-zero baseline. i.e. it's worse.
 
 ```
+torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group selective_surgery_5 \
+  --resume_checkpoint hf://andrew-healey/context-compression/unselective_run_0/model_07500.pt \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir self_to_selective_run_2_restarted_with_allow_masking_myself \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1338 \
+  --allow_masking_myself \
+  --kill_self_after_run \
+  &> self_to_selective_run_2_restarted_with_allow_masking_myself.txt
 ```
 
 

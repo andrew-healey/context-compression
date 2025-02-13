@@ -47,9 +47,14 @@ parser.add_argument("--new_head_init", type=lambda x: NewHeadInit(x.lower()), de
                     help="Initialization type for the new head (e.g., normal, o_rescaled, o_zero, ko_zero)")
 parser.add_argument("--protect_bos_token", action="store_true",
                     help="Protect the BOS token")
+parser.set_defaults(protect_bos_token=True)
 parser.add_argument("--no_protect_bos_token", dest="protect_bos_token", action="store_false",
                     help="Do not protect the BOS token")
-parser.set_defaults(protect_bos_token=True)
+parser.add_argument("--prevent_from_masking_myself", action="store_true",
+                    help="Prevent the model from masking itself")
+parser.add_argument("--allow_masking_myself", dest="prevent_from_masking_myself", action="store_false",
+                    help="Allow each token to mask itself from future tokens")
+parser.set_defaults(prevent_from_masking_myself=True)
 parser.add_argument("--max_steps", type=int, default=10000,
                     help="Maximum number of training steps")
 parser.add_argument("--group", type=str, default=None,
@@ -131,7 +136,7 @@ val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_w
 torch.set_float32_matmul_precision('high')
 
 # create model
-config = GPTConfig(vocab_size=50304, attention_kind=args.attention_kind, for_inference=False, protect_bos_token=args.protect_bos_token, epsilon=args.memory_penalty_epsilon)
+config = GPTConfig(vocab_size=50304, attention_kind=args.attention_kind, for_inference=False, protect_bos_token=args.protect_bos_token, prevent_from_masking_myself=args.prevent_from_masking_myself, epsilon=args.memory_penalty_epsilon)
 model = GPT(config)
 model.to(device)
 use_compile = True
