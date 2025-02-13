@@ -1,5 +1,3 @@
-import os
-os.environ["HF_TOKEN"] = "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"
 
 import os
 import multiprocessing as mp
