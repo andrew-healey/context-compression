@@ -194,7 +194,7 @@ if resume_checkpoint is not None:
         checkpoint = torch.load(hf_hub_download(repo_id, rel_path))
     else:
         checkpoint = torch.load(resume_checkpoint)
-    non_compiled_model.load_state_dict(checkpoint['model'])
+    non_compiled_model.load_state_dict(checkpoint['model'], strict=False)
 
     if args.resume_optimizer:
         start_step = checkpoint['step']  # Resume from next step
