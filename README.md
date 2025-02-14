@@ -696,3 +696,193 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   &> scratch_selective_run_0_ko_zero_no_self_protection.txt
 ```
 
+
+## From-scratch pretraining experiments 2 (with an extra head)
+
+Pretrain with ko-zero init and memory loss with epsilon=0.02, with a new seed. (17823277, not done)
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective_with_memory_penalty \
+  --log_dir scratch_selective_run_1_memory_penalty_0.02 \
+  --add_a_head \
+  --new_head_init ko_zero \
+  --memory_penalty_epsilon 0.02 \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> scratch_selective_run_1_memory_penalty_0.02.txt
+```
+
+Pretrain with ko-zero init and memory loss with epsilon=0.02, with a third seed. (17823278, not done)
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective_with_memory_penalty \
+  --log_dir scratch_selective_run_2_memory_penalty_0.02 \
+  --add_a_head \
+  --new_head_init ko_zero \
+  --memory_penalty_epsilon 0.02 \
+  --random_seed 1339 \
+  --kill_self_after_run \
+  &> scratch_selective_run_2_memory_penalty_0.02.txt
+```
+
+Pretrain with ko-zero init and no bos protection, with a new seed. (17823275, not done)
+
+Just to get more signifigance.
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_1_ko_zero_no_bos_protection \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1338 \
+  --no_protect_bos_token \
+  --kill_self_after_run \
+  &> scratch_selective_run_1_ko_zero_no_bos_protection.txt
+```
+
+Pretrain with ko-zero init and no bos protection, with a third seed. (17823339)
+
+Just to get more signifigance.
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_2_ko_zero_no_bos_protection \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1339 \
+  --no_protect_bos_token \
+  --kill_self_after_run \
+  &> scratch_selective_run_2_ko_zero_no_bos_protection.txt
+```
+
+Pretrain with ko-zero init and no self protection, with a new seed. (17823274)
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_1_ko_zero_no_self_protection \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1338 \
+  --allow_masking_myself \
+  --kill_self_after_run \
+  &> scratch_selective_run_1_ko_zero_no_self_protection.txt
+```
+
+Pretrain with ko-zero init and no self protection, with a third seed. (17823346)
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_2_ko_zero_no_self_protection \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1339 \
+  --allow_masking_myself \
+  --kill_self_after_run \
+  &> scratch_selective_run_2_ko_zero_no_self_protection.txt
+```
+
+Pretrain with ko-zero init, with a fourth seed. (17823348)
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_3_ko_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1340 \
+  --kill_self_after_run \
+  &> scratch_selective_run_3_ko_zero.txt
+```
+
+Pretrain with normal init, with a second seed. (17823351)
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_1_normal_init \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init normal \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> scratch_selective_run_1_normal_init.txt
+```
+
+Pretrain with normal init, with a third seed. (17823354)
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_2_normal_init \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init normal \
+  --random_seed 1339 \
+  --kill_self_after_run \
+  &> scratch_selective_run_2_normal_init.txt
+```
+
+Pretrain with normal init, with a fourth seed. (17823273)
+
+Hypothesis: same as before.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_2 \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_3_normal_init \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init normal \
+  --random_seed 1340 \
+  --kill_self_after_run \
+  &> scratch_selective_run_3_normal_init.txt
+```
