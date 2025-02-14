@@ -361,6 +361,18 @@ torchrun --nproc_per_node=gpu -m context_compression.train \
 
 ## selective-head surgery CPT 5
 
+Graphs showing findings:
+
+k-zero vs ko-zero. [wandb](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=fu6wo6ow9pk). Very unclear which one is better (if either). The train says all the k-zero runs were slightly better than all the k-zero runs. But I'm just gonna go by the size of the variation between them, and say it's not worth switching to k-zero. Even if it *may* possibly give slightly lower val losses.
+
+eps=0.1 vs eps=0.02. [wandb](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=z07nkif4j3), [pruning graph on github](https://raw.githubusercontent.com/andrew-healey/context-compression/9dbbc7bf7798ee290711ebbf22674016011bc93c/imgs/pruning-graphs.png?token=GHSAT0AAAAAAC3UD4HYCUSJY372TOUGKAO2Z5OR2ZA) - eps=0.02 has much better CE loss, and nearly identical performance when pruning. So the memory loss term is probably kinda bad. I bet I can make a better one. TODO try to do that when prune-tuning future overtrained models (and also TODO make some overtrained models to test this on!!).
+
+bos-token unprotected vs protected. [wandb](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=prpu5ytbp7o). Couldn't really see a difference. Again, there was some wide val loss variation, but train loss variation between groups was tiny. So probably let's just ignore this. TODO see if this also holds for pretrained models (i.e. 2500 steps "from random init". haha "from random init").
+
+allow-masking-myself vs disallow-masking-myself. [wandb](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=af08zmdxpwo). Noticeable difference, wow! Ig this sets a standard for difference size needed to be convincing.
+
+<hr>
+
 Another seed for ko-zero. (17817259)
 
 Hypothesis: it'll be basically as good as the k-zero runs.
@@ -515,4 +527,172 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   &> self_to_selective_run_2_restarted_with_allow_masking_myself.txt
 ```
 
+
+## From-scratch pretraining experiments (with an extra head, based on CPT patterns)
+
+We're using an extra head just because that lets me reuse my add_a_head code for the kv init.
+
+<hr>
+
+Pretrain with an extra head, memory loss with epsilon=0.1. (17822255)
+
+Hypothesis: this'll be as good as the original eps=0.1 run.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head \
+  --max_steps 2500 \
+  --attention_kind selective_with_memory_penalty \
+  --log_dir scratch_selective_run_0_memory_penalty_0.1 \
+  --add_a_head \
+  --new_head_init ko_zero \
+  --memory_penalty_epsilon 0.1 \
+  --kill_self_after_run \
+  &> scratch_selective_run_0_memory_penalty_0.1.txt
+```
+
+Pretrain with memory loss with epsilon=0.02. (17822259)
+
+Hypothesis: this'll be as good as epsilon=0 on CE loss with no pruning. It'll also have a better pruning-ratio-before-parity performance than eps=0.1. Because it did on the CPT experiments.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head \
+  --max_steps 2500 \
+  --attention_kind selective_with_memory_penalty \
+  --log_dir scratch_selective_run_0_memory_penalty_0.02 \
+  --add_a_head \
+  --new_head_init ko_zero \
+  --memory_penalty_epsilon 0.02 \
+  --kill_self_after_run \
+  &> scratch_selective_run_0_memory_penalty_0.02.txt
+```
+
+Pretrain with an extra head, with normal init. (17822262)
+
+Hypothesis: this'll match the other init strats.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_0_normal_init \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init normal \
+  --random_seed 1337 \
+  --kill_self_after_run \
+  &> scratch_selective_run_0_normal_init.txt
+```
+
+Pretrain with an extra head, with k-zero init for the first head. (17822265)
+
+Hypothesis: this'll match the other init strats.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_0_k_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init k_zero \
+  --random_seed 1337 \
+  --kill_self_after_run \
+  &> scratch_selective_run_0_k_zero.txt
+```
+
+Pretrain with an extra head, with ko-zero init for the first head. (17822266)
+
+Hypothesis: this'll match the other init strats.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_0_ko_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1337 \
+  --kill_self_after_run \
+  &> scratch_selective_run_0_ko_zero.txt
+```
+
+Pretrain with ko-zero init for the first head, with another seed. (17822268)
+
+Hypothesis: this'll match the other init strats.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_1_ko_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> scratch_selective_run_1_ko_zero.txt
+```
+
+Pretrain with ko-zero init for the first head, with a third seed. (17822271)
+
+Hypothesis: this'll match the other init strats.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_2_ko_zero \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1339 \
+  --kill_self_after_run \
+  &> scratch_selective_run_2_ko_zero.txt
+```
+
+Pretrain with ko-zero init and no bos protection. (17822272)
+
+Hypothesis: it'll be a little worse than the default ko-zero runs.
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_0_ko_zero_no_bos_protection \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1337 \
+  --no_protect_bos_token \
+  --kill_self_after_run \
+  &> scratch_selective_run_0_ko_zero_no_bos_protection.txt
+```
+
+Pretrain with ko-zero init and no self protection. (17822274)
+
+Hypothesis: it'll be a little worse than the default ko-zero runs. But it'll be more worse than the no-bos-protection runs (since it was much more worse in the CPT experiments).
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head \
+  --max_steps 2500 \
+  --attention_kind selective \
+  --log_dir scratch_selective_run_0_ko_zero_no_self_protection \
+  --add_a_head \
+  --add_head_to_start \
+  --new_head_init ko_zero \
+  --random_seed 1337 \
+  --allow_masking_myself \
+  --kill_self_after_run \
+  &> scratch_selective_run_0_ko_zero_no_self_protection.txt
+```
 

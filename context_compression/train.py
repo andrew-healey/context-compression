@@ -24,9 +24,9 @@ from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head, NewHeadInit
 parser = argparse.ArgumentParser(description="Train GPT with context compression.")
 parser.add_argument("--hellaswag", dest="hellaswag", action="store_true",
                     help="Enable HellaSwag evaluation (default: True)")
+parser.set_defaults(hellaswag=True)
 parser.add_argument("--no-hellaswag", dest="hellaswag", action="store_false",
                     help="Disable HellaSwag evaluation")
-parser.set_defaults(hellaswag=True)
 
 parser.add_argument("--attention_kind", type=lambda x: AttentionKind(x.lower()), required=True,
                     help="Attention type to use (e.g., self, selective)")
