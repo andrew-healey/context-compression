@@ -184,11 +184,15 @@ if master_process:
 
     use_wandb = args.use_wandb and not (os.environ.get('SKIP_WANDB', 'false').lower() == 'true')
 
+    if use_wandb:
+        if not os.path.exists("wandb-logs"):
+            os.makedirs("wandb-logs")
+
     wandb.init(project="context_compression", 
                config=vars(args), 
                group=args.group,
                name=os.path.basename(args.log_dir),
-               dir=log_dir,
+               dir="wandb-logs/"+log_dir,
                mode="online" if use_wandb else "disabled")
 
 log_file = os.path.join(log_dir, f"log2.txt")
