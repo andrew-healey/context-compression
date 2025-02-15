@@ -532,6 +532,32 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 We're using an extra head just because that lets me reuse my add_a_head code for the kv init.
 
+
+Results:
+
+epsilon=0.02 graphs: [wandb](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=km905uw7die)
+- "epsilon=0.02 will basically match epsilon=0 on CE loss with no pruning."
+  - Not true! It's worse on CE loss.
+  - Hrrm. this is diff from the CPT experiments.
+  - IDK if there's enough data to make a general conclusion.
+  - Still unclear how much unselective-to-selective loss delta is destroyed by eps=0.1 and eps=0.02, since I didn't try any unselective runs. I'm not planning to, btw.
+- "epsilon=0.02 will beat epsilon=0.1 in both CE loss and pruning-ratio-before-parity."
+  - yup! [graph](https://raw.githubusercontent.com/andrew-healey/context-compression/refs/heads/master/imgs/pruning-graphs.png?token=GHSAT0AAAAAAC3UD4HZRXXAAEIA7BNCBC4AZ5P4ULA)
+
+bos and self protection: [wandb](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=km905uw7die)
+- "no bos protection will be slightly worse than ko zero init"
+  - actually, it's a p big degradation!
+  - much bigger (relatively) than on CPT. I wonder why?
+    - it might be bigger or smaller with normal init. Hrrm. Such is the cost of switching to a new baseline.
+- "allow masking myself will be noticeably worse than ko zero init"
+  - actually, seems like no!
+  - or at least, much tighter delta than the bos protection one. my experiments so far don't show enough separation for any amount of confidence in this.
+  - This makes me think it rly is a small difference, just like Leviathan said!!
+    - Which would be p good news, ig? If I could basically repro the relative magnitudes of treatment effect deltas.
+
+OK. Our next experiment (From-scratch pretraining experiments 3) will be using a new normal init baseline.
+
+
 <hr>
 
 Pretrain with an extra head, memory loss with epsilon=0.1. (17822255)
@@ -886,3 +912,41 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --kill_self_after_run \
   &> scratch_selective_run_3_normal_init.txt
 ```
+
+## From-scratch pretraining experiments 3 (with an extra head)
+
+We're not doing any crazy double-relu experiment *yet*.
+
+Hypothesis: no-self-protection will be slightly noticeably worse than self-protection, but only by looking at train losses. This is based on the last from-scratch experiments.
+
+Hypothesis: no-bos-protection will be noticeably worse than bos-protection, by looking at train losses. Also based on the last from-scratch experiments.
+
+Hypothesis: unselective will be much worse than selective, obviously.
+
+Hypothesis: linear head will be a bit better than the normal selection head.
+
+Hypothesis: leaky ReLU, in both forms, will have worse performance than baseline.
+
+Hypothesis: no-ReLU selectivity will diverge completely.
+
+<hr>
+
+No-self-protection run with normal init.
+
+No-self-protection run with normal init, with a second seed.
+
+No-self-protection run with normal init, with a third seed.
+
+No-bos-protection run with normal init.
+
+No-bos-protection run with normal init, with a second seed.
+
+Unselective run with normal init.
+
+Replacing ReLU with leaky ReLU for the selection mask, with i.e. 0.1 leak.
+
+Replacing ReLU with leaky ReLU for the selection mask, with i.e. 0.25 leak.
+
+Replacing selection head with linear combo of attention scores.
+
+Replacing selection head with linear combo of attention scores, with a second seed.
