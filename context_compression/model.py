@@ -3,7 +3,7 @@ import torch
 import math
 import torch.nn.functional as F
 from dataclasses import dataclass
-from .attn import get_attention_cls, AttentionKind
+from .attn import get_attention_cls, AttentionKind, ProtectionKind
 import os
 import inspect
 
@@ -53,6 +53,9 @@ class GPTConfig:
     protect_bos_token: bool = True
     prevent_from_masking_myself: bool = True
     selection_head_linear_combo: bool = False
+    protection_kind: Optional[ProtectionKind] = None
+    leaky_relu_alpha: Optional[float] = None
+    leaky_relu_bias: Optional[float] = None
 
 class GPT(nn.Module):
     def __init__(self, config):

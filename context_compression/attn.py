@@ -3,6 +3,21 @@ import torch
 import math
 import torch.nn.functional as F
 
+from protection.protect_and_attack import protect_and_attack_triton
+from enum import StrEnum, auto
+class ProtectionKind(StrEnum):
+    HEAD_TWO = auto()
+    LINEAR_COMBO = auto()
+    LINEAR_COMBO_HEAD_TWO = auto()
+    LEAKY_RELU = auto()
+    NONE = auto()
+
+class SelectionHeadLinearComboKind(StrEnum):
+    NONE = auto()
+    TRUE = auto()
+    WITH_HEAD_ZERO = auto()
+    WITH_HEAD_ZERO_AND_BIAS = auto()
+
 class CausalSelectiveSelfAttentionForInference(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -30,6 +45,9 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
             self.selection_head = nn.Linear(config.n_head, 1)
         else:
             self.selection_head = None
+        
+        if self.config.protection_kind != ProtectionKind.NONE:
+            raise NotImplementedError("Protection not implemented for inference")
 
     def get_pruning_ratio(self, context_length):
         """
@@ -199,6 +217,7 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
 
         if self.config.selection_head_linear_combo: raise NotImplementedError("Linear combo not implemented for memory penalty")
+        if self.config.protection_kind != ProtectionKind.NONE: raise NotImplementedError("Protection not implemented for memory penalty")
 
     def forward(self, x):
         B, T, C = x.size()
@@ -271,14 +290,28 @@ class CausalSelectiveSelfAttention(nn.Module):
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
         self.config = config
 
-        if self.config.selection_head_linear_combo:
-            self.selection_head = nn.Linear(config.n_head, 1)
-            with torch.no_grad():
-                weight = self.selection_head.weight
-                assert weight.shape == (config.n_head, 1)
-                weight.data[0:1].fill_(1.0) # initialize head to directly using the first head's logits. should make linear combo pareto-better than the single-head baseline.
+        if self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
+            use_bias = self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]
+            self.selection_head = nn.Linear(config.n_head, 1, bias=use_bias)
+            if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO, SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]:
+                with torch.no_grad():
+                    weight = self.selection_head.weight
+                    assert weight.shape == (config.n_head, 1)
+                    weight.data[0:1].fill_(1.0) # initialize head to directly using the first head's logits. should make linear combo pareto-better than the single-head baseline.
         else:
             self.selection_head = None
+        
+        if self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
+            self.protection_head = nn.Linear(config.n_head, 1)
+            if self.config.protection_kind == ProtectionKind.LINEAR_COMBO_HEAD_TWO:
+                with torch.no_grad():
+                    weight = self.protection_head.weight
+                    assert weight.shape == (config.n_head, 1)
+                    weight.data[1:2].fill_(1.0)
+        else:
+            self.protection_head = None
+        
+        assert (self.config.leaky_relu_alpha is None) == (self.config.protection_kind != ProtectionKind.LEAKY_RELU) == (self.config.leaky_relu_bias is None), "leaky_relu_alpha, protection_kind, and leaky_relu_bias must all match"
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -303,6 +336,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             S = att[:, 0].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
 
+        S_pre_relu = S
         S = F.relu(S)  # Only positive selection
 
         # Use torch.zeros_like to safely modify without inplace ops
@@ -318,7 +352,32 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             S = S_masked
 
-        FF = torch.cumsum(S, dim=-2)
+        if self.config.protection_kind == ProtectionKind.NONE:
+            FF = torch.cumsum(S, dim=-2)
+        else:
+            # First, compute Sp
+
+            if self.config.protection_kind == ProtectionKind.HEAD_TWO:
+                Sp = att[:, 1].clone()
+                Sp = F.relu(Sp)
+            elif self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
+                Sp = att[:,:,:,:] # shape: (B, n_head, T, T')
+                Sp = Sp.transpose(1, 3) # shape: (B, T', T, n_head)
+                Sp = self.protection_head(Sp) # shape: (B, T', T, 1)
+                Sp = Sp.squeeze(-1) # shape: (B, T', T)
+                Sp = Sp.transpose(1,2) # shape: (B, T, T')
+                Sp = F.relu(Sp)
+            elif self.config.protection_kind == ProtectionKind.LEAKY_RELU:
+                # we use the "leaky" half of S_pre_relu
+                # This makes our model act as if we used a leaky relu to construct S, BUT with the negative half acting like protection, NOT like healing
+                Sp = (-S_pre_relu * self.config.leaky_relu_alpha + self.config.leaky_relu_bias).relu()
+            else:
+                raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
+
+            # Second, run the protect-and-attack algorithm on Sp and S
+            FF = protect_and_attack_triton(S, Sp, dim=-2)
+
+        
         FF_shifted = torch.roll(FF, 1, -2)
         FF_shifted[..., 0, :] = 0
 

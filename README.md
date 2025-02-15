@@ -1209,3 +1209,173 @@ Replacing selection head with linear combo of attention scores, with a second se
   --kill_self_after_run \
   &> scratch_selective_run_1_normal_init_linear_combo.txt"
 ```
+
+## From-scratch pretraining experiments 4 (with an extra head)
+
+I have some runs with new linear combo init strategies, since that theoretically should be no worse than the first-head strategy.
+
+I also added some runs for different variants of the protection-token idea. I hope it improves performance!
+
+Hypotheses:
+
+Linear combo selection head initted to head[0] = 1, with bias, will be a bit better than baseline.
+
+Linear combo selection head initted to head[0] = 1, with no bias, will be worse than with bias but still better than baseline.
+
+Head-two protection head will make performance a bit worse, since it's decreasing the # of available heads, for something relatively unimportant.
+
+Linear-combo protection head will make performance a bit better, I think - seems like probably just a pareto improvement.
+
+Linear-combo protection head with head two will make performance worse, since it's basically like a head-two protection head.
+
+Leaky-relu protection head (with bias) will make performance better than baseline. But probably only by a little bit. IDK how much, relative to the other protection kinds.
+
+<hr>
+
+Linear combo selection initted to head[0] = 1, with bias.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_0_lincomb_head0_with_bias \
+  --selection_head_linear_combo with_head_zero_and_bias \
+  --random_seed 1337 \
+  --kill_self_after_run \
+  &> run_0_lincomb_head0_with_bias.txt
+```
+
+Linear combo selection initted to head[0] = 1, with bias, with a second seed.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_1_lincomb_head0_with_bias \
+  --selection_head_linear_combo with_head_zero_and_bias \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> run_1_lincomb_head0_with_bias.txt
+```
+
+Linear combo selection initted to head[0] = 1, with no bias.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_0_lincomb_head0_no_bias \
+  --selection_head_linear_combo with_head_zero \
+  --random_seed 1337 \
+  --kill_self_after_run \
+  &> run_0_lincomb_head0_no_bias.txt
+```
+
+Linear combo selection initted to head[0] = 1, with no bias, with a second seed.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_1_lincomb_head0_no_bias \
+  --selection_head_linear_combo with_head_zero \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> run_1_lincomb_head0_no_bias.txt
+```
+
+Head-two protection head.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_0_protection_head2 \
+  --protection_kind head_two \
+  --random_seed 1337 \
+  --kill_self_after_run \
+  &> run_0_protection_head2.txt
+```
+
+Head-two protection head, with a second seed.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_1_protection_head2 \
+  --protection_kind head_two \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> run_1_protection_head2.txt
+```
+
+Linear combo protection head.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_0_protection_linear_combo \
+  --protection_kind linear_combo \
+  --random_seed 1337 \
+  --kill_self_after_run \
+  &> run_0_protection_linear_combo.txt
+```
+
+Linear combo protection head, with a second seed.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_1_protection_linear_combo \
+  --protection_kind linear_combo \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> run_1_protection_linear_combo.txt
+```
+
+Linear combo protection head with head two.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_0_protection_linear_combo_head2 \
+  --protection_kind linear_combo_head_two \
+  --random_seed 1337 \
+  --kill_self_after_run \
+  &> run_0_protection_linear_combo_head2.txt
+```
+
+Linear combo protection head with head two, with a second seed.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_1_protection_linear_combo_head2 \
+  --protection_kind linear_combo_head_two \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> run_1_protection_linear_combo_head2.txt
+```
+
+Leaky-relu protection head (with bias).
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_0_protection_leaky_relu \
+  --protection_kind leaky_relu \
+  --leaky_relu_alpha 0.1 \
+  --leaky_relu_bias -0.05 \
+  --random_seed 1337 \
+  --kill_self_after_run \
+  &> run_0_protection_leaky_relu.txt
+```
+
+Leaky-relu protection head (with bias), with a second seed.
+
+```vast
+cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_4 \
+  --log_dir run_1_protection_leaky_relu \
+  --protection_kind leaky_relu \
+  --leaky_relu_alpha 0.1 \
+  --leaky_relu_bias -0.05 \
+  --random_seed 1338 \
+  --kill_self_after_run \
+  &> run_1_protection_leaky_relu.txt
+```

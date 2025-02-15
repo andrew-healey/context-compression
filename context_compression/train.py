@@ -12,10 +12,11 @@ import argparse
 import shutil
 from huggingface_hub import hf_hub_download, HfApi
 import wandb
+from typing import Optional
 
 from .data import DataLoaderLite, get_most_likely_row
 from .model import GPT, GPTConfig
-from .attn import AttentionKind
+from .attn import AttentionKind, ProtectionKind, SelectionHeadLinearComboKind
 from .hellaswag import render_example, iterate_examples
 from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head, NewHeadInit
 
@@ -69,8 +70,14 @@ parser.add_argument("--random_seed", type=int, default=1337,
                     help="Random seed for the run")
 parser.add_argument("--memory_penalty_epsilon", type=float, default=0.1,
                     help="Epsilon for the memory penalty")
-parser.add_argument("--selection_head_linear_combo", action="store_true",
-                    help="Use a linear combo of attention scores for the selection head")
+parser.add_argument("--selection_head_linear_combo", type=lambda x: SelectionHeadLinearComboKind(x.lower()), default=SelectionHeadLinearComboKind.NONE,
+                    help="Whether to use a linear combo of attention scores for the selection head")
+parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.HEAD_TWO,
+                    help="Kind of protection to use")
+parser.add_argument("--leaky_relu_alpha", type=Optional[float], default=None,
+                    help="Alpha for the leaky relu")
+parser.add_argument("--leaky_relu_bias", type=Optional[float], default=None,
+                    help="Bias for the leaky relu")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -139,7 +146,19 @@ val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_w
 torch.set_float32_matmul_precision('high')
 
 # create model
-config = GPTConfig(vocab_size=50304, attention_kind=args.attention_kind, for_inference=False, protect_bos_token=args.protect_bos_token, prevent_from_masking_myself=args.prevent_from_masking_myself, epsilon=args.memory_penalty_epsilon)
+config = GPTConfig(
+    vocab_size=50304,
+    attention_kind=args.attention_kind,
+    for_inference=False,
+    protect_bos_token=args.protect_bos_token,
+    prevent_from_masking_myself=args.prevent_from_masking_myself,
+    epsilon=args.memory_penalty_epsilon,
+    selection_head_linear_combo=args.selection_head_linear_combo,
+    protection_kind=args.protection_kind,
+    leaky_relu_alpha=args.leaky_relu_alpha,
+    leaky_relu_bias=args.leaky_relu_bias
+)
+
 model = GPT(config)
 model.to(device)
 use_compile = True
