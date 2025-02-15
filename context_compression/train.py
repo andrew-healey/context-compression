@@ -28,7 +28,7 @@ parser.set_defaults(hellaswag=True)
 parser.add_argument("--no-hellaswag", dest="hellaswag", action="store_false",
                     help="Disable HellaSwag evaluation")
 
-parser.add_argument("--attention_kind", type=lambda x: AttentionKind(x.lower()), required=True,
+parser.add_argument("--attention_kind", type=lambda x: AttentionKind(x.lower()), default=AttentionKind.SELECTIVE,
                     help="Attention type to use (e.g., self, selective)")
 parser.add_argument("--log_dir", type=str, required=True,
                     help="Directory to save logs and checkpoints")
@@ -56,7 +56,7 @@ parser.add_argument("--prevent_from_masking_myself", action="store_true",
 parser.add_argument("--allow_masking_myself", dest="prevent_from_masking_myself", action="store_false",
                     help="Allow each token to mask itself from future tokens")
 parser.set_defaults(prevent_from_masking_myself=True)
-parser.add_argument("--max_steps", type=int, default=10000,
+parser.add_argument("--max_steps", type=int, default=2500,
                     help="Maximum number of training steps")
 parser.add_argument("--group", type=str, default=None,
                     help="Group name for the run")
