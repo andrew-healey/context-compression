@@ -919,17 +919,45 @@ We're not doing any crazy double-relu experiment *yet*.
 
 Hypothesis: no-self-protection will be slightly noticeably worse than self-protection, but only by looking at train losses. This is based on the last from-scratch experiments.
 
+Results: [wandb link](https://wandb.ai/sesamestrong/context_compression/workspace/panel/7i8l8u02w?nw=uykcmzvmij)
+
+No-self-protection is clearly worse on train losses than baselines. It's very stark actually, with normal inits.
+
+I wonder if it has something to do with ko-zero init not encouraging the model to self-mask? So maybe self-masking is less of an issue then for ko-zero.
+
 Hypothesis: no-bos-protection will be noticeably worse than bos-protection, by looking at train losses. Also based on the last from-scratch experiments.
+
+Results: [wandb link](https://wandb.ai/sesamestrong/context_compression/workspace/panel/7i8l8u02w?nw=uykcmzvmij)
+
+Like no-self-protection, no-bos-protection is clearly worse than baselines. I hope all my experiments make things this easy and simple!
 
 Hypothesis: unselective will be much worse than selective, obviously.
 
+Results: [wandb link](https://wandb.ai/sesamestrong/context_compression/workspace/panel/7i8l8u02w?nw=yg2p1tv1pd)
+
+It's kinda surprising *how* bad it is. Like 10x or 20x bigger loss delta than all the other things I'm tweaking (except possibly eps).
+
 Hypothesis: linear head will be a bit better than the normal selection head.
+
+Result: Seems a little worse, surprisingly! [wandb link](https://wandb.ai/sesamestrong/context_compression/workspace/panel/7i8l8u02w?nw=6z9gcoijvxd)
+
+Very confused about this, actually. Doesn't this just strictly improve the capacity of the model? Hrrm. It may acc have acted like a ko-zero init...
+
+Yeah, so ig this should be a pareto improvement if we change the selectivity mask init to maybe be one for head 1. TODO try that next experiment.
 
 Hypothesis: leaky ReLU, in both forms, will have worse performance than baseline.
 
+Result: See [wandb link](https://wandb.ai/sesamestrong/context_compression/workspace/panel/7i8l8u02w?nw=ejl75xkk2). This was right - even though I did the cumsum thing! I'm acc a bit surprised by this. I wrote the hypothesis before modifying my leaky ReLU code (to later run a relu on the cumsum mask) - so after making that modification, I was p optimistic.
+
+Hrrm. It maybe that neighbor-token consumption is just the most important effect for decreasing loss? And that's incredibly local. So have any leakage will wreak havoc. Hrrm yeah, ig anybody that's not explicitly masking a token is then choosing to reinforce it. We rly should try that double-ReLU approach...
+
 Hypothesis: no-ReLU selectivity will diverge completely.
 
+Result: I didn't run a no-ReLU selectivity run, IDT. Didn't see any point.
+
 Hypothesis: move-ReLU-after-cumsum will be better than the selective baseline.
+
+Result: it's worse! It's a subset of leaky-ReLU, so probably it suffers from the same issues.
 
 Hypothesis: move-ReLU-after-cumsum with no-bos-protection will be better than the selective baseline with no-bos-protection.
 
