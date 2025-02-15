@@ -312,18 +312,18 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             S_masked[...] = S
 
-        eye_mask = 1 - torch.eye(T, device=S.device)  # Do not mask self
+        eye_mask = 1 - torch.eye(T, device=S.device)  # Do not let me hide myself from future tokens
         if self.prevent_from_masking_myself:
-            S = S_masked * eye_mask  # Apply the masking to avoid self-attention
+            S = S_masked * eye_mask
         else:
             S = S_masked
 
-        S_shifted = torch.roll(S, 1, -2)  # Shift to mask strictly in the future
-        S_shifted[..., 0, :] = 0  # Ensure future masking without inplace
+        FF = torch.cumsum(S, dim=-2)
+        FF_shifted = torch.roll(FF, 1, -2)
+        FF_shifted[..., 0, :] = 0
 
         # Use out-of-place subtraction to preserve computation graph integrity
-        cs = torch.cumsum(S_shifted, dim=-2)[:, None]
-        att = att - cs
+        att = att - FF_shifted[:,None,:,:]
 
         att = F.softmax(att, dim=-1)
 
