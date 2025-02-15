@@ -38,6 +38,7 @@ parser.add_argument("--resume_optimizer", action="store_true",
                     help="Resume optimizer state when resuming checkpoint")
 parser.add_argument("--add_a_head", action="store_true",
                     help="Add an additional head")
+parser.set_defaults(add_a_head=True)
 parser.add_argument("--add_head_to_start", action="store_true",
                     help="Place the new head at the start")
 parser.set_defaults(add_head_to_start=True)
