@@ -61,6 +61,7 @@ parser.add_argument("--group", type=str, default=None,
                     help="Group name for the run")
 parser.add_argument("--no-wandb", dest="use_wandb", action="store_false",
                     help="Disable wandb logging")
+parser.set_defaults(use_wandb=True)
 parser.add_argument("--kill_self_after_run", action="store_true",
                     help="Kill my own instance after run completes")
 parser.add_argument("--random_seed", type=int, default=1337,
@@ -69,11 +70,6 @@ parser.add_argument("--memory_penalty_epsilon", type=float, default=0.1,
                     help="Epsilon for the memory penalty")
 parser.add_argument("--selection_head_linear_combo", action="store_true",
                     help="Use a linear combo of attention scores for the selection head")
-parser.add_argument("--relu_leak", type=float, default=None,
-                    help="Leak for the ReLU")
-parser.add_argument("--relu_after_cumsum", action="store_true",
-                    help="Apply ReLU after the cumsum")
-parser.set_defaults(use_wandb=True)
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------

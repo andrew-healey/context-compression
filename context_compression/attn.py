@@ -102,10 +102,7 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         else:
             S = att[:, 0].clone()
 
-        if self.config.relu_leak is not None:
-            S = F.leaky_relu(S, negative_slope=self.config.relu_leak)
-        else:
-            S = F.relu(S)
+        S = F.relu(S)
 
         S_masked = torch.zeros_like(S)
         if self.protect_bos_token:
@@ -123,9 +120,6 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         S_shifted[..., 0, :] = 0
 
         FF = torch.cumsum(S_shifted, dim=-2)[:, None]
-
-        if self.config.relu_after_cumsum:
-            FF = F.relu(FF)
 
         # Always apply forgetting regardless of context length
         att -= FF
@@ -205,8 +199,6 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
 
         if self.config.selection_head_linear_combo: raise NotImplementedError("Linear combo not implemented for memory penalty")
-        if self.config.relu_after_cumsum: raise NotImplementedError("Cumsum not implemented for memory penalty")
-        if self.config.relu_leak is not None: raise NotImplementedError("Leaky ReLU not implemented for memory penalty")
 
     def forward(self, x):
         B, T, C = x.size()
@@ -311,10 +303,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             S = att[:, 0].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
 
-        if self.config.relu_leak is not None:
-            S = F.leaky_relu(S, negative_slope=self.config.relu_leak)
-        else:
-            S = F.relu(S)  # Only positive selection
+        S = F.relu(S)  # Only positive selection
 
         # Use torch.zeros_like to safely modify without inplace ops
         S_masked = torch.zeros_like(S)  # Create a mask to avoid in-place ops
@@ -334,8 +323,6 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         # Use out-of-place subtraction to preserve computation graph integrity
         cs = torch.cumsum(S_shifted, dim=-2)[:, None]
-        if self.config.relu_after_cumsum:
-            cs = F.relu(cs)
         att = att - cs
 
         att = F.softmax(att, dim=-1)
