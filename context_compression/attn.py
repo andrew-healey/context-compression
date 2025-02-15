@@ -281,6 +281,10 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         if self.config.selection_head_linear_combo:
             self.selection_head = nn.Linear(config.n_head, 1)
+            with torch.no_grad():
+                weight = self.selection_head.weight
+                assert weight.shape == (config.n_head, 1)
+                weight.data[0:1].fill_(1.0) # initialize head to directly using the first head's logits. should make linear combo pareto-better than the single-head baseline.
         else:
             self.selection_head = None
 
