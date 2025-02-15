@@ -938,7 +938,7 @@ Hypothesis: move-ReLU-after-cumsum with no-bos-protection will be better than th
 No-self-protection run with normal init. (17860836)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17860836 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -949,13 +949,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1337 \
   --allow_masking_myself \
   --kill_self_after_run \
-  &> scratch_selective_run_0_normal_init_no_self_protection.txt
+  &> scratch_selective_run_0_normal_init_no_self_protection.txt"
 ```
 
 No-self-protection run with normal init, with a second seed. (17860837)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17860837 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -966,13 +966,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1338 \
   --allow_masking_myself \
   --kill_self_after_run \
-  &> scratch_selective_run_1_normal_init_no_self_protection.txt
+  &> scratch_selective_run_1_normal_init_no_self_protection.txt"
 ```
 
 No-self-protection run with normal init, with a third seed. (17860838)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17860838 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -983,13 +983,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1339 \
   --allow_masking_myself \
   --kill_self_after_run \
-  &> scratch_selective_run_2_normal_init_no_self_protection.txt
+  &> scratch_selective_run_2_normal_init_no_self_protection.txt"
 ```
 
 No-bos-protection run with normal init. (17860839)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17860839 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1000,14 +1000,14 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1337 \
   --no_protect_bos_token \
   --kill_self_after_run \
-  &> scratch_selective_run_0_normal_init_no_bos_protection.txt
+  &> scratch_selective_run_0_normal_init_no_bos_protection.txt"
 ```
 
 
 No-bos-protection run with normal init, with a second seed. (17860843)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17860843 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1018,13 +1018,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1338 \
   --no_protect_bos_token \
   --kill_self_after_run \
-  &> scratch_selective_run_1_normal_init_no_bos_protection.txt
+  &> scratch_selective_run_1_normal_init_no_bos_protection.txt"
 ```
 
 Unselective run with normal init. (17860844)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17860844 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind self \
@@ -1034,13 +1034,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --new_head_init normal \
   --random_seed 1337 \
   --kill_self_after_run \
-  &> scratch_unselective_run_0_normal_init.txt
+  &> scratch_unselective_run_0_normal_init.txt"
 ```
 
 Replacing ReLU with leaky ReLU for the selection mask, with i.e. 0.1 leak. (17860846)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17860846 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1052,13 +1052,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --relu_after_cumsum \
   --random_seed 1338 \
   --kill_self_after_run \
-  &> scratch_selective_run_1_normal_init_leaky_relu_0.1.txt
+  &> scratch_selective_run_1_normal_init_leaky_relu_0.1.txt"
 ```
 
 Replacing ReLU with leaky ReLU for the selection mask, with i.e. 0.25 leak. (17860850)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17860850 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1070,13 +1070,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --relu_after_cumsum \
   --random_seed 1338 \
   --kill_self_after_run \
-  &> scratch_selective_run_1_normal_init_leaky_relu_0.25.txt
+  &> scratch_selective_run_1_normal_init_leaky_relu_0.25.txt"
 ```
 
-Moving ReLU after the cumsum. (17860851)
+Moving ReLU after the cumsum. (17861898)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17861898 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1088,13 +1088,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --relu_after_cumsum \
   --random_seed 1337 \
   --kill_self_after_run \
-  &> scratch_selective_run_0_normal_init_move_relu_after_cumsum.txt
+  &> scratch_selective_run_0_normal_init_move_relu_after_cumsum.txt"
 ```
 
-Moving ReLU after the cumsum, with a second seed. (17860852)
+Moving ReLU after the cumsum, with a second seed. (17861745)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17861745 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1106,13 +1106,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --relu_after_cumsum \
   --random_seed 1338 \
   --kill_self_after_run \
-  &> scratch_selective_run_1_normal_init_move_relu_after_cumsum.txt
+  &> scratch_selective_run_1_normal_init_move_relu_after_cumsum.txt"
 ```
 
-Moving ReLU after the cumsum, with no bos protection. (17860853)
+Moving ReLU after the cumsum, with no bos protection. (17861747)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17861747 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1125,13 +1125,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --no_protect_bos_token \
   --random_seed 1337 \
   --kill_self_after_run \
-  &> scratch_selective_run_0_normal_init_move_relu_after_cumsum_no_bos_protection.txt
+  &> scratch_selective_run_0_normal_init_move_relu_after_cumsum_no_bos_protection.txt"
 ```
 
-Moving ReLU after the cumsum, with no bos protection, with a second seed. (17860855)
+Moving ReLU after the cumsum, with no bos protection, with a second seed. (17861748)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17861748 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1144,14 +1144,14 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --no_protect_bos_token \
   --random_seed 1338 \
   --kill_self_after_run \
-  &> scratch_selective_run_1_normal_init_move_relu_after_cumsum_no_bos_protection.txt
+  &> scratch_selective_run_1_normal_init_move_relu_after_cumsum_no_bos_protection.txt"
 ```
 
 
-Replacing selection head with linear combo of attention scores. (17860860)
+Replacing selection head with linear combo of attention scores. (17861750)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17861750 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1162,13 +1162,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --selection_head_linear_combo \
   --random_seed 1337 \
   --kill_self_after_run \
-  &> scratch_selective_run_0_normal_init_linear_combo.txt
+  &> scratch_selective_run_0_normal_init_linear_combo.txt"
 ```
 
-Replacing selection head with linear combo of attention scores, with a second seed. (17860861)
+Replacing selection head with linear combo of attention scores, with a second seed. (17861752)
 
 ```
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+./local/run_in_remote.sh 17861752 "echo hi && cd /workspace/context-compression && git pull && nohup torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_3 \
   --max_steps 2500 \
   --attention_kind selective \
@@ -1179,5 +1179,5 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --selection_head_linear_combo \
   --random_seed 1338 \
   --kill_self_after_run \
-  &> scratch_selective_run_1_normal_init_linear_combo.txt
+  &> scratch_selective_run_1_normal_init_linear_combo.txt"
 ```
