@@ -26,6 +26,11 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         self.protect_bos_token = config.protect_bos_token
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
 
+        if self.config.selection_head_linear_combo:
+            self.selection_head = nn.Linear(config.n_head, 1)
+        else:
+            self.selection_head = None
+
     def get_pruning_ratio(self, context_length):
         """
         Dynamically determine pruning ratio based on context length:
@@ -88,8 +93,19 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
 
         # Apply selective attention with forgetting
-        S = att[:, 0].clone()
-        S = F.relu(S)
+        if self.config.linear_combo:
+            S = att[:, :, :, :] # shape: (B, n_head, T, T')
+            S = S.transpose(1, 3) # shape: (B, T', T, n_head)
+            S = self.selection_head(S) # shape: (B, T', T, 1)
+            S = S.squeeze(-1) # shape: (B, T', T)
+            S = S.transpose(1,2) # shape: (B, T, T')
+        else:
+            S = att[:, 0].clone()
+
+        if self.config.relu_leak is not None:
+            S = F.leaky_relu(S, negative_slope=self.config.relu_leak)
+        else:
+            S = F.relu(S)
 
         S_masked = torch.zeros_like(S)
         if self.protect_bos_token:
@@ -107,6 +123,9 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         S_shifted[..., 0, :] = 0
 
         FF = torch.cumsum(S_shifted, dim=-2)[:, None]
+
+        if self.config.relu_after_cumsum:
+            FF = F.relu(FF)
 
         # Always apply forgetting regardless of context length
         att -= FF
@@ -185,6 +204,10 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
         self.protect_bos_token = config.protect_bos_token
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
 
+        if self.config.selection_head_linear_combo: raise NotImplementedError("Linear combo not implemented for memory penalty")
+        if self.config.relu_after_cumsum: raise NotImplementedError("Cumsum not implemented for memory penalty")
+        if self.config.relu_leak is not None: raise NotImplementedError("Leaky ReLU not implemented for memory penalty")
+
     def forward(self, x):
         B, T, C = x.size()
         qkv = self.c_attn(x)
@@ -254,6 +277,12 @@ class CausalSelectiveSelfAttention(nn.Module):
                                      .view(1, 1, config.block_size, config.block_size))
         self.protect_bos_token = config.protect_bos_token
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
+        self.config = config
+
+        if self.config.selection_head_linear_combo:
+            self.selection_head = nn.Linear(config.n_head, 1)
+        else:
+            self.selection_head = None
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -268,8 +297,20 @@ class CausalSelectiveSelfAttention(nn.Module):
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         # Apply selective attention
-        S = att[:, 0].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
-        S = F.relu(S)  # Only positive selection
+
+        if self.config.selection_head_linear_combo:
+            S = att[:, :, :, :] # shape: (B, n_head, T, T')
+            S = S.transpose(1, 3) # shape: (B, T', T, n_head)
+            S = self.selection_head(S) # shape: (B, T', T, 1)
+            S = S.squeeze(-1) # shape: (B, T', T)
+            S = S.transpose(1,2) # shape: (B, T, T')
+        else:
+            S = att[:, 0].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
+
+        if self.config.relu_leak is not None:
+            S = F.leaky_relu(S, negative_slope=self.config.relu_leak)
+        else:
+            S = F.relu(S)  # Only positive selection
 
         # Use torch.zeros_like to safely modify without inplace ops
         S_masked = torch.zeros_like(S)  # Create a mask to avoid in-place ops
@@ -289,6 +330,8 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         # Use out-of-place subtraction to preserve computation graph integrity
         cs = torch.cumsum(S_shifted, dim=-2)[:, None]
+        if self.config.relu_after_cumsum:
+            cs = F.relu(cs)
         att = att - cs
 
         att = F.softmax(att, dim=-1)

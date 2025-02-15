@@ -67,6 +67,12 @@ parser.add_argument("--random_seed", type=int, default=1337,
                     help="Random seed for the run")
 parser.add_argument("--memory_penalty_epsilon", type=float, default=0.1,
                     help="Epsilon for the memory penalty")
+parser.add_argument("--selection_head_linear_combo", action="store_true",
+                    help="Use a linear combo of attention scores for the selection head")
+parser.add_argument("--relu_leak", type=float, default=None,
+                    help="Leak for the ReLU")
+parser.add_argument("--relu_after_cumsum", action="store_true",
+                    help="Apply ReLU after the cumsum")
 parser.set_defaults(use_wandb=True)
 args = parser.parse_args()
 

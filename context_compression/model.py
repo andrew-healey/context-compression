@@ -52,6 +52,9 @@ class GPTConfig:
     hard_pruning_constant: Optional[float] = None # to fix the pruning during inference
     protect_bos_token: bool = True
     prevent_from_masking_myself: bool = True
+    selection_head_linear_combo: bool = False
+    relu_leak: Optional[float] = None
+    relu_after_cumsum: bool = False
 
 class GPT(nn.Module):
     def __init__(self, config):
