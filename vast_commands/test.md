@@ -4,7 +4,7 @@ Hrrrrrm. Ig we can just check the tags? Since theoretically our runs will finish
 Yeah let's do that actually. We can do like different duration runs. i.e. the first one finishes in 20 seconds, the next in 30 seconds, the next in 40 seconds, etc.
 And we'll run these all on single-gpu systems.
 
-```vast:running/17896990
+```vast:finished
 sleep 20
 ```
 
