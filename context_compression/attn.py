@@ -331,9 +331,17 @@ class CausalSelectiveSelfAttention(nn.Module):
             S = S.transpose(1, 3) # shape: (B, T', T, n_head)
             S = S.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
             S = self.selection_head(S) # shape: (B, T', T, 1)
-            S = S.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
-            S = S.squeeze(-1) # shape: (B, T', T)
-            S = S.transpose(1,2) # shape: (B, T, T')
+
+            # I copy the output of the selection_head to a fresh tensor
+            # For some reason, when I don't do this, torch.compile causes a CUDA memory alignment error
+            # That's not fixed by .contiguous() or .reshape() or .clone()
+            # But is fixed by i.e. F.sigmoid or by using this copy code
+            S_fresh = torch.zeros((B, T, T), device=S.device)
+            S_fresh[:,:,:] = S[:,:,:,0]
+            S = S_fresh
+
+            S = S.masked_fill(self.bias[0,:,:T,:T].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
+            S = S.transpose(1,2).clone() # shape: (B, T, T')
         else:
             S = att[:, 0].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
 
@@ -366,6 +374,12 @@ class CausalSelectiveSelfAttention(nn.Module):
                 Sp = Sp.transpose(1, 3) # shape: (B, T', T, n_head)
                 Sp = Sp.masked_fill(self.bias[1,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
                 Sp = self.protection_head(Sp) # shape: (B, T', T, 1)
+
+                # Same copy trick as for the selection head above
+                Sp_fresh = torch.zeros((B, T, T), device=Sp.device)
+                Sp_fresh[:,:,:] = Sp[:,:,:,0]
+                Sp = Sp_fresh
+
                 Sp = Sp.masked_fill(self.bias[1,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
                 Sp = Sp.squeeze(-1) # shape: (B, T', T)
                 Sp = Sp.transpose(1,2) # shape: (B, T, T')
