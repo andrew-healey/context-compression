@@ -147,17 +147,29 @@ def get_autorunning_instances() -> List[Instance]:
     from vast_ai_api import VastAPIHelper
     import pandas as pd
     api = VastAPIHelper()
-    try:
-        # List current instances (launched instances)
-        launched_df = api.list_current_instances()
-    except Exception as e:
-        logger.error("Error fetching current instances from Vast.ai:", e)
-        return []
+    backoff = 10  # initial sleep time: 10 seconds
+    max_backoff = 60  # maximum sleep time: 60 seconds
+    attempt = 0
+    max_attempts = 5  # try up to 5 times
+
+    while True:
+        try:
+            # List current instances (launched instances)
+            launched_df = api.list_current_instances()
+            break  # if successful, exit the loop
+        except Exception as e:
+            attempt += 1
+            logger.error("Error fetching current instances from Vast.ai (attempt %d): %s", attempt, e)
+            if attempt >= max_attempts:
+                logger.error("Max attempts reached. Returning empty list.")
+                return []
+            logger.info("Retrying in %d seconds...", backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
 
     instances = []
     # Filter for those instances which have an extra_env entry for IS_FOR_AUTORUNNING=true.
     for index, row in launched_df.iterrows():
-        logging.debug(f"Instance {row['id']} has extra_env {row.get('extra_env', [])}")
         extra_env = row.get("extra_env", [])
         is_autorunning = any(
             (len(pair) == 2 and pair[0] == "IS_FOR_AUTORUNNING" and pair[1].lower() == "true")
@@ -165,7 +177,6 @@ def get_autorunning_instances() -> List[Instance]:
         )
         if not is_autorunning:
             continue
-        # Create an Instance object using available info.
         inst = Instance(
             instance_id=str(row["id"]),
             state=str(row.get("cur_state", "unknown")),
@@ -294,11 +305,20 @@ def finish_phase(blocks: List[CommandBlock]) -> None:
     for block in blocks:
          if block.state == CommandState.SUCCESS and block.instance_id:
               logger.debug(f"Finishing block {block.index} on instance {block.instance_id} and deleting the instance.")
-              try:
-                  api.delete_instance(block.instance_id)
-                  logger.debug(f"Deleted instance {block.instance_id} for block {block.index}.")
-              except Exception as e:
-                  logger.error(f"Error deleting instance {block.instance_id} for block {block.index}: {e}")
+              delay = 10
+              max_delay = 60
+              while delay <= max_delay:
+                  try:
+                      api.delete_instance(block.instance_id)
+                      logger.debug(f"Deleted instance {block.instance_id} for block {block.index}.")
+                      break
+                  except Exception as e:
+                      logger.error(f"Error deleting instance {block.instance_id} for block {block.index}: {e}")
+                      logger.info(f"Retrying in {delay} seconds...")
+                      time.sleep(delay)
+                      delay *= 2
+              else:
+                  logger.error(f"Failed to delete instance {block.instance_id} after all retries")
                   continue
               block.state = CommandState.FINISHED
               block.instance_id = None
