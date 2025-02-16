@@ -372,7 +372,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             elif self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
                 Sp = att[:,:,:,:] # shape: (B, n_head, T, T')
                 Sp = Sp.transpose(1, 3) # shape: (B, T', T, n_head)
-                Sp = Sp.masked_fill(self.bias[1,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
+                Sp = Sp.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
                 Sp = self.protection_head(Sp) # shape: (B, T', T, 1)
 
                 # Same copy trick as for the selection head above
@@ -380,7 +380,7 @@ class CausalSelectiveSelfAttention(nn.Module):
                 Sp_fresh[:,:,:] = Sp[:,:,:,0]
                 Sp = Sp_fresh
 
-                Sp = Sp.masked_fill(self.bias[1,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
+                Sp = Sp.masked_fill(self.bias[0,:,:T,:T].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
                 Sp = Sp.squeeze(-1) # shape: (B, T', T)
                 Sp = Sp.transpose(1,2) # shape: (B, T, T')
                 Sp = F.relu(Sp)
