@@ -193,11 +193,26 @@ import random
 # Launch a verified command block on a given instance.
 def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
     # Extract the inner command (strip starting and ending quotes).
-    command = block.content.strip().replace("\\\n", "") # ANDREWTODO remove this horrible hackiness!
-    assert "\n" not in command, f"Command {command} contains a newline. That's not allowed."
+    command = block.content
     ssh_host = instance.ssh_host
     ssh_port = instance.ssh_port
     ssh_target = f"root@{ssh_host}"
+
+    # Construct the full remote command you want to run.
+    # Note: We're keeping the dollar-sign escapes (\\$CONTAINER_ID) as is.
+    remote_command = (
+        "true && vastai label instance $CONTAINER_ID running && "
+        f"{command} && "
+        "vastai label instance $CONTAINER_ID succeed || "
+        "vastai label instance $CONTAINER_ID fail && "
+        "vastai stop instance $CONTAINER_ID"
+    )
+    
+    # Use shlex.quote() to safely wrap the entire command
+    import shlex
+    quoted_remote_command = shlex.quote(remote_command)
+
+
     ssh_command = [
         "ssh",
         "-i", os.path.expanduser("~/.ssh/id_vast"),
@@ -206,7 +221,8 @@ def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
         "-p", str(ssh_port),
         ssh_target,
         "tmux", "new-session", "-d", "-s", f"session_{random.randint(0, 1000000)}",
-        f'nohup sh -c "vastai label instance \\$CONTAINER_ID running && {command} && vastai label instance \\$CONTAINER_ID succeed || vastai label instance \\$CONTAINER_ID fail && vastai stop instance \\$CONTAINER_ID"'
+        "nohup","bash","-c",
+        quoted_remote_command
     ]
     logger.debug(f"Starting command on instance {instance.instance_id}: {' '.join(ssh_command)}")
     try:
