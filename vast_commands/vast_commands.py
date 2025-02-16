@@ -326,7 +326,7 @@ def finish_phase(blocks: List[CommandBlock]) -> None:
     return
 
 # Write the updated command blocks back to the file.
-def writeback_file(filename: str, file_text: str, blocks: List[CommandBlock]) -> None:
+def writeback_file(fw, file_text: str, blocks: List[CommandBlock]) -> None:
     pattern = re.compile(r"```vast(?::(?P<tag>[\w/]+))?\n(?P<content>.*?)\n```", re.DOTALL)
     # Create an iterator over the blocks (they occur in order).
     block_iter = iter(blocks)
@@ -343,9 +343,11 @@ def writeback_file(filename: str, file_text: str, blocks: List[CommandBlock]) ->
         return f"{header_line}\n{match.group('content')}\n```"
     
     new_text = pattern.sub(replacer, file_text)
-    with open(filename, "w") as f:
-        f.write(new_text)
-    logger.info(f"Wrote updated file back to {filename}.")
+    fw.seek(0)
+    fw.write(new_text)
+    logger.debug(f"Wrote updated file back to {fw.name}.")
+    fw.flush()
+    os.fsync(fw.fileno())
     return
 
 def provision_phase(blocks: List[CommandBlock]) -> List[Instance]:
@@ -395,28 +397,40 @@ def main():
     except FileNotFoundError:
         print(f"File {args.filename} not found.")
         sys.exit(1)
+    
+    with open(args.filename, "w") as fw:
+        try:
+            blocks = parse_command_blocks(file_text)
+            print(f"Found {len(blocks)} vast command block(s).")
+            writeback_file(fw, file_text, blocks)
 
-    blocks = parse_command_blocks(file_text)
-    print(f"Found {len(blocks)} vast command block(s).")
-
-    # Phase 1: Verification
-    verify_phase(blocks)
-
-    # Phase 2: Provision/Delete Phase
-    instances = provision_phase(blocks)
-
-    # # Phase 3: Run Phase (assign free instances to verified blocks)
-    run_phase(blocks, instances)
+            # Phase 1: Verification
+            verify_phase(blocks)
+            writeback_file(fw, file_text, blocks)
 
 
-    # Phase 4: Check Phase (query Vast.ai for updated statuses)
-    check_phase(blocks)
+            # Phase 2: Provision/Delete Phase
+            instances = provision_phase(blocks)
+            writeback_file(fw, file_text, blocks)
 
-    # # Phase 5: Finish Phase (delete succeeded instances)
-    finish_phase(blocks)
 
-    # Phase 6: Write Back the updated file.
-    writeback_file(args.filename, file_text, blocks)
+            # Phase 3: Run Phase
+            run_phase(blocks, instances)
+            writeback_file(fw, file_text, blocks)
+
+
+            # Phase 4: Check Phase
+            check_phase(blocks)
+            writeback_file(fw, file_text, blocks)
+
+
+            # Phase 5: Finish Phase (if needed)
+            # finish_phase(blocks)
+            # writeback_file(fw, file_text, blocks)
+
+        finally:
+            # Final write back.
+            writeback_file(fw, file_text, blocks)
 
 if __name__ == "__main__":
     main()
