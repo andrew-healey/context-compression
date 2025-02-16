@@ -332,16 +332,9 @@ class CausalSelectiveSelfAttention(nn.Module):
         if self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             S = att[:, :, :, :] # shape: (B, n_head, T, T')
             S = S.transpose(1, 3) # shape: (B, T', T, n_head)
-            if S.isnan().any():
-                raise Exception("after transpose, S is nan")
-            Sh = self.selection_head(S) # shape: (B, T', T, 1)
-            import os
-            if int(os.environ["RANK"]) == 0 and Sh.isnan().any():
-                print("self.selection_head.weight.device",self.selection_head.weight.device,"self.selection_head.weight",self.selection_head.weight,"self.selection_head.bias",self.selection_head.bias)
-                print("S.shape",S.shape,"Sh.shape",Sh.shape,"S.isnan().any()",S.isnan().any(),"Sh.isnan().any()",Sh.isnan().any())
-                print("doing it myself",(S @ self.selection_head.weight.T + self.selection_head.bias).isnan().any())
-                raise Exception("after selection head, S is nan")
-            S = Sh.squeeze(-1) # shape: (B, T', T)
+            S = self.selection_head(S) # shape: (B, T', T, 1)
+            S = S.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
+            S = S.squeeze(-1) # shape: (B, T', T)
             S = S.transpose(1,2) # shape: (B, T, T')
             if S.isnan().any():
                 raise Exception("after transpose, S is nan")
@@ -388,6 +381,7 @@ class CausalSelectiveSelfAttention(nn.Module):
                 Sp = att[:,:,:,:] # shape: (B, n_head, T, T')
                 Sp = Sp.transpose(1, 3) # shape: (B, T', T, n_head)
                 Sp = self.protection_head(Sp) # shape: (B, T', T, 1)
+                Sp = Sp.masked_fill(self.bias[1,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
                 Sp = Sp.squeeze(-1) # shape: (B, T', T)
                 Sp = Sp.transpose(1,2) # shape: (B, T, T')
                 Sp = F.relu(Sp)
