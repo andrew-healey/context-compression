@@ -470,8 +470,11 @@ for step in range(start_step, max_steps):
     if loss_accum.isnan():
         print("Loss is NaN, stopping the run! VERY BAD NEWS!")
         # Optionally perform any cleanup or additional logging:
-        wandb.log({"error": "Loss is NaN, run failed."})
-        wandb.finish()  # finish the run gracefully
+        try:
+            wandb.log({"error": "Loss is NaN, run failed."})
+            wandb.finish()  # finish the run gracefully
+        except Exception as e:
+            pass
         exit(1)
 
     norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
