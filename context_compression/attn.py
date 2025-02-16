@@ -3,7 +3,7 @@ import torch
 import math
 import torch.nn.functional as F
 
-from protection.protect_and_attack import protect_and_attack_triton
+from .protection.protect_and_attack import protect_and_attack_triton
 from enum import StrEnum, auto
 class ProtectionKind(StrEnum):
     HEAD_TWO = auto()
@@ -275,7 +275,6 @@ class CausalSelectiveSelfAttention(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_head * config.head_dim)
         # output projection
@@ -295,8 +294,8 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.selection_head = nn.Linear(config.n_head, 1, bias=use_bias)
             if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO, SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]:
                 with torch.no_grad():
-                    weight = self.selection_head.weight
-                    assert weight.shape == (config.n_head, 1)
+                    weight = self.selection_head.weight.T
+                    assert weight.shape == (config.n_head, 1), f"weight.shape: {weight.shape}, config.n_head: {config.n_head}"
                     weight.data[0:1].fill_(1.0) # initialize head to directly using the first head's logits. should make linear combo pareto-better than the single-head baseline.
         else:
             self.selection_head = None
@@ -305,8 +304,8 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.protection_head = nn.Linear(config.n_head, 1)
             if self.config.protection_kind == ProtectionKind.LINEAR_COMBO_HEAD_TWO:
                 with torch.no_grad():
-                    weight = self.protection_head.weight
-                    assert weight.shape == (config.n_head, 1)
+                    weight = self.protection_head.weight.T
+                    assert weight.shape == (config.n_head, 1), f"weight.shape: {weight.shape}, config.n_head: {config.n_head}"
                     weight.data[1:2].fill_(1.0)
         else:
             self.protection_head = None
@@ -327,7 +326,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         # Apply selective attention
 
-        if self.config.selection_head_linear_combo:
+        if self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             S = att[:, :, :, :] # shape: (B, n_head, T, T')
             S = S.transpose(1, 3) # shape: (B, T', T, n_head)
             S = self.selection_head(S) # shape: (B, T', T, 1)

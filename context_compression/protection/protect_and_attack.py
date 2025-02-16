@@ -352,34 +352,40 @@ class ProtectAndAttackTritonFunction(torch.autograd.Function):
         A_perm = A.permute(*new_order).contiguous()
         P_perm = P.permute(*new_order).contiguous()
         orig_shape = A_perm.shape  # shape: (..., L)
-        # Collapse batch dimensions into B and extract L.
         if A_perm.ndim == 1:
             B = 1
             L = A_perm.shape[0]
             A_flat = A_perm.view(1, L)
             P_flat = P_perm.view(1, L)
+            batch_shape = (1,)
         else:
-            B = A_perm.shape[0]
+            batch_shape = A_perm.shape[:-1]  # all dimensions except the last
             L = A_perm.shape[-1]
-            A_flat = A_perm.view(B, L)
-            P_flat = P_perm.view(B, L)
+            B = 1
+            for s in batch_shape:
+                B *= s
+            A_flat = A_perm.reshape(B, L)
+            P_flat = P_perm.reshape(B, L)
+        
         # Allocate output and a tensor for "took_damage" flags.
         H_flat = torch.empty_like(A_flat)
         T_flat = torch.empty_like(A_flat, dtype=torch.int32)
         grid = (B,)
         # Launch the forward Triton kernel.
         kernel_protect_and_attack_forward[grid](A_flat, P_flat, H_flat, T_flat, L, L)
-        H_perm = H_flat.view(orig_shape)
-        # Inverse permutation to restore original ordering.
+        H_perm = H_flat.view(*orig_shape)
+        # Compute inverse permutation to restore original order.
         inverse_order = [0] * len(new_order)
         for i, p in enumerate(new_order):
             inverse_order[p] = i
         H_out = H_perm.permute(*inverse_order)
+        # Save variables for backward.
         ctx.save_for_backward(A, P, T_flat)
         ctx.dim = dim
         ctx.new_order = new_order
         ctx.inverse_order = inverse_order
         ctx.orig_shape = orig_shape
+        ctx.batch_shape = batch_shape
         ctx.B = B
         ctx.L = L
         return H_out
@@ -389,18 +395,29 @@ class ProtectAndAttackTritonFunction(torch.autograd.Function):
         A, P, T_flat = ctx.saved_tensors
         new_order = ctx.new_order
         inverse_order = ctx.inverse_order
-        orig_shape = ctx.orig_shape
+        orig_shape = ctx.orig_shape  # shape after permuting (e.g., (L,) for 1D, or (..., L) for higher dims)
         B = ctx.B
         L = ctx.L
-        grad_H_perm = grad_H.permute(*new_order).contiguous().view(B, L)
+        batch_shape = ctx.batch_shape
+
+        # Permute grad_H to match the shape of the forward pass and flatten
+        grad_H_perm = grad_H.permute(*new_order).contiguous().reshape(B, L)
         dA_flat = torch.empty((B, L), dtype=grad_H.dtype, device=grad_H.device)
         dP_flat = torch.empty((B, L), dtype=grad_H.dtype, device=grad_H.device)
         grid = (B,)
         kernel_protect_and_attack_backward[grid](grad_H_perm, T_flat, dA_flat, dP_flat, L, L)
-        dA_perm = dA_flat.view(orig_shape)
-        dP_perm = dP_flat.view(orig_shape)
-        dA = dA_perm.permute(*inverse_order)
-        dP = dP_perm.permute(*inverse_order)
+        
+        dA_perm = dA_flat.reshape(*batch_shape, L)
+        dP_perm = dP_flat.reshape(*batch_shape, L)
+        
+        # If the original input was 1D then our "batch" dimension is artificial.
+        # In that case, we simply squeeze out the batch dim instead of calling permute.
+        if len(orig_shape) == 1:
+            dA = dA_perm.squeeze(0)
+            dP = dP_perm.squeeze(0)
+        else:
+            dA = dA_perm.permute(*inverse_order)
+            dP = dP_perm.permute(*inverse_order)
         return dA, dP, None
 
 def protect_and_attack_triton(A, P, dim=-1):
@@ -461,3 +478,122 @@ def test_protect_and_attack_triton_multi_dim():
     expected_dP = torch.tensor([[0, 0], [0, 0]], dtype=torch.float32)
     assert torch.allclose(A_clone.grad.cpu(), expected_dA), f"multi-dim dA: {A_clone.grad.cpu()}"
     assert torch.allclose(P_clone.grad.cpu(), expected_dP), f"multi-dim dP: {P_clone.grad.cpu()}"
+
+# -------------------------------------------------------------------
+# New tests for 3D tensors (non-degenerate) for both the PyTorch-based and Triton-based implementations.
+
+import pytest
+
+def test_protect_and_attack_pytorch_3d():
+    # We create a 3D tensor of shape (2, 2, 2) where processing is done along the last dimension.
+    # For each slice the simulation is as follows:
+    #
+    # Batch 0, row 0: A = [0, 1], P = [2, 0]
+    #   token0: (0-0)<=0 -> damage flag True, H becomes 0, then add protection (P_running becomes 2).
+    #   token1: (2-1)>0 -> no damage, H remains 0.
+    #   => H = [0, 0]; backward yields: dA = [-2, 0], dP = [0, 0].
+    #
+    # Batch 0, row 1: A = [1, 0], P = [0, 1]
+    #   token0: (0-1)<=0 -> damage, H becomes -1, then add protection.
+    #   token1: damage flag True -> H remains -1.
+    #   => H = [-1, -1]; backward yields: dA = [-2, -1], dP = [1, 0].
+    #
+    # Batch 1, row 0: A = [0, 1], P = [1, 0]
+    #   token0: damage flag True -> H = 0, then add protection.
+    #   token1: (1-1)<=0 -> damage, H remains 0.
+    #   => H = [0, 0]; backward yields: dA = [-2, -1], dP = [1, 0].
+    #
+    # Batch 1, row 1: A = [1, 0], P = [2, 0]
+    #   token0: (0-1)<=0 -> damage (damage=1), H becomes -1, then add protection (P_running becomes 2).
+    #   token1: (2-0)>0 -> no damage, H remains -1.
+    #   => H = [-1, -1]; backward yields: dA = [-2, 0], dP = [0, 0].
+
+    A = torch.tensor([
+            [[0, 1],
+             [1, 0]],
+            [[0, 1],
+             [1, 0]]
+        ], dtype=torch.float32, requires_grad=True)
+    
+    P = torch.tensor([
+            [[2, 0],
+             [0, 1]],
+            [[1, 0],
+             [2, 0]]
+        ], dtype=torch.float32, requires_grad=True)
+
+    expected_H = torch.tensor([
+            [[0,  0],
+             [-1, -1]],
+            [[0,  0],
+             [-1, -1]]
+        ], dtype=torch.float32)
+
+    H = protect_and_attack_pytorch(A, P, dim=-1)
+    assert torch.allclose(H, expected_H), f"Forward pass error: H = {H}, expected {expected_H}"
+
+    dH = torch.ones_like(H)
+    H.backward(dH)
+
+    expected_dA = torch.tensor([
+            [[-2,  0],
+             [-2, -1]],
+            [[-2, -1],
+             [-2,  0]]
+        ], dtype=torch.float32)
+    expected_dP = torch.tensor([
+            [[0, 0],
+             [1, 0]],
+            [[1, 0],
+             [0, 0]]
+        ], dtype=torch.float32)
+
+    assert torch.allclose(A.grad, expected_dA), f"PyTorch backward dA error: {A.grad}, expected: {expected_dA}"
+    assert torch.allclose(P.grad, expected_dP), f"PyTorch backward dP error: {P.grad}, expected: {expected_dP}"
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_protect_and_attack_triton_3d():
+    # Similar 3D test for the Triton implementation.
+    A = torch.tensor([
+            [[0, 1],
+             [1, 0]],
+            [[0, 1],
+             [1, 0]]
+        ], dtype=torch.float32, requires_grad=True, device="cuda")
+    
+    P = torch.tensor([
+            [[2, 0],
+             [0, 1]],
+            [[1, 0],
+             [2, 0]]
+        ], dtype=torch.float32, requires_grad=True, device="cuda")
+
+    expected_H = torch.tensor([
+            [[0,  0],
+             [-1, -1]],
+            [[0,  0],
+             [-1, -1]]
+        ], dtype=torch.float32)
+    
+    H = protect_and_attack_triton(A, P, dim=-1)
+    assert torch.allclose(H.cpu(), expected_H), f"Triton forward error: H = {H.cpu()}, expected {expected_H}"
+
+    dH = torch.ones_like(H, device="cuda")
+    H.backward(dH)
+
+    expected_dA = torch.tensor([
+            [[-2,  0],
+             [-2, -1]],
+            [[-2, -1],
+             [-2,  0]]
+        ], dtype=torch.float32)
+    expected_dP = torch.tensor([
+            [[0, 0],
+             [1, 0]],
+            [[1, 0],
+             [0, 0]]
+        ], dtype=torch.float32)
+
+    assert torch.allclose(A.grad.cpu(), expected_dA), f"Triton backward dA error: {A.grad.cpu()}, expected {expected_dA}"
+    assert torch.allclose(P.grad.cpu(), expected_dP), f"Triton backward dP error: {P.grad.cpu()}, expected {expected_dP}"

@@ -39,7 +39,7 @@ parser.add_argument("--resume_optimizer", action="store_true",
                     help="Resume optimizer state when resuming checkpoint")
 parser.add_argument("--add_a_head", action="store_true",
                     help="Add an additional head")
-parser.set_defaults(add_a_head=True)
+parser.set_defaults(add_a_head=False)
 parser.add_argument("--add_head_to_start", action="store_true",
                     help="Place the new head at the start")
 parser.set_defaults(add_head_to_start=True)
@@ -74,10 +74,13 @@ parser.add_argument("--selection_head_linear_combo", type=lambda x: SelectionHea
                     help="Whether to use a linear combo of attention scores for the selection head")
 parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.HEAD_TWO,
                     help="Kind of protection to use")
-parser.add_argument("--leaky_relu_alpha", type=Optional[float], default=None,
+parser.add_argument("--leaky_relu_alpha", type=float, default=None,
                     help="Alpha for the leaky relu")
-parser.add_argument("--leaky_relu_bias", type=Optional[float], default=None,
+parser.add_argument("--leaky_relu_bias", type=float, default=None,
                     help="Bias for the leaky relu")
+parser.add_argument("--no_use_compile", action="store_false", dest="use_compile",
+                    help="Do not use torch.compile")
+parser.set_defaults(use_compile=True)
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -108,6 +111,10 @@ if ddp:
     print(f"using device: {device}")
     torch.cuda.set_device(device)
     master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
+
+    if args.protection_kind != ProtectionKind.NONE:
+        torch._dynamo.config.optimize_ddp = False # since we use a pytorch function with a custom backward
+
 else:
     # vanilla, non-DDP run
     ddp_rank = 0
@@ -147,6 +154,7 @@ torch.set_float32_matmul_precision('high')
 
 # create model
 config = GPTConfig(
+    n_head=13,
     vocab_size=50304,
     attention_kind=args.attention_kind,
     for_inference=False,
@@ -161,7 +169,7 @@ config = GPTConfig(
 
 model = GPT(config)
 model.to(device)
-use_compile = True
+use_compile = args.use_compile
 non_compiled_model = model
 if use_compile:
     model = torch.compile(model)
