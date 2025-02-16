@@ -134,6 +134,9 @@ class GPT(nn.Module):
                 losses["memory"] = memory_loss
             losses["total"] = loss
 
+            if loss.isnan().any():
+                raise Exception("Oh no! Loss is nan!")
+
         return logits, loss, losses
 
     @classmethod

@@ -72,7 +72,7 @@ parser.add_argument("--memory_penalty_epsilon", type=float, default=0.1,
                     help="Epsilon for the memory penalty")
 parser.add_argument("--selection_head_linear_combo", type=lambda x: SelectionHeadLinearComboKind(x.lower()), default=SelectionHeadLinearComboKind.NONE,
                     help="Whether to use a linear combo of attention scores for the selection head")
-parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.HEAD_TWO,
+parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.NONE,
                     help="Kind of protection to use")
 parser.add_argument("--leaky_relu_alpha", type=float, default=None,
                     help="Alpha for the leaky relu")
@@ -461,6 +461,9 @@ for step in range(start_step, max_steps):
         loss = loss / grad_accum_steps
         loss_accum += loss.detach()
         loss.backward()
+        for param in model.parameters():
+            if param.grad is not None and param.grad.isnan().any():
+                raise ValueError(f"Gradient is NaN - micro_step {micro_step}, rank {ddp_rank}")
     if ddp:
         dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
     
