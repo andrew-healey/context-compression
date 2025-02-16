@@ -15,6 +15,21 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
+import logging
+import coloredlogs
+import webbrowser
+
+logger = logging.getLogger(__name__)
+# Remove any existing handlers to avoid duplicate logging
+for handler in logger.handlers[:]:
+    logger.removeHandler(handler)
+logger.propagate = False  # Disable propagation to the root logger
+coloredlogs.install(level="DEBUG", logger=logger)
+logger.setLevel(logging.DEBUG)
+
+# print(len(logger.handlers),"handlers in the logger")
+# raise Exception("Stop here")
+
 # Define an enum for the command block states.
 class CommandState(Enum):
     EMPTY = "EMPTY"         # User-entered command block, not yet verified.
@@ -96,22 +111,25 @@ def get_tag_string(block: CommandBlock) -> str:
     return ""
 
 # A simple verification function. Besides "verifying" the command it asserts that
-# the command (after stripping whitespace) starts and ends with a double-quote.
+# the command (after stripping whitespace) does not contain a double-quote.
 def verify_command_block(block: CommandBlock) -> bool:
     cmd = block.content.strip()
-    if not (cmd.startswith('"') and cmd.endswith('"')):
-        print(f"[Verification Error] Block {block.index}: command not properly quoted: {cmd}")
+    if '"' in cmd:
+        print(f"Command {cmd} contains a double-quote. That's not allowed.")
         return False
     return True
 
 def verify_phase(blocks: List[CommandBlock]) -> None:
-    print("=== Verify Phase ===")
+    logger.info("=== Verification Phase ===")
     for block in blocks:
         if block.state == CommandState.EMPTY:
             if verify_command_block(block):
+                logger.debug(f"Block {block.index} verified.")
                 block.state = CommandState.VERIFIED
             else:
-                print(f"Block {block.index} failed verification; leaving state as EMPTY.")
+                logger.debug(f"Block {block.index} failed verification; leaving state as EMPTY.")
+        else:
+            logger.debug(f"Block {block.index} ({block.state}) is past the verification phase; skipping.")
     return
 
 # Simulated instance class.
@@ -119,8 +137,10 @@ def verify_phase(blocks: List[CommandBlock]) -> None:
 class Instance:
     instance_id: str
     state: str   # Could be "active", "loading", etc.
+    actual_status: str = ""
     ssh_host: str = ""   # For SSH connection
     ssh_port: int = 22   # Default SSH port
+    label: Optional[str] = None
 
 # A function to get instances that are "for autorunning" using the vast-ai-api.
 def get_autorunning_instances() -> List[Instance]:
@@ -131,12 +151,13 @@ def get_autorunning_instances() -> List[Instance]:
         # List current instances (launched instances)
         launched_df = api.list_current_instances()
     except Exception as e:
-        print("Error fetching current instances from Vast.ai:", e)
+        logger.error("Error fetching current instances from Vast.ai:", e)
         return []
 
     instances = []
     # Filter for those instances which have an extra_env entry for IS_FOR_AUTORUNNING=true.
     for index, row in launched_df.iterrows():
+        logging.debug(f"Instance {row['id']} has extra_env {row.get('extra_env', [])}")
         extra_env = row.get("extra_env", [])
         is_autorunning = any(
             (len(pair) == 2 and pair[0] == "IS_FOR_AUTORUNNING" and pair[1].lower() == "true")
@@ -148,17 +169,20 @@ def get_autorunning_instances() -> List[Instance]:
         inst = Instance(
             instance_id=str(row["id"]),
             state=str(row.get("cur_state", "unknown")),
+            actual_status=str(row.get("actual_status", "unknown")),
             ssh_host=row.get("ssh_host", ""),
-            ssh_port=int(row.get("ssh_port", 22))
+            ssh_port=int(row.get("ssh_port", 22)),
+            label=str(row.get("label", None)),
         )
         instances.append(inst)
-    print(f"Found {len(instances)} autorunning instance(s) from Vast.ai.")
     return instances
+
+import random
 
 # Launch a verified command block on a given instance.
 def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
     # Extract the inner command (strip starting and ending quotes).
-    command = block.content.strip()[1:-1]
+    command = block.content.strip()
     ssh_host = instance.ssh_host
     ssh_port = instance.ssh_port
     ssh_target = f"root@{ssh_host}"
@@ -169,82 +193,112 @@ def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
         "-o", "UserKnownHostsFile=/dev/null",
         "-p", str(ssh_port),
         ssh_target,
-        "tmux", "new-session", "-d", "-s", f"session_{block.index}",
-        command
+        "tmux", "new-session", "-d", "-s", f"session_{random.randint(0, 1000000)}",
+        f'nohup sh -c "vastai label instance \\$CONTAINER_ID running && {command} && vastai label instance \\$CONTAINER_ID succeed || vastai label instance \\$CONTAINER_ID fail && vastai stop instance \\$CONTAINER_ID"'
     ]
-    print(f"Starting command on instance {instance.instance_id}: {' '.join(ssh_command)}")
+    logger.debug(f"Starting command on instance {instance.instance_id}: {' '.join(ssh_command)}")
     try:
         proc = subprocess.Popen(ssh_command)
-        time.sleep(1)  # Let the tmux command start.
+        time.sleep(5)  # Let the tmux command start.
         proc.terminate()  # Allow remote command to continue.
         block.state = CommandState.RUNNING
         block.instance_id = instance.instance_id
     except Exception as e:
-        print(f"Error running block {block.index} on instance {instance.instance_id}: {e}")
+        logger.error(f"Error running block {block.index} on instance {instance.instance_id}: {e}")
         block.state = CommandState.FAIL
         block.instance_id = instance.instance_id
 
 # For all verified commands with no instance yet, assign free instances from the provided pool.
 def run_phase(blocks: List[CommandBlock], instances: List[Instance]) -> None:
-    print("=== Run Phase ===")
+    logger.info("=== Run Phase ===")
     # Identify instance IDs already claimed by blocks.
     claimed_ids = {block.instance_id for block in blocks
                    if block.instance_id and block.state in {CommandState.RUNNING, CommandState.FAIL, CommandState.SUCCESS}}
-    free_instances = [inst for inst in instances if inst.instance_id not in claimed_ids]
+    free_started_instances = [inst for inst in instances if inst.instance_id not in claimed_ids and inst.actual_status == "running"]
+    logger.debug(f"{len(free_started_instances)} instances of {len(instances)} were free and started.")
+    num_blocks_run = 0
     for block in blocks:
         if block.state == CommandState.VERIFIED and block.instance_id is None:
-            if free_instances:
-                instance = free_instances.pop(0)
+            if free_started_instances:
+                instance = free_started_instances.pop(0)
                 run_command_on_instance(block, instance)
+                logger.debug(f"Assigned block {block.index} to instance {instance.instance_id}. Running command \"{block.content}\".")
+                num_blocks_run += 1
             else:
-                print(f"No free instances available for block {block.index}.")
+                logger.debug(f"No free instances available for block {block.index}. Skipping.")
+    
+    running_blocks = [block for block in blocks if block.state == CommandState.RUNNING]
+
+    if len(running_blocks) == 0 or num_blocks_run == 0:
+        return
+    
+    logger.debug("Sleeping for 20 seconds to allow instances to label themselves as running.")
+    time.sleep(20)
+
+    updated_instances = get_autorunning_instances()
+    logger.debug(f"Found {len(updated_instances)} updated instances.")
+    for block in running_blocks:
+        matching_instances = [inst for inst in updated_instances if inst.instance_id == block.instance_id]
+        if matching_instances:
+            matching_instance = matching_instances.pop()
+            logger.debug(f"Instance {block.instance_id} has label {matching_instance.label}.")
+            if matching_instance.label == "running":
+                logger.debug(f"Verified that block {block.index} is running on instance {block.instance_id}.")
+            elif not matching_instance.label or str(matching_instance.label) == "None":
+                logger.warning(f"Bad news - instance {block.instance_id} is not marked as running on vast - so our command block has probably not run at all.")
+                block.state = CommandState.VERIFIED
+                block.instance_id = None
+        else:
+            logger.warning(f"Bad news - instance {block.instance_id} not found in updated instances. Marking block {block.index} not running.")
+            block.state = CommandState.VERIFIED
+            block.instance_id = None
+    logger.debug("Finished cross-checking 'running' blocks with vast instances.")
+
     return
 
 # Check phase: In a real implementation, this would query instance labels (or logs) via vast-ai-api.
 # Here we simply print a message.
 def check_phase(blocks: List[CommandBlock]) -> None:
-    print("=== Check Phase ===")
-    from vast_ai_api import VastAPIHelper
-    import pandas as pd
-    api = VastAPIHelper()
-    try:
-         current_df = api.list_current_instances()
-    except Exception as e:
-         print("Error fetching instances in check phase:", e)
-         return
-    instance_details = {str(row["id"]): row for index, row in current_df.iterrows()}
+    logger.info("=== Check Phase ===")
+    instances = get_autorunning_instances()
+    logger.debug(f"Found {len(instances)} instances in check phase.")
     
     for block in blocks:
-         if block.state == CommandState.RUNNING and block.instance_id:
-              if block.instance_id in instance_details:
-                  details = instance_details[block.instance_id]
-                  label = details.get("label")
-                  cur_state = details.get("cur_state", "")
-                  if label == "fail":
-                       print(f"Block {block.index} on instance {block.instance_id} has failed.")
-                       block.state = CommandState.FAIL
-                  elif label == "succeed":
-                       print(f"Block {block.index} on instance {block.instance_id} has succeeded.")
-                       block.state = CommandState.SUCCESS
-                  if label in ("fail", "succeed") and cur_state not in ("stopped", "stopping"):
-                       print(f"Warning: Instance {block.instance_id} in block {block.index} with label {label} is not stopped/stopping (current state: {cur_state})")
-              else:
-                  print(f"Instance details for {block.instance_id} not found.")
+        if block.state == CommandState.RUNNING and block.instance_id:
+            logger.debug(f"Checking block {block.index} on instance {block.instance_id}.")
+            matching_instances = [inst for inst in instances if inst.instance_id == block.instance_id]
+            if matching_instances:
+                details = matching_instances.pop()
+                logger.debug(f"Instance {block.instance_id} found in instance details. details: {details}")
+                label = details.label
+                cur_state = details.state
+                if label == "fail":
+                    logger.debug(f"Block {block.index} on instance {block.instance_id} has failed.")
+                    block.state = CommandState.FAIL
+                elif label == "succeed":
+                    logger.debug(f"Block {block.index} on instance {block.instance_id} has succeeded.")
+                    block.state = CommandState.SUCCESS
+                if label in ("fail", "succeed") and cur_state != "stopped":
+                    logger.warning(f"Warning: Instance {block.instance_id} in block {block.index} with label {label} is not stopped (current state: {cur_state})")
+            else:
+                logger.warning(f"Instance details for {block.instance_id} not found.")
+        else:
+            logger.debug(f"Block {block.index} is not running, so I'm not checking it. (state: {block.state}, instance_id: {block.instance_id})")
     return
 
 # Finish phase: convert SUCCESS or FAIL blocks to FINISHED and simulate deleting their instance.
 def finish_phase(blocks: List[CommandBlock]) -> None:
-    print("=== Finish Phase ===")
+    logger.info("=== Finish Phase ===")
     from vast_ai_api import VastAPIHelper
     api = VastAPIHelper()
     for block in blocks:
          if block.state == CommandState.SUCCESS and block.instance_id:
-              print(f"Finishing block {block.index} on instance {block.instance_id} and deleting the instance.")
+              logger.debug(f"Finishing block {block.index} on instance {block.instance_id} and deleting the instance.")
               try:
                   api.delete_instance(block.instance_id)
-                  print(f"Deleted instance {block.instance_id} for block {block.index}.")
+                  logger.debug(f"Deleted instance {block.instance_id} for block {block.index}.")
               except Exception as e:
-                  print(f"Error deleting instance {block.instance_id} for block {block.index}: {e}")
+                  logger.error(f"Error deleting instance {block.instance_id} for block {block.index}: {e}")
                   continue
               block.state = CommandState.FINISHED
               block.instance_id = None
@@ -271,33 +325,43 @@ def writeback_file(filename: str, file_text: str, blocks: List[CommandBlock]) ->
     new_text = pattern.sub(replacer, file_text)
     with open(filename, "w") as f:
         f.write(new_text)
-    print(f"Wrote updated file back to {filename}.")
+    logger.info(f"Wrote updated file back to {filename}.")
     return
 
 def provision_phase(blocks: List[CommandBlock]) -> List[Instance]:
-    pending_cmd_count = sum(1 for block in blocks if block.state in {CommandState.EMPTY, CommandState.VERIFIED, CommandState.RUNNING, CommandState.FAIL})
-    slack = 2
-    current_instances = get_autorunning_instances()
-    instance_count = len(current_instances)
-    if instance_count < pending_cmd_count + slack:
-        needed = (pending_cmd_count + slack) - instance_count
-        print(f"Provisioning Notice: Need {needed} more instance(s).")
-        print("Please provision the required instances manually using vast.ai and try again.")
-        sys.exit(1)
-    elif instance_count > pending_cmd_count:
+    pending_cmds = [block for block in blocks if block.state in {CommandState.EMPTY, CommandState.VERIFIED, CommandState.RUNNING, CommandState.FAIL}]
+    pending_cmd_count = len(pending_cmds)
+    all_pending_cmds_are_running = all(block.state == CommandState.RUNNING for block in pending_cmds)
+    slack = 2 if pending_cmd_count > 3 else 1
+    while True:
+        current_instances = get_autorunning_instances()
+        instance_count = len(current_instances)
+        if instance_count < pending_cmd_count:
+            needed = (pending_cmd_count) - instance_count
+            print(f"Provisioning Notice: Need {needed} (plus {slack} slack instances) more instance(s).")
+            print("Please provision the required instances manually Now. Attempting to open vast.ai in browser...")
+            webbrowser.open("https://vast.ai/create/")
+            input("Press Enter to continue...")
+        else:
+            break
+
+    # if all pending commands are running, then we don't need any slack anymore!
+    # so we can deprovision any extra instances.
+    if all_pending_cmds_are_running:
         assigned_ids = {block.instance_id for block in blocks if block.instance_id}
         free_instances = [inst for inst in current_instances if inst.instance_id not in assigned_ids]
+        logger.debug(f"All pending commands are running, so we can deprovision {len(free_instances)}/ {len(current_instances)} extra/total instances.")
         if free_instances:
             from vast_ai_api import VastAPIHelper
             api = VastAPIHelper()
             for inst in free_instances:
-                print(f"Deprovisioning extra instance {inst.instance_id}.")
+                logger.debug(f"Deprovisioning extra instance {inst.instance_id}.")
                 try:
                     api.delete_instance(inst.instance_id)
                 except Exception as e:
-                    print(f"Error deprovisioning instance {inst.instance_id}: {e}")
+                    logger.error(f"Error deprovisioning instance {inst.instance_id}: {e}")
         else:
-            print("No extra instances to deprovision.")
+            logger.debug("No extra instances to deprovision.")
     return get_autorunning_instances()
 
 def main():
@@ -321,13 +385,14 @@ def main():
     # Phase 2: Provision/Delete Phase
     instances = provision_phase(blocks)
 
-    # Phase 3: Run Phase (assign free instances to verified blocks)
+    # # Phase 3: Run Phase (assign free instances to verified blocks)
     run_phase(blocks, instances)
+
 
     # Phase 4: Check Phase (query Vast.ai for updated statuses)
     check_phase(blocks)
 
-    # Phase 5: Finish Phase (delete succeeded instances)
+    # # Phase 5: Finish Phase (delete succeeded instances)
     finish_phase(blocks)
 
     # Phase 6: Write Back the updated file.
