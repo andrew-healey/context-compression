@@ -326,17 +326,34 @@ class CausalSelectiveSelfAttention(nn.Module):
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         # Apply selective attention
 
+        if att.isnan().any():
+            raise Exception("Oh no! att is nan!")
+
         if self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             S = att[:, :, :, :] # shape: (B, n_head, T, T')
             S = S.transpose(1, 3) # shape: (B, T', T, n_head)
-            S = self.selection_head(S) # shape: (B, T', T, 1)
-            S = S.squeeze(-1) # shape: (B, T', T)
+            if S.isnan().any():
+                raise Exception("after transpose, S is nan")
+            Sh = self.selection_head(S) # shape: (B, T', T, 1)
+            import os
+            if int(os.environ["RANK"]) == 0 and Sh.isnan().any():
+                print("self.selection_head.weight.device",self.selection_head.weight.device,"self.selection_head.weight",self.selection_head.weight,"self.selection_head.bias",self.selection_head.bias)
+                print("S.shape",S.shape,"Sh.shape",Sh.shape,"S.isnan().any()",S.isnan().any(),"Sh.isnan().any()",Sh.isnan().any())
+                print("doing it myself",(S @ self.selection_head.weight.T + self.selection_head.bias).isnan().any())
+                raise Exception("after selection head, S is nan")
+            S = Sh.squeeze(-1) # shape: (B, T', T)
             S = S.transpose(1,2) # shape: (B, T, T')
+            if S.isnan().any():
+                raise Exception("after transpose, S is nan")
         else:
             S = att[:, 0].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
+            if S.isnan().any():
+                raise Exception("after clone, S is nan")
 
         S_pre_relu = S
         S = F.relu(S)  # Only positive selection
+        if S.isnan().any():
+            raise Exception("after relu, S is nan")
 
         # Use torch.zeros_like to safely modify without inplace ops
         S_masked = torch.zeros_like(S)  # Create a mask to avoid in-place ops
@@ -344,15 +361,23 @@ class CausalSelectiveSelfAttention(nn.Module):
             S_masked[..., 1:] = S[..., 1:]  # Do not mask <BOS> token, leave it unchanged
         else:
             S_masked[...] = S
+        if S_masked.isnan().any():
+            raise Exception("after masking, S_masked is nan")
 
         eye_mask = 1 - torch.eye(T, device=S.device)  # Do not let me hide myself from future tokens
         if self.prevent_from_masking_myself:
+            print("preventing from masking myself")
             S = S_masked * eye_mask
         else:
+            print("not preventing from masking myself")
             S = S_masked
 
         if self.config.protection_kind == ProtectionKind.NONE:
+            if S.isnan().any():
+                raise Exception("Oh no! S is nan!")
             FF = torch.cumsum(S, dim=-2)
+            if FF.isnan().any():
+                raise Exception("Oh no! FF is nan!")
         else:
             # First, compute Sp
 
@@ -376,14 +401,22 @@ class CausalSelectiveSelfAttention(nn.Module):
             # Second, run the protect-and-attack algorithm on Sp and S
             FF = protect_and_attack_triton(S, Sp, dim=-2)
 
+        if FF.isnan().any():
+            raise Exception("Oh no! FF is nan!")
         
         FF_shifted = torch.roll(FF, 1, -2)
         FF_shifted[..., 0, :] = 0
+
+        if FF_shifted.isnan().any():
+            raise Exception("Oh no! FF_shifted is nan!")
 
         # Use out-of-place subtraction to preserve computation graph integrity
         att = att - FF_shifted[:,None,:,:]
 
         att = F.softmax(att, dim=-1)
+
+        if att.isnan().any():
+            raise Exception("Post-softmax att is nan")
 
         y = att @ v
         y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim)
