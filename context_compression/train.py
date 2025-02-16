@@ -80,6 +80,8 @@ parser.add_argument("--leaky_relu_bias", type=float, default=None,
                     help="Bias for the leaky relu")
 parser.add_argument("--no_use_compile", action="store_false", dest="use_compile",
                     help="Do not use torch.compile")
+parser.add_argument("--use_mini_model", action="store_true",
+                    help="Make the model and batch size very small, for fast debugging")
 parser.set_defaults(use_compile=True)
 args = parser.parse_args()
 
@@ -138,9 +140,16 @@ if torch.cuda.is_available():
 
 enc = tiktoken.get_encoding("gpt2")
 
-total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
-B = 8 # micro batch size
-T = 1024 # sequence length
+use_mini_model = os.environ.get("USE_MINI_MODEL", "false").lower() == "true" or args.use_mini_model
+
+if use_mini_model:
+    total_batch_size = 16384
+    B = 2 # micro batch size
+    T = 1024 # sequence length
+else:
+    total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
+    B = 8 # micro batch size
+    T = 1024 # sequence length
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 if master_process:
@@ -155,6 +164,7 @@ torch.set_float32_matmul_precision('high')
 # create model
 config = GPTConfig(
     n_head=13,
+    n_layer=2 if use_mini_model else 12,
     vocab_size=50304,
     attention_kind=args.attention_kind,
     for_inference=False,
