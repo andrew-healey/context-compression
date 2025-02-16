@@ -193,7 +193,8 @@ import random
 # Launch a verified command block on a given instance.
 def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
     # Extract the inner command (strip starting and ending quotes).
-    command = block.content.strip()
+    command = block.content.strip().replace("\\\n", "") # ANDREWTODO remove this horrible hackiness!
+    assert "\n" not in command, f"Command {command} contains a newline. That's not allowed."
     ssh_host = instance.ssh_host
     ssh_port = instance.ssh_port
     ssh_target = f"root@{ssh_host}"
