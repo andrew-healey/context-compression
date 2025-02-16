@@ -329,6 +329,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         if self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             S = att[:, :, :, :] # shape: (B, n_head, T, T')
             S = S.transpose(1, 3) # shape: (B, T', T, n_head)
+            S = S.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
             S = self.selection_head(S) # shape: (B, T', T, 1)
             S = S.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
             S = S.squeeze(-1) # shape: (B, T', T)
@@ -363,6 +364,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             elif self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
                 Sp = att[:,:,:,:] # shape: (B, n_head, T, T')
                 Sp = Sp.transpose(1, 3) # shape: (B, T', T, n_head)
+                Sp = Sp.masked_fill(self.bias[1,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
                 Sp = self.protection_head(Sp) # shape: (B, T', T, 1)
                 Sp = Sp.masked_fill(self.bias[1,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
                 Sp = Sp.squeeze(-1) # shape: (B, T', T)
