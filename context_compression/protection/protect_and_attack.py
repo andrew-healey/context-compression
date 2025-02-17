@@ -371,6 +371,10 @@ class ProtectAndAttackTritonFunction(torch.autograd.Function):
         H_flat = torch.empty_like(A_flat)
         T_flat = torch.empty_like(A_flat, dtype=torch.int32)
         grid = (B,)
+
+        assert A_flat.dtype == torch.float32
+        assert P_flat.dtype == torch.float32
+        assert H_flat.dtype == torch.float32
         # Launch the forward Triton kernel.
         kernel_protect_and_attack_forward[grid](A_flat, P_flat, H_flat, T_flat, L, L)
         H_perm = H_flat.view(*orig_shape)
@@ -388,6 +392,15 @@ class ProtectAndAttackTritonFunction(torch.autograd.Function):
         ctx.batch_shape = batch_shape
         ctx.B = B
         ctx.L = L
+
+        # Added runtime assert when protection is all zeros.
+        if torch.all(P == 0):
+            # The expected forward result when protection is all zeros is -cumsum(A)
+            expected_H = torch.cumsum(-A, dim=dim)
+            assert torch.allclose(
+                H_out, expected_H, atol=1e-5
+            ), f"Forward pass assert failed: H_out = {H_out}, expected = {expected_H}"
+
         return H_out
 
     @staticmethod
@@ -405,6 +418,10 @@ class ProtectAndAttackTritonFunction(torch.autograd.Function):
         dA_flat = torch.empty((B, L), dtype=grad_H.dtype, device=grad_H.device)
         dP_flat = torch.empty((B, L), dtype=grad_H.dtype, device=grad_H.device)
         grid = (B,)
+        assert grad_H_perm.dtype == torch.float32
+        assert T_flat.dtype == torch.int32
+        assert dA_flat.dtype == grad_H.dtype
+        assert dP_flat.dtype == grad_H.dtype
         kernel_protect_and_attack_backward[grid](grad_H_perm, T_flat, dA_flat, dP_flat, L, L)
         
         dA_perm = dA_flat.reshape(*batch_shape, L)
@@ -418,6 +435,30 @@ class ProtectAndAttackTritonFunction(torch.autograd.Function):
         else:
             dA = dA_perm.permute(*inverse_order)
             dP = dP_perm.permute(*inverse_order)
+
+        # Added runtime assert in the backward pass for the case P is all zeros.
+        if torch.all(P == 0):
+            with torch.no_grad():
+                # For the equivalent forward pass H = -cumsum(A, dim=dim), 
+                # the gradient with respect to A is given by:
+                #    dA[i] = - sum_{j=i}^{N-1} grad_H[j]
+                # To compute this, we flip grad_H along the processing dimension,
+                # compute cumsum, then flip back.
+                grad_H_perm_for_calc = grad_H.permute(*new_order).contiguous()
+                expected_dA_perm = -torch.flip(
+                    torch.cumsum(torch.flip(grad_H_perm_for_calc, dims=[-1]), dim=-1),
+                    dims=[-1]
+                )
+                expected_dA_full = expected_dA_perm.view(ctx.orig_shape).permute(*inverse_order)
+                # Assert that dA from our Triton backward is close to the expected value.
+                assert torch.allclose(
+                    dA, expected_dA_full, atol=1e-5
+                ), f"Backward pass assert failed for dA: computed {dA}, expected {expected_dA_full}"
+                # # For P, when protection is all zeros no contribution should propagate.
+                # assert torch.allclose(
+                #     dP, torch.zeros_like(dP), atol=1e-5
+                # ), f"Backward pass assert failed for dP: computed {dP}, expected zeros"
+
         return dA, dP, None
 
 def protect_and_attack_triton(A, P, dim=-1):
