@@ -795,7 +795,7 @@ class CumsumTritonFunction(torch.autograd.Function):
         
         output_flat = torch.empty_like(X_flat)
         grid = (B,)
-        kernel_cumsum_forward[grid](X_flat, output_flat, L, L)
+        kernel_cumsum_forward[grid](X_flat.to(torch.float64), output_flat, L, L)
         output_perm = output_flat.view(orig_shape)
         # Compute inverse permutation.
         inverse_order = [0] * len(new_order)
@@ -822,7 +822,7 @@ class CumsumTritonFunction(torch.autograd.Function):
         grad_output_perm = grad_output.permute(*new_order).contiguous().reshape(B, L)
         grad_input_flat = torch.empty_like(grad_output_perm)
         grid = (B,)
-        kernel_cumsum_backward[grid](grad_output_perm, grad_input_flat, L, L)
+        kernel_cumsum_backward[grid](grad_output_perm.to(torch.float64), grad_input_flat, L, L)
         grad_input_perm = grad_input_flat.view(orig_shape)
         grad_input = grad_input_perm.permute(*inverse_order)
         return grad_input, None
