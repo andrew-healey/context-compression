@@ -45,7 +45,7 @@ class CausalSelectiveSelfAttention(nn.Module):
                 with torch.no_grad():
                     weight = self.selection_head.weight.T
                     assert weight.shape == (config.n_head, 1), f"weight.shape: {weight.shape}, config.n_head: {config.n_head}"
-                    weight.data[0:1].fill_(1.0 / self.config.selection_head_linear_combo_scale) # initialize head to directly using the first head's logits. should make linear combo pareto-better than the single-head baseline.
+                    weight.data[0:1].fill_(1.0) # initialize head to directly using the first head's logits. should make linear combo pareto-better than the single-head baseline.
         else:
             self.selection_head = None
         
@@ -55,11 +55,9 @@ class CausalSelectiveSelfAttention(nn.Module):
                 with torch.no_grad():
                     weight = self.protection_head.weight.T
                     assert weight.shape == (config.n_head, 1), f"weight.shape: {weight.shape}, config.n_head: {config.n_head}"
-                    weight.data[1:2].fill_(1.0 / self.config.selection_head_linear_combo_scale)
+                    weight.data[1:2].fill_(1.0)
         else:
             self.protection_head = None
-        
-        self.register_buffer("selection_head_linear_combo_scale", torch.tensor(self.config.selection_head_linear_combo_scale,requires_grad=False))
         
         assert (self.config.leaky_relu_alpha is None) == (self.config.protection_kind != ProtectionKind.LEAKY_RELU) == (self.config.leaky_relu_bias is None), "leaky_relu_alpha, protection_kind, and leaky_relu_bias must all match"
 
@@ -82,7 +80,6 @@ class CausalSelectiveSelfAttention(nn.Module):
             S = S.transpose(1, 3) # shape: (B, T', T, n_head)
             S = S.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
             S = self.selection_head(S) # shape: (B, T', T, 1)
-            S = S * self.selection_head_linear_combo_scale # shape: (B, T', T, 1)
 
             # I copy the output of the selection_head to a fresh tensor
             # For some reason, when I don't do this, torch.compile causes a CUDA memory alignment error
@@ -126,7 +123,6 @@ class CausalSelectiveSelfAttention(nn.Module):
                 Sp = Sp.transpose(1, 3) # shape: (B, T', T, n_head)
                 Sp = Sp.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
                 Sp = self.protection_head(Sp) # shape: (B, T', T, 1)
-                Sp = Sp * self.selection_head_linear_combo_scale # shape: (B, T', T, 1)
 
                 # Same copy trick as for the selection head above
                 Sp_fresh = torch.zeros((B, T, T), device=Sp.device)

@@ -222,18 +222,22 @@ class GPT(nn.Module):
         param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
         # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
         # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
-        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
-        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+        selection_head_params = [p for n, p in param_dict.items() if "selection_head" in n]
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2 and not "selection_head" in n]
+        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2 and not "selection_head" in n]
         optim_groups = [
             {'params': decay_params, 'weight_decay': weight_decay},
-            {'params': nodecay_params, 'weight_decay': 0.0}
+            {'params': nodecay_params, 'weight_decay': 0.0},
+            {'params': selection_head_params, 'weight_decay': 0.0, 'lr': learning_rate * self.config.selection_head_linear_combo_scale}
         ]
         num_decay_params = sum(p.numel() for p in decay_params)
         num_nodecay_params = sum(p.numel() for p in nodecay_params)
-        master_process = os.environ.get('RANK', -1) == 0
+        num_low_lr_selection_head_params = sum(p.numel() for p in selection_head_params)
+        master_process = os.environ.get('RANK', 0) == 0
         if master_process:
             print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
             print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
+            print(f"num low-lr selection head parameter tensors: {len(selection_head_params)}, with {num_low_lr_selection_head_params:,} parameters")
         # Create AdamW optimizer and use the fused version if it is available
         fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
         use_fused = fused_available and device_type == "cuda"
