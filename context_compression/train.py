@@ -72,6 +72,8 @@ parser.add_argument("--memory_penalty_epsilon", type=float, default=0.1,
                     help="Epsilon for the memory penalty")
 parser.add_argument("--selection_head_linear_combo", type=lambda x: SelectionHeadLinearComboKind(x.lower()), default=SelectionHeadLinearComboKind.NONE,
                     help="Whether to use a linear combo of attention scores for the selection head")
+parser.add_argument("--selection_head_linear_combo_scale", type=float, default=1.0,
+                    help="Constant scale (think of alpha in lora) for the selection head linear combo")
 parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.NONE,
                     help="Kind of protection to use")
 parser.add_argument("--leaky_relu_alpha", type=float, default=None,
@@ -174,6 +176,7 @@ config = GPTConfig(
     prevent_from_masking_myself=args.prevent_from_masking_myself,
     epsilon=args.memory_penalty_epsilon,
     selection_head_linear_combo=args.selection_head_linear_combo,
+    selection_head_linear_combo_scale=args.selection_head_linear_combo_scale,
     protection_kind=args.protection_kind,
     leaky_relu_alpha=args.leaky_relu_alpha,
     leaky_relu_bias=args.leaky_relu_bias
