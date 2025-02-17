@@ -395,8 +395,9 @@ class CausalSelectiveSelfAttention(nn.Module):
                 raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
 
             # Second, run the protect-and-attack algorithm on Sp and S
-            FF = protect_and_attack_triton(S, Sp, dim=-2)
+            FF = protect_and_attack_triton(S, Sp, dim=-2) * -1
 
+        assert (FF < 0).any() == False, "FF should be positive"
         FF_shifted = torch.roll(FF, 1, -2)
         FF_shifted[..., 0, :] = 0
 
