@@ -1234,7 +1234,7 @@ Leaky-relu protection head (with bias) will make performance better than baselin
 
 Linear combo selection initted to head[0] = 1, with bias.
 
-```vast:running/17934831
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_0_lincomb_head0_with_bias \
@@ -1245,7 +1245,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo selection initted to head[0] = 1, with bias, with a second seed.
 
-```vast:running/17934833
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_1_lincomb_head0_with_bias \
@@ -1256,7 +1256,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo selection initted to head[0] = 1, with no bias.
 
-```vast:running/17934835
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_0_lincomb_head0_no_bias \
@@ -1267,7 +1267,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo selection initted to head[0] = 1, with no bias, with a second seed.
 
-```vast:running/17934836
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_1_lincomb_head0_no_bias \
@@ -1278,7 +1278,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Head-two protection head.
 
-```vast:running/17934838
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_0_protection_head2 \
@@ -1289,7 +1289,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Head-two protection head, with a second seed.
 
-```vast:running/17934846
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_1_protection_head2 \
@@ -1300,7 +1300,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo protection head.
 
-```vast:running/17934842
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_0_protection_linear_combo \
@@ -1311,7 +1311,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo protection head, with a second seed.
 
-```vast:running/17934834
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_1_protection_linear_combo \
@@ -1322,7 +1322,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo protection head with head two.
 
-```vast:running/17934840
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_0_protection_linear_combo_head2 \
@@ -1333,7 +1333,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo protection head with head two, with a second seed.
 
-```vast:running/17934845
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_1_protection_linear_combo_head2 \
@@ -1344,7 +1344,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Leaky-relu protection head (with bias).
 
-```vast:running/17934848
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_0_protection_leaky_relu \
@@ -1357,7 +1357,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Leaky-relu protection head (with bias), with a second seed.
 
-```vast:running/17934850
+```vast:verified
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_1_protection_leaky_relu \
@@ -1366,5 +1366,4 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --leaky_relu_bias -0.05 \
   --random_seed 1338 \
   &> run_1_protection_leaky_relu.txt
-```xt
 ```
