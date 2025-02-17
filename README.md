@@ -1357,7 +1357,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Leaky-relu protection head (with bias), with a second seed.
 
-```vast:verified
+```vast:running/17940759
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_1_protection_leaky_relu \
