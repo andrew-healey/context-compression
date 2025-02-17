@@ -597,3 +597,93 @@ def test_protect_and_attack_triton_3d():
 
     assert torch.allclose(A.grad.cpu(), expected_dA), f"Triton backward dA error: {A.grad.cpu()}, expected {expected_dA}"
     assert torch.allclose(P.grad.cpu(), expected_dP), f"Triton backward dP error: {P.grad.cpu()}, expected {expected_dP}"
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_protect_and_attack_triton_random_A_P0():
+    """
+    Test that when P is zero and A is random the health output equals -cumsum(A)
+    and that with dH=ones the gradients are:
+        dA = -[N, N-1, ..., 1]
+        dP = [N-1, N-2, ..., 0]
+    """
+    N = 10
+    A = torch.rand(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    P = torch.zeros_like(A, requires_grad=True)
+    H = protect_and_attack_triton(A, P, dim=0)
+    expected_H = -torch.cumsum(A, dim=0)
+    assert torch.allclose(H.cpu(), expected_H.cpu(), atol=1e-5), (
+        f"Output health {H.cpu()} does not match expected {expected_H.cpu()}"
+    )
+    dH = torch.ones_like(H)
+    H.backward(dH)
+    # Expected gradients:
+    # For a sequence of length N, since every token is "vulnerable", the backward pass computes:
+    #   dA[0] = -N, dA[1] = -(N-1), ..., dA[N-1] = -1.
+    #   dP[0] = N-1, dP[1] = N-2, ..., dP[N-1] = 0.
+    expected_dA = -torch.arange(N, 0, -1, dtype=torch.float32, device="cuda")
+    expected_dP = torch.arange(N-1, -1, -1, dtype=torch.float32, device="cuda")
+    assert torch.allclose(A.grad, expected_dA, atol=1e-5), (
+        f"dA {A.grad} does not match expected {expected_dA}"
+    )
+    assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
+        f"dP {P.grad} does not match expected {expected_dP}"
+    )
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_protect_and_attack_triton_A0_Ppositive():
+    """
+    Test that when A is zero and P is positive, the simulation produces
+    zero health at every turn and the backward pass produces gradients where
+    only the first token gets nonzero gradient:
+        dA[0] = -N  and all other entries zero,
+        dP = all zeros.
+    """
+    N = 10
+    A = torch.zeros(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    # Choose a positive protection value; here we use ones.
+    P = torch.ones(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    H = protect_and_attack_triton(A, P, dim=0)
+    expected_H = torch.zeros_like(A)
+    assert torch.allclose(H.cpu(), expected_H.cpu(), atol=1e-5), (
+        f"Output health {H.cpu()} does not match expected {expected_H.cpu()}"
+    )
+    dH = torch.ones_like(H)
+    H.backward(dH)
+    # With A==0 and P>0, only token 0 is vulnerable:
+    expected_dA = torch.zeros_like(A)
+    expected_dA[0] = -float(N)  # gradient accumulates all the dH values = -N at token 0
+    expected_dP = torch.zeros_like(P)
+    assert torch.allclose(A.grad, expected_dA, atol=1e-5), (
+        f"dA {A.grad} does not match expected {expected_dA}"
+    )
+    assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
+        f"dP {P.grad} does not match expected {expected_dP}"
+    )
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_protect_and_attack_triton_A0_P0():
+    """
+    Test that when both A and P are zero the health output equals -cumsum(A)=0,
+    and with dH=ones the backward gradients are:
+        dA = -[N, N-1, ..., 1]
+        dP = [N-1, N-2, ..., 0]
+    (which is the same as when P is zero, since the condition always triggers).
+    """
+    N = 10
+    A = torch.zeros(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    P = torch.zeros(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    H = protect_and_attack_triton(A, P, dim=0)
+    expected_H = -torch.cumsum(A, dim=0)  # which is all zeros
+    assert torch.allclose(H.cpu(), expected_H.cpu(), atol=1e-5), (
+        f"Output health {H.cpu()} does not match expected {expected_H.cpu()}"
+    )
+    dH = torch.ones_like(H)
+    H.backward(dH)
+    expected_dA = -torch.arange(N, 0, -1, dtype=torch.float32, device="cuda")
+    expected_dP = torch.arange(N-1, -1, -1, dtype=torch.float32, device="cuda")
+    assert torch.allclose(A.grad, expected_dA, atol=1e-5), (
+        f"dA {A.grad} does not match expected {expected_dA}"
+    )
+    assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
+        f"dP {P.grad} does not match expected {expected_dP}"
+    )

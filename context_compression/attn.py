@@ -151,6 +151,11 @@ class CausalSelectiveSelfAttention(nn.Module):
             # Second, run the protect-and-attack algorithm on Sp and S
             FF = protect_and_attack_triton(S, Sp, dim=-2) * -1
 
+            # if self.config.protection_kind == ProtectionKind.BIG_CONSTANT:
+            #     assert (FF == 0).all(), "FF should be 0"
+            # elif self.config.protection_kind == ProtectionKind.ZERO:
+            #     assert torch.allclose(FF, torch.cumsum(S, dim=-2)), "FF should be equal to the cumulative sum of S"
+
         assert (FF < 0).any() == False, "FF should be positive"
         FF_shifted = torch.roll(FF, 1, -2)
         FF_shifted[..., 0, :] = 0
