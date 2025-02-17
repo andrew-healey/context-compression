@@ -78,11 +78,13 @@ parser.add_argument("--leaky_relu_alpha", type=float, default=None,
                     help="Alpha for the leaky relu")
 parser.add_argument("--leaky_relu_bias", type=float, default=None,
                     help="Bias for the leaky relu")
+parser.set_defaults(use_compile=True)
 parser.add_argument("--no_use_compile", action="store_false", dest="use_compile",
                     help="Do not use torch.compile")
 parser.add_argument("--use_mini_model", action="store_true",
                     help="Make the model and batch size very small, for fast debugging")
-parser.set_defaults(use_compile=True)
+parser.add_argument("--upload_to_hf", action="store_true",
+                    help="Upload the model to HuggingFace")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -513,7 +515,7 @@ for step in range(start_step, max_steps):
         with open(log_file, "a") as f:
             f.write(f"{step} train {loss_accum.item():.6f} (lr={lr:.4e}) (hash(x)={x.sum().item()})\n")
 
-if master_process:
+if master_process and args.upload_to_hf:
     api = HfApi()
     log_dir_basename = os.path.basename(log_dir)
     api.upload_folder(
