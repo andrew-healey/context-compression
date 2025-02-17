@@ -1664,7 +1664,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Init head 0 with 1.0, lr 0.1.
 
-```vast:running/17952360
+```vastrunning/17952360
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir head_0_init_1.0_lr_0.1 \
@@ -1675,9 +1675,55 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Normal model, no linear head.
 
-```vast
+```vast:running/17952360
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir normal_model_no_linear_head \
+  --random_seed 1337
+```
+
+Init head 0 with 1.0, lr 0.
+
+```vast:running/17953252
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_selection_head_lr_weight_decay \
+  --log_dir head_0_init_1.0_lr_0.0 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.0 \
+  --random_seed 1337
+```
+
+Init head 0 with 1.0, lr 0.1.
+
+```vast:running/17953449
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_selection_head_lr_weight_decay \
+  --log_dir head_0_init_1.0_lr_0.1 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.1 \
+  --random_seed 1337
+```
+
+## Testing protection zero vs. protection none
+
+These should have ~identical loss curves.
+
+Protection zero:
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_zero \
+  --protection_kind zero \
+  --random_seed 1337
+```
+
+Protection none:
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_none \
+  --protection_kind none \
   --random_seed 1337
 ```
