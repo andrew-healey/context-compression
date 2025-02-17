@@ -14,6 +14,8 @@ class ProtectionKind(StrEnum):
     NONE = auto()
     NONE_CUSTOM_CUMSUM = auto()
     BIG_CONSTANT = auto()
+    CUMSUM_F64 = auto()
+    NONE_CUSTOM_CUMSUM_F64 = auto()
 
 class SelectionHeadLinearComboKind(StrEnum):
     NONE = auto()
@@ -107,6 +109,10 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         if self.config.protection_kind == ProtectionKind.NONE:
             FF = torch.cumsum(S, dim=-2)
+        elif self.config.protection_kind == ProtectionKind.CUMSUM_F64:
+            FF = torch.cumsum(S.to(torch.float64), dim=-2).to(S.dtype)
+        elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_F64:
+            FF = cumsum_triton(S.to(torch.float64), dim=-2).to(S.dtype)
         elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM:
             FF = cumsum_triton(S, dim=-2)
         else:
