@@ -192,6 +192,29 @@ import random
 
 # Launch a verified command block on a given instance.
 def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
+
+    # first, set the label to none
+    backoff = 10  # initial sleep time: 10 seconds
+    max_backoff = 60  # maximum sleep time: 60 seconds
+    attempt = 0
+    max_attempts = 5  # try up to 5 times
+
+    while True:
+        try:
+            from vast_ai_api import VastAPIHelper
+            api = VastAPIHelper()
+            api.label_instance(instance.instance_id, None)
+            break  # if successful, exit the loop
+        except Exception as e:
+            attempt += 1
+            logger.error(f"Error setting instance {instance.instance_id} label to None (attempt {attempt}): {e}")
+            if attempt >= max_attempts:
+                logger.error("Max attempts reached. Giving up on setting label.")
+                break
+            logger.info("Retrying in %d seconds...", backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
+
     # Extract the inner command (strip starting and ending quotes).
     command = block.content
     ssh_host = instance.ssh_host
@@ -270,8 +293,8 @@ def run_phase(blocks: List[CommandBlock], instances: List[Instance]) -> None:
         if matching_instances:
             matching_instance = matching_instances.pop()
             logger.debug(f"Instance {block.instance_id} has label {matching_instance.label}.")
-            if matching_instance.label == "running":
-                logger.debug(f"Verified that block {block.index} is running on instance {block.instance_id}.")
+            if matching_instance.label in ("running","succeed","fail"):
+                logger.debug(f"Verified that block {block.index} has at least started running on instance {block.instance_id}.")
             elif not matching_instance.label or str(matching_instance.label) == "None":
                 logger.warning(f"Bad news - instance {block.instance_id} is not marked as running on vast - so our command block has probably not run at all.")
                 block.state = CommandState.VERIFIED
