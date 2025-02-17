@@ -3,7 +3,7 @@ import torch
 import math
 import torch.nn.functional as F
 
-from .protection.protect_and_attack import protect_and_attack_triton
+from .protection.protect_and_attack import protect_and_attack_triton, cumsum_triton
 from enum import StrEnum, auto
 class ProtectionKind(StrEnum):
     HEAD_TWO = auto()
@@ -12,6 +12,7 @@ class ProtectionKind(StrEnum):
     LEAKY_RELU = auto()
     ZERO = auto()
     NONE = auto()
+    NONE_CUSTOM_CUMSUM = auto()
     BIG_CONSTANT = auto()
 
 class SelectionHeadLinearComboKind(StrEnum):
@@ -106,6 +107,8 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         if self.config.protection_kind == ProtectionKind.NONE:
             FF = torch.cumsum(S, dim=-2)
+        elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM:
+            FF = cumsum_triton(S, dim=-2)
         else:
             # First, compute Sp
 

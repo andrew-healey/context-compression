@@ -1643,7 +1643,7 @@ Results will go here
 
 Normal init, no weight decay.
 
-```vast:running/17952354
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir normal_head_init \
@@ -1706,7 +1706,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Init head 0 with 1.0, lr 0.1, with a second seed.
 
-```vast:running/17958059
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir head_0_init_1.0_lr_0.1 \
@@ -1717,7 +1717,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Init head 0 with 1.0, lr 0.05.
 
-```vast:running/17958068
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir head_0_init_1.0_lr_0.05 \
@@ -1728,7 +1728,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Init head 0 with 1.0, lr 0.05, with a second seed.
 
-```vast:running/17958071
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir head_0_init_1.0_lr_0.05 \
@@ -1739,7 +1739,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Init head 0 with 1.0, lr 0.025.
 
-```vast:running/17958072
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir head_0_init_1.0_lr_0.025 \
@@ -1750,7 +1750,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Init head 0 with 1.0, lr 0.025, with a second seed.
 
-```vast:running/17958076
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir head_0_init_1.0_lr_0.025 \
@@ -1796,7 +1796,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection none, with another seed.
 
-```vast:running/17955344
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_none_2 \
@@ -1807,7 +1807,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 Protection zero, with 128 seq len.
 
 
-```vast:running/17956281
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_zero_128 \
@@ -1818,7 +1818,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection none, with 128 seq len.
 
-```vast:running/17956271
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_none_128 \
@@ -1830,7 +1830,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection zero, with 64 seq len.
 
-```vast:running/17956272
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_zero_64 \
@@ -1841,11 +1841,43 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection none, with 64 seq len.
 
-```vast:running/17956543
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_none_64 \
   --protection_kind none \
   --seq_len 64 \
+  --random_seed 1337
+```
+
+Protection none, with 32 seq len.
+
+```vast:running/17955344
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_none_32 \
+  --protection_kind none \
+  --seq_len 32 \
+  --random_seed 1337
+```
+
+Protection zero, with 32 seq len.
+
+```vast:running/17956271
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_zero_32 \
+  --protection_kind zero \
+  --seq_len 32 \
+  --random_seed 1337  
+```
+
+Custom cumsum implementation. Should hopefully have the same instability problems as the none protection.
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_none_custom_cumsum \
+  --protection_kind none_custom_cumsum \
   --random_seed 1337
 ```

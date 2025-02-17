@@ -728,3 +728,139 @@ def test_protect_and_attack_triton_A0_P0():
     assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
         f"dP {P.grad} does not match expected {expected_dP}"
     )
+
+# -------------------------------------------------------------------
+# Triton kernel implementation of cumulative sum
+
+@triton.jit
+def kernel_cumsum_forward(
+    input_ptr, output_ptr,
+    L: tl.constexpr, stride: tl.constexpr
+):
+    """
+    Computes the cumulative sum along a 1D row of length L.
+    """
+    b = tl.program_id(0)
+    base = b * stride
+    acc = 0.0
+    for i in range(L):
+        x = tl.load(input_ptr + base + i)
+        acc = acc + x
+        tl.store(output_ptr + base + i, acc)
+
+@triton.jit
+def kernel_cumsum_backward(
+    grad_ptr, grad_input_ptr,
+    L: tl.constexpr, stride: tl.constexpr
+):
+    """
+    Backward pass for cumulative sum.
+    For y = cumsum(x), the derivative dL/dx[i] = sum_{j=i}^{L-1} dL/dy[j].
+    """
+    b = tl.program_id(0)
+    base = b * stride
+    acc = 0.0
+    for i in range(L, 0, -1):
+        idx = i - 1
+        g = tl.load(grad_ptr + base + idx)
+        acc = acc + g
+        tl.store(grad_input_ptr + base + idx, acc)
+
+# -------------------------------------------------------------------
+# Triton-based cumulative sum autograd function
+
+class CumsumTritonFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, X, dim):
+        # Permute X so that processing dim becomes the last dimension.
+        dims = list(range(X.dim()))
+        if dim < 0:
+            dim = X.dim() + dim
+        new_order = dims[:dim] + dims[dim+1:] + [dim]
+        X_perm = X.permute(*new_order).contiguous()
+        orig_shape = X_perm.shape  # shape: (..., L)
+        if X_perm.ndim == 1:
+            B = 1
+            L = X_perm.shape[0]
+            X_flat = X_perm.view(1, L)
+        else:
+            batch_shape = X_perm.shape[:-1]
+            L = X_perm.shape[-1]
+            B = 1
+            for s in batch_shape:
+                B *= s
+            X_flat = X_perm.reshape(B, L)
+        
+        output_flat = torch.empty_like(X_flat)
+        grid = (B,)
+        kernel_cumsum_forward[grid](X_flat, output_flat, L, L)
+        output_perm = output_flat.view(orig_shape)
+        # Compute inverse permutation.
+        inverse_order = [0] * len(new_order)
+        for i, p in enumerate(new_order):
+            inverse_order[p] = i
+        out = output_perm.permute(*inverse_order)
+        ctx.save_for_backward(X)
+        ctx.dim = dim
+        ctx.new_order = new_order
+        ctx.inverse_order = inverse_order
+        ctx.orig_shape = orig_shape
+        ctx.B = B
+        ctx.L = L
+        return out
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        X, = ctx.saved_tensors
+        new_order = ctx.new_order
+        inverse_order = ctx.inverse_order
+        orig_shape = ctx.orig_shape
+        B = ctx.B
+        L = ctx.L
+        grad_output_perm = grad_output.permute(*new_order).contiguous().reshape(B, L)
+        grad_input_flat = torch.empty_like(grad_output_perm)
+        grid = (B,)
+        kernel_cumsum_backward[grid](grad_output_perm, grad_input_flat, L, L)
+        grad_input_perm = grad_input_flat.view(orig_shape)
+        grad_input = grad_input_perm.permute(*inverse_order)
+        return grad_input, None
+
+def cumsum_triton(X, dim=-1):
+    """
+    Triton-based cumulative sum implementation.
+    
+    Args:
+        X (torch.Tensor): Input float tensor on CUDA.
+        dim (int): The dimension along which to compute the cumulative sum.
+    
+    Returns:
+        torch.Tensor: A tensor of the same shape as X containing the cumulative sum.
+    """
+    return CumsumTritonFunction.apply(X, dim)
+
+# -------------------------------------------------------------------
+# New tests for Triton-based cumulative sum
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_triton_cumsum_vector():
+    # Test on a 1D tensor (vector).
+    X = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32, device='cuda', requires_grad=True)
+    expected = torch.tensor([1.0, 3.0, 6.0], device='cuda')
+    Y = cumsum_triton(X, dim=0)
+    assert torch.allclose(Y, expected, atol=1e-5), f"Forward pass: expected {expected}, got {Y}"
+    # Test backward: for cumsum, with grad outputs ones, dX = [3, 2, 1].
+    Y.backward(torch.ones_like(Y))
+    expected_grad = torch.tensor([3.0, 2.0, 1.0], device='cuda')
+    assert torch.allclose(X.grad, expected_grad, atol=1e-5), f"Backward pass: expected gradient {expected_grad}, got {X.grad}"
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_triton_cumsum_multi_dim():
+    # Test on a 2D tensor, processing along dim=1.
+    X = torch.tensor([[1, 2, 3], [4, 5, 6]], dtype=torch.float32, device='cuda', requires_grad=True)
+    Y = cumsum_triton(X, dim=1)
+    expected = torch.cumsum(X, dim=1)
+    assert torch.allclose(Y, expected, atol=1e-5), f"Forward pass: expected {expected}, got {Y}"
+    # For each row, if grad outputs ones, expected gradient is [3, 2, 1].
+    Y.backward(torch.ones_like(Y))
+    expected_grad = torch.tensor([[3, 2, 1], [3, 2, 1]], dtype=torch.float32, device='cuda')
+    assert torch.allclose(X.grad, expected_grad, atol=1e-5), f"Backward pass: expected gradient {expected_grad}, got {X.grad}"
