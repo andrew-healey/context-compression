@@ -87,6 +87,8 @@ parser.add_argument("--use_mini_model", action="store_true",
                     help="Make the model and batch size very small, for fast debugging")
 parser.add_argument("--upload_to_hf", action="store_true",
                     help="Upload the model to HuggingFace")
+parser.add_argument("--seq_len", type=int, default=1024,
+                    help="Sequence length")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -149,11 +151,11 @@ use_mini_model = os.environ.get("USE_MINI_MODEL", "false").lower() == "true" or 
 if use_mini_model:
     total_batch_size = 16384
     B = 2 # micro batch size
-    T = 1024 # sequence length
+    T = args.seq_len # sequence length
 else:
     total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
     B = 8 # micro batch size
-    T = 1024 # sequence length
+    T = args.seq_len # sequence length
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 if master_process:
