@@ -384,6 +384,7 @@ def writeback_file(fw, file_text: str, blocks: List[CommandBlock]) -> None:
     
     new_text = pattern.sub(replacer, file_text)
     fw.seek(0)
+    fw.truncate()
     fw.write(new_text)
     logger.debug(f"Wrote updated file back to {fw.name}.")
     fw.flush()
