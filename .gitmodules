@@ -1,3 +1,6 @@
 [submodule "vast_commands/vast-ai-api"]
 	path = vast_commands/vast-ai-api
 	url = https://github.com/andrew-healey/vast-ai-api
+[submodule "vast_commands/vast-cli"]
+	path = vast_commands/vast-cli
+	url = https://github.com/vast-ai/vast-cli
