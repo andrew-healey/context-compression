@@ -742,11 +742,12 @@ def kernel_cumsum_forward(
     """
     b = tl.program_id(0)
     base = b * stride
-    acc = 0.0
+    acc = tl.load(input_ptr + base)
     for i in range(L):
-        x = tl.load(input_ptr + base + i)
-        acc = acc + x
         tl.store(output_ptr + base + i, acc)
+        if i < L - 1:
+            x = tl.load(input_ptr + base + i + 1)
+            acc = acc + x
 
 @triton.jit
 def kernel_cumsum_backward(
@@ -759,12 +760,13 @@ def kernel_cumsum_backward(
     """
     b = tl.program_id(0)
     base = b * stride
-    acc = 0.0
+    acc = tl.load(grad_ptr + base)
     for i in range(L, 0, -1):
         idx = i - 1
-        g = tl.load(grad_ptr + base + idx)
-        acc = acc + g
         tl.store(grad_input_ptr + base + idx, acc)
+        if i > 1:
+            g = tl.load(grad_ptr + base + idx)
+            acc = acc + g
 
 # -------------------------------------------------------------------
 # Triton-based cumulative sum autograd function
