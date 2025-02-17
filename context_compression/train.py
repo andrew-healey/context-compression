@@ -1,3 +1,5 @@
+# ANDREWTODO remove slow asserts in protect_and_attack.py before merging into master
+
 import os
 import math
 import time
