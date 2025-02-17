@@ -1220,15 +1220,47 @@ Hypotheses:
 
 Linear combo selection head initted to head[0] = 1, with bias, will be a bit better than baseline.
 
+Result: it's worse. Almost identically bad to the linear combo with no bias. Maybe no-bias is a little better. Super confused abt this.
+
+Hrrm... Maybe selection is just v spooky and delicate. And all the output-focused heads are fluctuating all the time, possibly bigly.
+
+So maybe they'll just occasionally get unlucky and start messing with masking. Hrrm. Honestly, I could believe this.
+
+What does it mean for me though?
+
+IG maybe it means the model needs to be actually reconfigured to work w/ dramatic new mechanisms (i.e. protection, selection, etc.). It's not enough to expect it'll be the same + a few more allocated circuits.
+
+Hrrm. That's bad news for us though, right? B/c that means every head we spend is costly. Hrrm but maybe we can split the params across two heads.
+
 Linear combo selection head initted to head[0] = 1, with no bias, will be worse than with bias but still better than baseline.
+
+See above.
 
 Head-two protection head will make performance a bit worse, since it's decreasing the # of available heads, for something relatively unimportant.
 
+Result: much worse. Total lobotomization, barely learns at all. Super surprising, smells like a bug. I wonder if it's adding, not subtracting?
+
+The loss decreases slower even in first 25 iters. I'll try directly comparing that way on some 8-4090 setup.
+
 Linear-combo protection head will make performance a bit better, I think - seems like probably just a pareto improvement.
+
+Result: worse.
 
 Linear-combo protection head with head two will make performance worse, since it's basically like a head-two protection head.
 
+Result: worse.
+
 Leaky-relu protection head (with bias) will make performance better than baseline. But probably only by a little bit. IDK how much, relative to the other protection kinds.
+
+Result: worse.
+
+<hr>
+
+Let's examine the shape of the degradation, and check if the code has gotten worse, or maybe my ideas are just bad. Maybe I need to try writing transformer programs by hand?
+
+UPDATE: I think there's a bug, see the next experiment.
+
+I think there's not too much to learn here abt protection, b/c it's buggy.
 
 <hr>
 
@@ -1366,4 +1398,59 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --leaky_relu_bias -0.05 \
   --random_seed 1338 \
   &> run_1_protection_leaky_relu.txt
+```
+
+
+## From-scratch pretraining experiments 5 (with an extra head)
+
+Let's just very quickly verify that our baselines haven't gotten worse.
+
+And that our protect-and-attack code can perfectly reproduce the baseline results.
+
+<hr>
+
+Quick update: so looks like normal init baseline is all good.
+
+There's some horrible initial divergence for the protection zero run. Makes me think I missed a sign bit somewhere.
+
+OK, I am stopping all these runs early!
+
+<hr>
+
+Run the normal init baseline again.
+
+```vast:running/17942442
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_5 \
+  --log_dir run_5_normal_init \
+  --random_seed 1337
+```
+
+Run the normal init baseline again, with another seed.
+
+```vast:running/17942440
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_5 \
+  --log_dir run_6_normal_init \
+  --random_seed 1338
+```
+
+Run the normal init with protection kind "zero". This should reproduce the baseline results also.
+
+```vast:running/17942443
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_5 \
+  --log_dir run_0_normal_init_protection_zero \
+  --protection_kind zero \
+  --random_seed 1337
+```
+
+Run the normal init with protection kind "zero", with another seed.
+
+```vast:running/17942557
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_5 \
+  --log_dir run_1_normal_init_protection_zero \
+  --protection_kind zero \
+  --random_seed 1338
 ```
