@@ -1654,7 +1654,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 Init head 0 with 1.0.
 
 
-```vast:running/17952355
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir head_0_init_1.0 \
@@ -1675,7 +1675,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Normal model, no linear head.
 
-```vast:running/17952360
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir normal_model_no_linear_head \
@@ -1684,7 +1684,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Init head 0 with 1.0, lr 0.
 
-```vast:running/17953252
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir head_0_init_1.0_lr_0.0 \
@@ -1695,7 +1695,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Init head 0 with 1.0, lr 0.1.
 
-```vast:running/17953449
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_selection_head_lr_weight_decay \
   --log_dir head_0_init_1.0_lr_0.1 \
@@ -1704,13 +1704,69 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1337
 ```
 
+Init head 0 with 1.0, lr 0.1, with a second seed.
+
+```vast:running/17958059
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_selection_head_lr_weight_decay \
+  --log_dir head_0_init_1.0_lr_0.1 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.1 \
+  --random_seed 1338
+```
+
+Init head 0 with 1.0, lr 0.05.
+
+```vast:running/17958068
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_selection_head_lr_weight_decay \
+  --log_dir head_0_init_1.0_lr_0.05 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.05 \
+  --random_seed 1337
+```
+
+Init head 0 with 1.0, lr 0.05, with a second seed.
+
+```vast:running/17958071
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_selection_head_lr_weight_decay \
+  --log_dir head_0_init_1.0_lr_0.05 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.05 \
+  --random_seed 1338
+```
+
+Init head 0 with 1.0, lr 0.025.
+
+```vast:running/17958072
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_selection_head_lr_weight_decay \
+  --log_dir head_0_init_1.0_lr_0.025 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.025 \
+  --random_seed 1337
+```
+
+Init head 0 with 1.0, lr 0.025, with a second seed.
+
+```vast:running/17958076
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_selection_head_lr_weight_decay \
+  --log_dir head_0_init_1.0_lr_0.025 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.025 \
+  --random_seed 1338
+```
+
+
 ## Testing protection zero vs. protection none
 
 These should have ~identical loss curves.
 
 Protection zero:
 
-```
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_zero \
@@ -1718,12 +1774,78 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1337
 ```
 
+Protection zero, with another seed.
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_zero_2 \
+  --protection_kind zero \
+  --random_seed 1338
+```
+
 Protection none:
 
-```
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_none \
   --protection_kind none \
+  --random_seed 1337
+```
+
+Protection none, with another seed.
+
+```vast:running/17955344
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_none_2 \
+  --protection_kind none \
+  --random_seed 1338
+```
+
+Protection zero, with 128 seq len.
+
+
+```vast:running/17956281
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_zero_128 \
+  --protection_kind zero \
+  --seq_len 128 \
+  --random_seed 1337
+```
+
+Protection none, with 128 seq len.
+
+```vast:running/17956271
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_none_128 \
+  --protection_kind none \
+  --seq_len 128 \
+  --random_seed 1337
+```
+
+
+Protection zero, with 64 seq len.
+
+```vast:running/17956272
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_zero_64 \
+  --protection_kind zero \
+  --seq_len 64 \
+  --random_seed 1337
+```
+
+Protection none, with 64 seq len.
+
+```vast:running/17956543
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection \
+  --log_dir protection_none_64 \
+  --protection_kind none \
+  --seq_len 64 \
   --random_seed 1337
 ```
