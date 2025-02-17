@@ -1531,7 +1531,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Leaky-relu protection head (with bias), with a second seed.
 
-```vast:verified
+```vast:running/17943302
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_3_protection_leaky_relu \
@@ -1539,4 +1539,48 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --leaky_relu_alpha 0.1 \
   --leaky_relu_bias -0.05 \
   --random_seed 1338
+```
+
+Linear combo selection head with scale 0.05.
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_2_selection_head_linear_combo_scale_0.05 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.05 \
+  --random_seed 1337
+```
+
+Linear combo selection head with scale 0.1.
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_2_selection_head_linear_combo_scale_0.1 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.1 \
+  --random_seed 1337
+```
+
+Linear combo selection head with scale 0.25.
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_2_selection_head_linear_combo_scale_0.25 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.25 \
+  --random_seed 1337
+```
+
+Linear combo selection head with scale 0.5.
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_2_selection_head_linear_combo_scale_0.5 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.5 \
+  --random_seed 1337
 ```
