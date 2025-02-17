@@ -1389,7 +1389,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Leaky-relu protection head (with bias), with a second seed.
 
-```vast:running/17940759
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_4 \
   --log_dir run_1_protection_leaky_relu \
@@ -1419,7 +1419,7 @@ OK, I am stopping all these runs early!
 
 Run the normal init baseline again.
 
-```vast:running/17942442
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_5 \
   --log_dir run_5_normal_init \
@@ -1428,7 +1428,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Run the normal init baseline again, with another seed.
 
-```vast:running/17942440
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_5 \
   --log_dir run_6_normal_init \
@@ -1437,7 +1437,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Run the normal init with protection kind "zero". This should reproduce the baseline results also.
 
-```vast:running/17942443
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_5 \
   --log_dir run_0_normal_init_protection_zero \
@@ -1447,10 +1447,96 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Run the normal init with protection kind "zero", with another seed.
 
-```vast:running/17942557
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_5 \
   --log_dir run_1_normal_init_protection_zero \
   --protection_kind zero \
+  --random_seed 1338
+```
+
+## Checking that my bugfix worked
+
+These are the same experiments as before, but with the bugfix.
+
+```vast:running/17943304
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_5 \
+  --log_dir run_2_normal_init_protection_zero \
+  --protection_kind zero \
+  --random_seed 1337
+```
+
+Head-two protection head.
+
+```vast:running/17943305
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_2_protection_head2 \
+  --protection_kind head_two \
+  --random_seed 1337
+```
+
+Head-two protection head, with a second seed.
+
+```vast:running/17943306
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_3_protection_head2 \
+  --protection_kind head_two \
+  --random_seed 1338
+```
+
+Linear combo protection head.
+
+```vast:running/17943307
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_2_protection_linear_combo \
+  --protection_kind linear_combo \
+  --random_seed 1337
+```
+
+Linear combo protection head, with a second seed.
+
+```vast:running/17943308
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_3_protection_linear_combo \
+  --protection_kind linear_combo \
+  --random_seed 1338
+```
+
+Linear combo protection head with head two.
+
+```vast:running/17943309
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_2_protection_linear_combo_head2 \
+  --protection_kind linear_combo_head_two \
+  --random_seed 1337
+```
+
+Leaky-relu protection head (with bias).
+
+```vast:running/17943310
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_2_protection_leaky_relu \
+  --protection_kind leaky_relu \
+  --leaky_relu_alpha 0.1 \
+  --leaky_relu_bias -0.05 \
+  --random_seed 1337
+```
+
+Leaky-relu protection head (with bias), with a second seed.
+
+```vast:verified
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_3_protection_leaky_relu \
+  --protection_kind leaky_relu \
+  --leaky_relu_alpha 0.1 \
+  --leaky_relu_bias -0.05 \
   --random_seed 1338
 ```
