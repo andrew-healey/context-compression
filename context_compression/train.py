@@ -351,7 +351,7 @@ for step in range(start_step, max_steps):
             for _ in range(val_loss_steps):
                 x, y = val_loader.next_batch()
                 x, y = x.to(device), y.to(device)
-                with torch.autocast(device_type=device_type, dtype=torch.float32):
+                with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
                     logits, loss, losses = model(x, y)
                 loss = loss / val_loss_steps
                 val_loss_accum += loss.detach()
@@ -471,7 +471,7 @@ for step in range(start_step, max_steps):
         # added after video, this field is also used by the forward pass.
         if ddp:
             model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
-        with torch.autocast(device_type=device_type, dtype=torch.float32):
+        with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
             logits, loss, losses = model(x, y)
         # we have to scale the loss to account for gradient accumulation,
         # because the gradients just add on each successive backward().
