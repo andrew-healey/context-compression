@@ -42,20 +42,14 @@ class CausalSelectiveSelfAttention(nn.Module):
             use_bias = self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]
             self.selection_head = nn.Linear(config.n_head, 1, bias=use_bias)
             if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO, SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]:
-                with torch.no_grad():
-                    weight = self.selection_head.weight.T
-                    assert weight.shape == (config.n_head, 1), f"weight.shape: {weight.shape}, config.n_head: {config.n_head}"
-                    weight.data[0:1].fill_(1.0) # initialize head to directly using the first head's logits. should make linear combo pareto-better than the single-head baseline.
+                self.selection_head.ONE_HOT_INIT = 0
         else:
             self.selection_head = None
         
         if self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
             self.protection_head = nn.Linear(config.n_head, 1)
             if self.config.protection_kind == ProtectionKind.LINEAR_COMBO_HEAD_TWO:
-                with torch.no_grad():
-                    weight = self.protection_head.weight.T
-                    assert weight.shape == (config.n_head, 1), f"weight.shape: {weight.shape}, config.n_head: {config.n_head}"
-                    weight.data[1:2].fill_(1.0)
+                self.protection_head.ONE_HOT_INIT = 1
         else:
             self.protection_head = None
         

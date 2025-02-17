@@ -75,6 +75,10 @@ class GPT(nn.Module):
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
+            if hasattr(module, 'ONE_HOT_INIT'):
+                torch.nn.init.zeros_(module.weight)
+                module.weight.data[:,module.ONE_HOT_INIT] = 1.0
+                return
             std = 0.02
             if hasattr(module, 'NANOGPT_SCALE_INIT'):
                 std *= (2 * self.config.n_layer) ** -0.5
