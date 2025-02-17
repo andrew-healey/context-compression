@@ -10,6 +10,7 @@ class ProtectionKind(StrEnum):
     LINEAR_COMBO = auto()
     LINEAR_COMBO_HEAD_TWO = auto()
     LEAKY_RELU = auto()
+    ZERO = auto()
     NONE = auto()
 
 class SelectionHeadLinearComboKind(StrEnum):
@@ -388,6 +389,8 @@ class CausalSelectiveSelfAttention(nn.Module):
                 # we use the "leaky" half of S_pre_relu
                 # This makes our model act as if we used a leaky relu to construct S, BUT with the negative half acting like protection, NOT like healing
                 Sp = (-S_pre_relu * self.config.leaky_relu_alpha + self.config.leaky_relu_bias).relu()
+            elif self.config.protection_kind == ProtectionKind.ZERO:
+                Sp = torch.zeros_like(S)
             else:
                 raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
 
