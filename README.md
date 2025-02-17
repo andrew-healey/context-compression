@@ -1637,7 +1637,25 @@ The effect of init and change in lr will be a wash.
 
 <hr>
 
-Results will go here
+Results: Honestly kinda unclear. Big thing is that it's much much closer to the original model.
+
+Head zero, with lr=0, matches normal model, which tells us my code isn't buggy.
+
+Head lr=0.025 seems pretty close to the normal model.
+
+Nothing seems better than the normal model, which is kinda sad. Maybe you rly do just need to allocate a dedicated head. I wonder if there's some batchnorm lesson here?
+
+Hrrm, ig that could possibly make it much more stable. Maybe it's worth trying. After all, it is just one more experiment.
+
+Well, why do I want a linear head? Because I'd like to CPT more easily. And because I'd like to not allocate a dedicated protection head.
+
+So those dreams seem a little bit dashed. normal_init linear head just seems much worse (i.e. 0.02 worse pplx, which is so huge!!) than the normal model.
+
+Hrrm maybe when experimenting w/ protection models, I can just assume they *could* get 0.02 better pplx with a dedicated head. Hrrm. Is this actually true in practice with protection models? Let's check later.
+
+OK, conclusion is just that linear head is prob no worse than a normal model. But I haven't yet found a way that it's better.
+
+Onto debugging the protection models!
 
 <hr>
 
@@ -1762,7 +1780,25 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 ## Testing protection zero vs. protection none
 
-These should have ~identical loss curves.
+I'm looking for the protection=zero (i.e. running protect_and_attack_triton with 0 protection, which should be equiv. to just cumsum) loss curves to match the protection=none (i.e. running torch.cumsum directly) loss curves.
+
+I don't think they will, though.
+
+In the course of this experiment, o3-mini told me it might be numeric instability problems. So I also ran a custom Triton cumsum implementation.
+
+Not sure if there are many valid *hypotheses* here, since this run was kinda continuous. I was starting and stopping runs based on partial loss curves, so it's all kinda corrupted.
+
+<hr>
+
+Results: it's definitely a numeric instability problem!
+
+Custom cumsum has the same (maybe a bit worse) instability problems as the protection=zero (protect_and_attack_triton with P=0).
+
+OK, so let's figure out how to fix it. Naive first guess might be to use float64 for my accumulators. This'll prob be super slow, but worth doing.
+
+For now, let's just iterate on my custom cumsum implementation, not using the protection=zero.
+
+<hr>
 
 Protection zero:
 
@@ -1852,7 +1888,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection none, with 32 seq len.
 
-```vast:running/17955344
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_none_32 \
@@ -1863,7 +1899,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection zero, with 32 seq len.
 
-```vast:running/17956271
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_zero_32 \
@@ -1874,10 +1910,40 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Custom cumsum implementation. Should hopefully have the same instability problems as the none protection.
 
-```vast
-cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+```vast:finished
+cd /workspace/context-compression && git checkout andrew/protection-debugging && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection \
   --log_dir protection_none_custom_cumsum \
   --protection_kind none_custom_cumsum \
   --random_seed 1337
+```
+
+## Testing local cumsum numeric stability
+
+Can we repro the numeric instability problems on a single 4070S machine?
+
+I'm guessing it shows up most for low lrs. So maybe let's just run some local runs with i.e. 500 max_steps, and plot them on wandb!
+
+Yes, we can!! See [this graph](https://wandb.ai/sesamestrong/context_compression?nw=n5szysj3rim).
+
+<hr>
+
+Custom cumsum impl.
+
+```
+SKIP_WANDB=false python -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir cumsum_numeric_stability \
+  --protection_kind none_custom_cumsum \
+  --max_steps 500
+```
+
+Torch cumsum impl.
+
+```
+SKIP_WANDB=false python -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir cumsum_numeric_stability \
+  --protection_kind none \
+  --max_steps 500
 ```
