@@ -476,9 +476,6 @@ for step in range(start_step, max_steps):
         loss = loss / grad_accum_steps
         loss_accum += loss.detach()
         loss.backward()
-        for param in model.parameters():
-            if param.grad is not None and param.grad.isnan().any():
-                raise ValueError(f"Gradient is NaN - micro_step {micro_step}, rank {ddp_rank}")
     if ddp:
         dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
     
