@@ -1459,7 +1459,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 These are the same experiments as before, but with the bugfix.
 
-```vast:running/17943304
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_5 \
   --log_dir run_2_normal_init_protection_zero \
@@ -1469,7 +1469,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Head-two protection head.
 
-```vast:running/17943305
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_2_protection_head2 \
@@ -1479,7 +1479,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Head-two protection head, with a second seed.
 
-```vast:running/17943306
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_3_protection_head2 \
@@ -1489,7 +1489,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo protection head.
 
-```vast:running/17943307
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_2_protection_linear_combo \
@@ -1499,7 +1499,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo protection head, with a second seed.
 
-```vast:running/17943308
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_3_protection_linear_combo \
@@ -1509,7 +1509,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo protection head with head two.
 
-```vast:running/17943309
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_2_protection_linear_combo_head2 \
@@ -1519,7 +1519,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Leaky-relu protection head (with bias).
 
-```vast:running/17943310
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_2_protection_leaky_relu \
@@ -1531,7 +1531,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Leaky-relu protection head (with bias), with a second seed.
 
-```vast:running/17943302
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_3_protection_leaky_relu \
@@ -1541,9 +1541,32 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1338
 ```
 
+Linear combo selection head with scale 0.001.
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_0_selection_head_linear_combo_scale_0.001 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.001 \
+  --random_seed 1337
+```
+
+
+Linear combo selection head with scale 0.001, with another seed.
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group scratch_pretrain_with_extra_head_6 \
+  --log_dir run_1_selection_head_linear_combo_scale_0.001 \
+  --selection_head_linear_combo with_head_zero \
+  --selection_head_linear_combo_scale 0.001 \
+  --random_seed 1338
+```
+
 Linear combo selection head with scale 0.05.
 
-```vast:running/17943901
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_2_selection_head_linear_combo_scale_0.05 \
@@ -1554,7 +1577,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo selection head with scale 0.1.
 
-```vast:running/17943905
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_2_selection_head_linear_combo_scale_0.1 \
@@ -1565,7 +1588,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo selection head with scale 0.25.
 
-```vast:running/17943911
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_2_selection_head_linear_combo_scale_0.25 \
@@ -1576,7 +1599,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Linear combo selection head with scale 0.5.
 
-```vast:running/17943939
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_2_selection_head_linear_combo_scale_0.5 \
@@ -1587,7 +1610,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Let's check the protection zero one more time.
 
-```vast:running/17944366
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_3_protection_zero \
@@ -1597,7 +1620,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Let's check with a huge constant protection head - this should be equivalent to no selectivity.
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group scratch_pretrain_with_extra_head_6 \
   --log_dir run_3_protection_huge_constant \

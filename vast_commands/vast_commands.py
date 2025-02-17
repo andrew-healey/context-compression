@@ -466,8 +466,8 @@ def main():
 
 
             # Phase 5: Finish Phase (if needed)
-            # finish_phase(blocks)
-            # writeback_file(fw, file_text, blocks)
+            finish_phase(blocks)
+            writeback_file(fw, file_text, blocks)
 
         finally:
             # Final write back.
