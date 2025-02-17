@@ -1933,7 +1933,7 @@ Custom cumsum impl.
 ```
 SKIP_WANDB=false python -m context_compression.train \
   --group testing_cumsum_numeric_stability \
-  --log_dir custom_cumsum \
+  --log_dir cumsum_numeric_stability \
   --protection_kind none_custom_cumsum \
   --max_steps 500
 ```
@@ -1943,72 +1943,7 @@ Torch cumsum impl.
 ```
 SKIP_WANDB=false python -m context_compression.train \
   --group testing_cumsum_numeric_stability \
-  --log_dir baseline \
+  --log_dir cumsum_numeric_stability \
   --protection_kind none \
-  --max_steps 500
-```
-
-```
-SKIP_WANDB=false python -m context_compression.train \
-  --group testing_cumsum_numeric_stability \
-  --log_dir custom_cumsum_f64 \
-  --protection_kind none_custom_cumsum \
-  --max_steps 500
-```
-
-
-```
-SKIP_WANDB=false python -m context_compression.train \
-  --group testing_cumsum_numeric_stability \
-  --log_dir custom_cumsum_f64_with_warning \
-  --protection_kind none_custom_cumsum \
-  --max_steps 500
-```
-
-```
-SKIP_WANDB=false python -m context_compression.train \
-  --group testing_cumsum_numeric_stability \
-  --log_dir custom_cumsum_f64_forward_and_backward \
-  --protection_kind none_custom_cumsum \
-  --max_steps 500
-```
-
-```
-SKIP_WANDB=false python -m context_compression.train \
-  --group testing_cumsum_numeric_stability \
-  --log_dir custom_cumsum_f64_forward_and_backward_with_warning_and_f64_autocast \
-  --protection_kind none_custom_cumsum \
-  --max_steps 500
-```
-
-```
-SKIP_WANDB=false python -m context_compression.train \
-  --group testing_cumsum_numeric_stability \
-  --log_dir normal_cumsum_cast_to_f64 \
-  --protection_kind cumsum_f64 \
-  --max_steps 500
-```
-
-```
-SKIP_WANDB=false python -m context_compression.train \
-  --group testing_cumsum_numeric_stability \
-  --log_dir custom_cumsum_cast_to_f64 \
-  --protection_kind none_custom_cumsum_f64 \
-  --max_steps 500
-```
-
-```
-SKIP_WANDB=false python -m context_compression.train \
-  --group testing_cumsum_numeric_stability \
-  --log_dir custom_cumsum_f64_all_fp64_kernel \
-  --protection_kind none_custom_cumsum_f64 \
-  --max_steps 500
-```
-
-```
-SKIP_WANDB=false python -m context_compression.train \
-  --group testing_cumsum_numeric_stability \
-  --log_dir custom_cumsum_f64_all_fp64_kernel_only_kernel \
-  --protection_kind none_custom_cumsum \
   --max_steps 500
 ```
