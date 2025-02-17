@@ -12,6 +12,7 @@ class ProtectionKind(StrEnum):
     LEAKY_RELU = auto()
     ZERO = auto()
     NONE = auto()
+    BIG_CONSTANT = auto()
 
 class SelectionHeadLinearComboKind(StrEnum):
     NONE = auto()
@@ -142,6 +143,8 @@ class CausalSelectiveSelfAttention(nn.Module):
                 Sp = (-S_pre_relu * self.config.leaky_relu_alpha + self.config.leaky_relu_bias).relu()
             elif self.config.protection_kind == ProtectionKind.ZERO:
                 Sp = torch.zeros_like(S)
+            elif self.config.protection_kind == ProtectionKind.BIG_CONSTANT:
+                Sp = torch.ones_like(S).fill_(50)
             else:
                 raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
 
