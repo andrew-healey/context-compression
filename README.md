@@ -1960,6 +1960,9 @@ SKIP_WANDB=false python -m context_compression.train \
 
 Custom cumsum impl, with parallel scan.
 
+UPDATE: this actually matched the baseline loss curve!!!
+Amazing!!!
+
 ```
 SKIP_WANDB=false python -m context_compression.train \
   --group testing_cumsum_numeric_stability \
