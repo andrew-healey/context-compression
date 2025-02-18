@@ -3,6 +3,7 @@ import torch
 import math
 import torch.nn.functional as F
 import random
+import os
 
 from .protection.protect_and_attack import protect_and_attack_triton, cumsum_triton
 from enum import StrEnum, auto
@@ -22,6 +23,9 @@ class SelectionHeadLinearComboKind(StrEnum):
     TRUE = auto()
     WITH_HEAD_ZERO = auto()
     WITH_HEAD_ZERO_AND_BIAS = auto()
+
+# List[Tuple[fp64 torch.Tensor, magnitude of instability]]
+inputs_causing_instability = []
 
 class CausalSelectiveSelfAttention(nn.Module):
 
@@ -160,19 +164,21 @@ class CausalSelectiveSelfAttention(nn.Module):
         # here, we assert that FF is very close to FF_64
         # protection kind=None should be *pretty* close. like 1e-5 seems reasonable.
 
-        if random.random() < 0.01:
+        if os.environ.get("DEBUG_CUM_SUM", None) == "true" and random.random() < 0.01:
             gt_FF_64 = torch.cumsum(S_64, dim=-2)
             max_diff = (FF - gt_FF_64).abs().max()
             print(f"Max diff between FF and gt_FF_64: {max_diff}")
             import wandb
             wandb.log({"max_diff": max_diff})
 
+            inputs_causing_instability.append((S_64.cpu().detach().numpy(), max_diff.item()))
+            # let's actually just save it to a file
+            torch.save(inputs_causing_instability, "inputs_causing_instability.pt")
 
-        assert (FF < 0).any() == False, "FF should be positive"
+        assert (FF < 0).any() == False, f"FF should be positive. minimum value: {FF.min()}"
         FF_shifted = torch.roll(FF, 1, -2)
         FF_shifted[..., 0, :] = 0
 
-        # Use out-of-place subtraction to preserve computation graph integrity
         # Use out-of-place subtraction to preserve computation graph integrity
         att = att - FF_shifted[:,None,:,:]
 
