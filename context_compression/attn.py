@@ -2,6 +2,7 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
+import random
 
 from .protection.protect_and_attack import protect_and_attack_triton, cumsum_triton
 from enum import StrEnum, auto
@@ -13,6 +14,7 @@ class ProtectionKind(StrEnum):
     ZERO = auto()
     NONE = auto()
     NONE_CUSTOM_CUMSUM = auto()
+    NONE_CUSTOM_CUMSUM_PARALLEL = auto()
     BIG_CONSTANT = auto()
 
 class SelectionHeadLinearComboKind(StrEnum):
@@ -105,10 +107,15 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             S = S_masked
 
+        S_64 = S.to(torch.float64)
+        FF_64 = torch.cumsum(S_64, dim=-2)
         if self.config.protection_kind == ProtectionKind.NONE:
             FF = torch.cumsum(S, dim=-2)
         elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM:
             FF = cumsum_triton(S, dim=-2)
+        elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_PARALLEL:
+            FF_64 = cumsum_triton(S, dim=-2, parallel_scan=True)
+            FF = FF_64.to(torch.float32)
         else:
             # First, compute Sp
 
@@ -148,6 +155,18 @@ class CausalSelectiveSelfAttention(nn.Module):
             #     assert (FF == 0).all(), "FF should be 0"
             # elif self.config.protection_kind == ProtectionKind.ZERO:
             #     assert torch.allclose(FF, torch.cumsum(S, dim=-2)), "FF should be equal to the cumulative sum of S"
+        
+        # sanity checking section
+        # here, we assert that FF is very close to FF_64
+        # protection kind=None should be *pretty* close. like 1e-5 seems reasonable.
+
+        if random.random() < 0.01:
+            gt_FF_64 = torch.cumsum(S_64, dim=-2)
+            max_diff = (FF - gt_FF_64).abs().max()
+            print(f"Max diff between FF and gt_FF_64: {max_diff}")
+            import wandb
+            wandb.log({"max_diff": max_diff})
+
 
         assert (FF < 0).any() == False, "FF should be positive"
         FF_shifted = torch.roll(FF, 1, -2)

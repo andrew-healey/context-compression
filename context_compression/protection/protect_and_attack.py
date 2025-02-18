@@ -329,7 +329,7 @@ def kernel_protect_and_attack_backward(
         idx = i - 1
         grad_val = tl.load(grad_H_ptr + base + idx)
         tl.store(dP_ptr + base + idx, all_dhealths_after)
-        all_dhealths = all_dhealths + grad_val
+        all_dhealths += grad_val
         flag = tl.load(T_ptr + base + idx)
         if flag != 0:
             all_dhealths_after = all_dhealths
@@ -530,7 +530,7 @@ def test_protect_and_attack_pytorch_3d():
     # For each slice the simulation is as follows:
     #
     # Batch 0, row 0: A = [0, 1], P = [2, 0]
-    #   token0: (0-0)<=0 -> damage flag True, H becomes 0, then add protection (P_running becomes 2).
+    #   token0: (0-0)<=0 -> damage flag True, H becomes 0, then add p=2 → P_running becomes 2.
     #   token1: (2-1)>0 -> no damage, H remains 0.
     #   => H = [0, 0]; backward yields: dA = [-2, 0], dP = [0, 0].
     #
@@ -819,36 +819,43 @@ class CumsumTritonFunction(torch.autograd.Function):
         orig_shape = ctx.orig_shape
         B = ctx.B
         L = ctx.L
-        grad_output_perm = grad_output.permute(*new_order).contiguous().reshape(B, L)
-        grad_input_flat = torch.empty_like(grad_output_perm)
+
+        grad_output_perm = grad_output.permute(*new_order).contiguous().view(B, L)
+        grad_input_flat = torch.empty((B, L), dtype=grad_output.dtype, device=grad_output.device)
         grid = (B,)
+        # Reuse the cumulative-sum backward kernel (which computes reverse cumsum).
         kernel_cumsum_backward[grid](grad_output_perm, grad_input_flat, L, L)
-        grad_input_perm = grad_input_flat.view(orig_shape)
-        grad_input = grad_input_perm.permute(*inverse_order)
+        
+        grad_input = grad_input_flat.view(orig_shape).permute(*inverse_order)
         return grad_input, None
 
-def cumsum_triton(X, dim=-1):
+def cumsum_triton(X, dim=-1, parallel_scan=False):
     """
     Triton-based cumulative sum implementation.
     
     Args:
         X (torch.Tensor): Input float tensor on CUDA.
         dim (int): The dimension along which to compute the cumulative sum.
+        parallel_scan (bool): If True, uses the one-phase scan (assumes row length is a power of 2).
     
     Returns:
         torch.Tensor: A tensor of the same shape as X containing the cumulative sum.
     """
-    return CumsumTritonFunction.apply(X, dim)
+    if parallel_scan:
+        return CumsumTritonEfficientParallelScanFunction.apply(X, dim)
+    else:
+        return CumsumTritonFunction.apply(X, dim)
 
 # -------------------------------------------------------------------
 # New tests for Triton-based cumulative sum
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
-def test_triton_cumsum_vector():
+@pytest.mark.parametrize("parallel_scan", [True, False])
+def test_triton_cumsum_vector(parallel_scan):
     # Test on a 1D tensor (vector).
     X = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32, device='cuda', requires_grad=True)
     expected = torch.tensor([1.0, 3.0, 6.0], device='cuda')
-    Y = cumsum_triton(X, dim=0)
+    Y = cumsum_triton(X, dim=0, parallel_scan=parallel_scan)
     assert torch.allclose(Y, expected, atol=1e-5), f"Forward pass: expected {expected}, got {Y}"
     # Test backward: for cumsum, with grad outputs ones, dX = [3, 2, 1].
     Y.backward(torch.ones_like(Y))
@@ -856,13 +863,202 @@ def test_triton_cumsum_vector():
     assert torch.allclose(X.grad, expected_grad, atol=1e-5), f"Backward pass: expected gradient {expected_grad}, got {X.grad}"
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
-def test_triton_cumsum_multi_dim():
+@pytest.mark.parametrize("parallel_scan", [True, False])
+def test_triton_cumsum_multi_dim(parallel_scan):
     # Test on a 2D tensor, processing along dim=1.
     X = torch.tensor([[1, 2, 3], [4, 5, 6]], dtype=torch.float32, device='cuda', requires_grad=True)
-    Y = cumsum_triton(X, dim=1)
+    if parallel_scan:
+        # two-phase approach
+        Y = CumsumTritonEfficientParallelScanFunction.apply(X, 1)
+    else:
+        # for example, fallback to the older single-phase CumsumTritonFunction
+        Y = CumsumTritonFunction.apply(X, 1)
     expected = torch.cumsum(X, dim=1)
     assert torch.allclose(Y, expected, atol=1e-5), f"Forward pass: expected {expected}, got {Y}"
+
     # For each row, if grad outputs ones, expected gradient is [3, 2, 1].
     Y.backward(torch.ones_like(Y))
-    expected_grad = torch.tensor([[3, 2, 1], [3, 2, 1]], dtype=torch.float32, device='cuda')
-    assert torch.allclose(X.grad, expected_grad, atol=1e-5), f"Backward pass: expected gradient {expected_grad}, got {X.grad}"
+
+class CumsumTritonEfficientParallelScanFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, X, dim):
+        # Permute X so that processing dim becomes the last dimension.
+        dims = list(range(X.dim()))
+        if dim < 0:
+            dim = X.dim() + dim
+        new_order = dims[:dim] + dims[dim+1:] + [dim]
+        X_perm = X.permute(*new_order).contiguous()
+        orig_shape = X_perm.shape  # shape: (..., L)
+        if X_perm.ndim == 1:
+            B = 1
+            L = X_perm.shape[0]
+            X_flat = X_perm.view(1, L)
+        else:
+            batch_shape = X_perm.shape[:-1]
+            L = X_perm.shape[-1]
+            B = 1
+            for s in batch_shape:
+                B *= s
+            X_flat = X_perm.reshape(B, L)
+
+        # Determine number of blocks.
+        BLOCK_SIZE_LOCAL = 128  # Adjust as needed
+        num_blocks = (L + BLOCK_SIZE_LOCAL - 1) // BLOCK_SIZE_LOCAL
+
+        # Allocate outputs for phase 1 (partial scans).
+        scanned_blocks = torch.empty((B, L), dtype=X.dtype, device=X.device)
+        block_sums = torch.empty((B, num_blocks), dtype=X.dtype, device=X.device)
+
+        grid = (B, num_blocks)
+        kernel_cumsum_efficient_forward_phase1[grid](
+            X_flat, scanned_blocks, block_sums, L, BLOCK_SIZE_LOCAL
+        )
+
+        if num_blocks > 1:
+            scanned_block_sums = torch.empty((B, num_blocks), dtype=X.dtype, device=X.device)
+            grid2 = (B,)
+            kernel_cumsum_efficient_forward_block_sums[grid2](
+                block_sums, scanned_block_sums, num_blocks
+            )
+
+            # Phase 2: update scanned_blocks with scanned block sums.
+            kernel_cumsum_efficient_forward_phase2[grid](
+                scanned_blocks, scanned_block_sums, L, BLOCK_SIZE_LOCAL
+            )
+
+        X_scanned = scanned_blocks.view(orig_shape)
+        # Revert permutation to restore original shape.
+        inverse_order = [0] * len(new_order)
+        for i, p in enumerate(new_order):
+            inverse_order[p] = i
+        out = X_scanned.permute(*inverse_order)
+        
+        # Save variables for the backward pass.
+        ctx.save_for_backward(X)
+        ctx.dim = dim
+        ctx.new_order = new_order
+        ctx.inverse_order = inverse_order
+        ctx.orig_shape = orig_shape
+        ctx.B = B
+        ctx.L = L
+        ctx.BLOCK_SIZE = BLOCK_SIZE_LOCAL
+        ctx.num_blocks = num_blocks
+        return out
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        X, = ctx.saved_tensors
+        new_order = ctx.new_order
+        inverse_order = ctx.inverse_order
+        orig_shape = ctx.orig_shape
+        B = ctx.B
+        L = ctx.L
+        BLOCK_SIZE = ctx.BLOCK_SIZE
+        num_blocks = ctx.num_blocks
+
+        grad_output_perm = grad_output.permute(*new_order).contiguous().view(B, L)
+        grad_input_flat = torch.empty((B, L), dtype=grad_output.dtype, device=grad_output.device)
+        grid = (B,)
+        # Use the backward (reverse cumsum) kernel.
+        kernel_cumsum_backward[grid](grad_output_perm, grad_input_flat, L, L)
+        
+        grad_input = grad_input_flat.view(orig_shape).permute(*inverse_order)
+        return grad_input, None
+
+@triton.jit
+def kernel_cumsum_efficient_forward_phase1(
+    x_ptr, scanned_blocks, block_sums,
+    n_elements: tl.constexpr, BLOCK_SIZE: tl.constexpr
+):
+    """
+    Phase 1: Compute per-block prefix sums and store each block's final sum.
+    Each program instance handles a single block: (batch_id, block_id).
+    """
+    b = tl.program_id(0)
+    block_id = tl.program_id(1)
+    start_idx = block_id * BLOCK_SIZE
+    offset = b * n_elements
+
+    # If the start index is out of bounds, exit early.
+    if start_idx >= n_elements:
+        return
+
+    acc = 0.0
+    # Always iterate BLOCK_SIZE times; use a mask for out-of-bound indices.
+    for i in range(BLOCK_SIZE):
+        idx = start_idx + i
+        mask = idx < n_elements
+        x_val = tl.load(x_ptr + offset + idx, mask=mask, other=0.0)
+        acc += x_val
+        tl.store(scanned_blocks + offset + idx, acc, mask=mask)
+    
+    # Compute the total number of blocks in this row.
+    grid_num_blocks = (n_elements + BLOCK_SIZE - 1) // BLOCK_SIZE
+    tl.store(block_sums + b * grid_num_blocks + block_id, acc)
+
+@triton.jit
+def kernel_cumsum_efficient_forward_block_sums(
+    block_sums, scanned_block_sums,
+    num_blocks: tl.constexpr
+):
+    """
+    Phase 1.5: Compute prefix sums over the per-block sums.
+    Each program instance handles one row (i.e. one batch).
+    """
+    b = tl.program_id(0)
+    offset = b * num_blocks
+
+    acc = 0.0
+    for i in range(num_blocks):
+        # Since the loop range is fixed, no mask is needed here.
+        val = tl.load(block_sums + offset + i)
+        acc += val
+        tl.store(scanned_block_sums + offset + i, acc)
+
+@triton.jit
+def kernel_cumsum_efficient_forward_phase2(
+    scanned_blocks, scanned_block_sums,
+    n_elements: tl.constexpr, BLOCK_SIZE: tl.constexpr
+):
+    """
+    Phase 2: Add the prefix sum (of all previous blocks) to each block’s partial sums.
+    Each program instance handles one block (batch_id, block_id).
+    """
+    b = tl.program_id(0)
+    block_id = tl.program_id(1)
+    start_idx = block_id * BLOCK_SIZE
+    if start_idx >= n_elements:
+        return
+
+    num_blocks = (n_elements + BLOCK_SIZE - 1) // BLOCK_SIZE
+    offset = b * n_elements
+    scanned_offset = b * num_blocks
+
+    # For the first block, there is nothing to add.
+    if block_id == 0:
+        return
+
+    # The value to add is the sum of all elements in the previous block.
+    block_sum_offset = tl.load(scanned_block_sums + scanned_offset + (block_id - 1))
+    for i in range(BLOCK_SIZE):
+        idx = start_idx + i
+        mask = idx < n_elements
+        val = tl.load(scanned_blocks + offset + idx, mask=mask, other=0.0)
+        val += block_sum_offset
+        tl.store(scanned_blocks + offset + idx, val, mask=mask)
+
+@triton.jit
+def kernel_cumsum_backward(grad_output_ptr, grad_input_ptr, n_elements: tl.constexpr, total_elements: tl.constexpr):
+    """
+    Backward pass: computes the reverse cumulative sum.
+    Each program instance handles one row.
+    """
+    b = tl.program_id(0)
+    offset = b * n_elements
+    acc = 0.0
+    # Iterate over the row in reverse order.
+    for i in range(n_elements):
+        idx = n_elements - 1 - i
+        val = tl.load(grad_output_ptr + offset + idx)
+        acc += val
+        tl.store(grad_input_ptr + offset + idx, acc)

@@ -1933,7 +1933,7 @@ Custom cumsum impl.
 ```
 SKIP_WANDB=false python -m context_compression.train \
   --group testing_cumsum_numeric_stability \
-  --log_dir cumsum_numeric_stability \
+  --log_dir custom_cumsum \
   --protection_kind none_custom_cumsum \
   --max_steps 500
 ```
@@ -1943,7 +1943,27 @@ Torch cumsum impl.
 ```
 SKIP_WANDB=false python -m context_compression.train \
   --group testing_cumsum_numeric_stability \
-  --log_dir cumsum_numeric_stability \
+  --log_dir baseline \
   --protection_kind none \
+  --max_steps 500
+```
+
+Custom cumsum impl, as a thin layer on top of torch.cumsum.
+
+```
+SKIP_WANDB=false python -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir thin_wrapper_cumsum \
+  --protection_kind custom_cumsum \ 
+  --max_steps 500
+```
+
+Custom cumsum impl, with parallel scan.
+
+```
+SKIP_WANDB=false python -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir parallel_scan_cumsum \
+  --protection_kind none_custom_cumsum_parallel \
   --max_steps 500
 ```
