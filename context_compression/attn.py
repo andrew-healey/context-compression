@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import random
 import os
 
-from .protection.protect_and_attack import protect_and_attack_triton, cumsum_triton
+from .protection.protect_and_attack import protect_and_attack_triton, cumsum_triton, cumsum_bliasson
 from enum import StrEnum, auto
 class ProtectionKind(StrEnum):
     HEAD_TWO = auto()
@@ -17,6 +17,7 @@ class ProtectionKind(StrEnum):
     NONE_CUSTOM_CUMSUM = auto()
     NONE_CUSTOM_CUMSUM_PARALLEL = auto()
     BIG_CONSTANT = auto()
+    NONE_CUSTOM_CUMSUM_BLIASSON = auto()
 
 class SelectionHeadLinearComboKind(StrEnum):
     NONE = auto()
@@ -120,6 +121,8 @@ class CausalSelectiveSelfAttention(nn.Module):
         elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_PARALLEL:
             FF_64 = cumsum_triton(S, dim=-2, parallel_scan=True)
             FF = FF_64.to(torch.float32)
+        elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON:
+            FF = cumsum_bliasson(S, dim=-2)
         else:
             # First, compute Sp
 

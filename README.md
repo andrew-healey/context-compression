@@ -1971,8 +1971,10 @@ SKIP_WANDB=false python -m context_compression.train \
   --max_steps 500
 ```
 
-OK, now let's make a correct, parallel scan version of protect-and-attack!!
-
-Hrrm so what's our merge function?
-
-OK so let's start by deeply understanding the parallel scan version of cumsum.
+```
+SKIP_WANDB=false python -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir bliasson_cumsum \
+  --protection_kind none_custom_cumsum_bliasson \
+  --max_steps 500
+```

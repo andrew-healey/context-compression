@@ -1014,3 +1014,53 @@ class CumsumTritonEfficientParallelScanFunction(torch.autograd.Function):
         
         grad_input = grad_input_flat.view(orig_shape).permute(*inverse_order)
         return grad_input, None
+
+
+import torch
+
+def bliasson_cumsum(x: torch.Tensor, dim: int=-1):
+    x = x.transpose(dim, x.ndim-1) if dim != -1 else x
+    *rest, n = x.shape
+    bit_length = n.bit_length()
+    closest_power_of_2 = 2**bit_length
+    x_big = torch.zeros((*rest, closest_power_of_2), dtype=x.dtype, device=x.device)
+    x_big[...,:n] = x
+
+    # ok so now we're going to do several rounds of summing.
+    # each round will have half as many active nodes as the previous one. the final round will have 1 active node. after that round, we'll just return the sum.
+    # ok so we can compute this by just using a diff set of indices each time.
+
+    indices = torch.arange(0, closest_power_of_2)
+
+    while len(indices) > 1:
+        assert len(indices) % 2 == 0
+        next_indices = indices[1::2]
+        x_big[...,next_indices] = x_big[...,indices[::2]] + x_big[...,indices[1::2]]
+        indices = next_indices
+    
+    # ok now we're going to propagate the info back down the tree, from top-down.
+
+    for i in range(bit_length,1,-1):
+        end_of_first_chunk = torch.arange(2 ** (i-1),closest_power_of_2,2 ** (i-1)) - 1
+        end_of_first_half_of_second_chunk = end_of_first_chunk + 2 ** (i - 2)
+
+        x_big[...,end_of_first_half_of_second_chunk] += x_big[...,end_of_first_chunk]
+    
+    raw_out = x_big[...,:n]
+
+    return raw_out.transpose(dim, x.ndim-1) if dim != -1 else raw_out
+
+
+class CumsumBliassonFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, dim):
+        ctx.dim = dim
+        return bliasson_cumsum(x, dim)
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        return bliasson_cumsum(grad_output.flip(ctx.dim), ctx.dim).flip(ctx.dim), None
+
+
+def cumsum_bliasson(x, dim=-1):
+    return CumsumBliassonFunction.apply(x, dim)
