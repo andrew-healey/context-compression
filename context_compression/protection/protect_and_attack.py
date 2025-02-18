@@ -284,7 +284,7 @@ import triton.language as tl
 
 @triton.jit
 def kernel_protect_and_attack_forward(
-    A_cumsum_ptr, P_cumsum_ptr, H_ptr, T_ptr,
+    A_ptr, P_ptr, H_ptr, T_ptr,
     L: tl.constexpr, stride: tl.constexpr
 ):
     """
@@ -295,16 +295,21 @@ def kernel_protect_and_attack_forward(
     b = tl.program_id(0)
     base = b * stride
     H_running = 0.0
+    P_running = 0.0
     for i in range(L):
-        a_cumsum = tl.load(A_cumsum_ptr + base + i)
-        p_cumsum = tl.load(P_cumsum_ptr + base + i)
+        a = tl.load(A_ptr + base + i)
+        p = tl.load(P_ptr + base + i)
         # if current protection minus attack is <= 0 then we suffer damage.
-        if (p_cumsum - a_cumsum) <= 0:
-            H_running = p_cumsum - a_cumsum
+        if (P_running - a) <= 0:
+            damage = a - P_running
+            H_running = H_running - damage
+            P_running = 0.0
             tl.store(T_ptr + base + i, 1)  # mark "took damage"
         else:
+            P_running = P_running - a
             tl.store(T_ptr + base + i, 0)
         tl.store(H_ptr + base + i, H_running)
+        P_running = P_running + p
 
 
 @triton.jit
@@ -324,7 +329,7 @@ def kernel_protect_and_attack_backward(
         idx = i - 1
         grad_val = tl.load(grad_H_ptr + base + idx)
         tl.store(dP_ptr + base + idx, all_dhealths_after)
-        all_dhealths = grad_val
+        all_dhealths = all_dhealths + grad_val
         flag = tl.load(T_ptr + base + idx)
         if flag != 0:
             all_dhealths_after = all_dhealths
@@ -370,14 +375,8 @@ class ProtectAndAttackTritonFunction(torch.autograd.Function):
         assert A_flat.dtype == torch.float32
         assert P_flat.dtype == torch.float32
         assert H_flat.dtype == torch.float32
-        # Innermost logic! This is just some 2D tensor row-wise processing.
-
-        A_flat_cumsum = torch.cumsum(A_flat, dim=-1)
-        P_flat_cumsum = torch.cumsum(P_flat.roll(shifts=1, dims=-1), dim=-1)
-        P_flat_cumsum[:, 0] = 0
-
-        kernel_protect_and_attack_forward[grid](A_flat_cumsum, P_flat_cumsum, H_flat, T_flat, L, L)
-
+        # Launch the forward Triton kernel.
+        kernel_protect_and_attack_forward[grid](A_flat, P_flat, H_flat, T_flat, L, L)
         H_perm = H_flat.view(*orig_shape)
         # Compute inverse permutation to restore original order.
         inverse_order = [0] * len(new_order)
@@ -423,11 +422,7 @@ class ProtectAndAttackTritonFunction(torch.autograd.Function):
         assert T_flat.dtype == torch.int32
         assert dA_flat.dtype == grad_H.dtype
         assert dP_flat.dtype == grad_H.dtype
-
-        # Reverse grad_H_perm along last dimension before cumsum
-        grad_H_flat_cumsum = torch.cumsum(torch.flip(grad_H_perm, dims=[-1]), dim=-1).flip(dims=[-1])
-
-        kernel_protect_and_attack_backward[grid](grad_H_flat_cumsum, T_flat, dA_flat, dP_flat, L, L)
+        kernel_protect_and_attack_backward[grid](grad_H_perm, T_flat, dA_flat, dP_flat, L, L)
         
         dA_perm = dA_flat.reshape(*batch_shape, L)
         dP_perm = dP_flat.reshape(*batch_shape, L)
@@ -513,7 +508,7 @@ def test_protect_and_attack_triton_multi_dim():
     A_clone = A.clone().detach().requires_grad_(True)
     P_clone = P.clone().detach().requires_grad_(True)
     H = protect_and_attack_triton(A_clone, P_clone, dim=1)
-    torch.testing.assert_close(H.cpu(), expected_H)
+    assert torch.allclose(H.cpu(), expected_H)
     dH = torch.ones_like(H, device="cuda")
     H.backward(dH)
     # Backward calculations based on the iterative loop (see inline comments).
@@ -522,15 +517,14 @@ def test_protect_and_attack_triton_multi_dim():
     #   For index i=0: dP = 0, dA = - (sum of dH from this turn onward) = -2.
     expected_dA = torch.tensor([[-2, 0], [-2, 0]], dtype=torch.float32)
     expected_dP = torch.tensor([[0, 0], [0, 0]], dtype=torch.float32)
-    torch.testing.assert_close(A_clone.grad.cpu(), expected_dA)
-    torch.testing.assert_close(P_clone.grad.cpu(), expected_dP)
+    assert torch.allclose(A_clone.grad.cpu(), expected_dA), f"multi-dim dA: {A_clone.grad.cpu()}"
+    assert torch.allclose(P_clone.grad.cpu(), expected_dP), f"multi-dim dP: {P_clone.grad.cpu()}"
 
 # -------------------------------------------------------------------
 # New tests for 3D tensors (non-degenerate) for both the PyTorch-based and Triton-based implementations.
 
 import pytest
 
-@pytest.mark.skip
 def test_protect_and_attack_pytorch_3d():
     # We create a 3D tensor of shape (2, 2, 2) where processing is done along the last dimension.
     # For each slice the simulation is as follows:
