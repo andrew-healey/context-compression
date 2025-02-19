@@ -2034,7 +2034,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection head2 (again)
 
-```vast:running/18033681
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection_2 \
   --log_dir protection_head2_4 \
@@ -2044,7 +2044,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection zero, with no compile
 
-```vast:running/18034357
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_stable_protect_and_attack \
   --log_dir protection_zero_0_no_compile \
@@ -2056,7 +2056,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection head2, with no compile
 
-```vast:running/18034409
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_stable_protect_and_attack \
   --log_dir protection_head2_0_no_compile \
@@ -2068,7 +2068,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection none, with no compile and cumsum debugging.
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_cumsum_numeric_stability \
   --log_dir protection_none_0_no_compile_cumsum_debugging \
@@ -2080,7 +2080,7 @@ cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --n
 
 Protection zero, with no compile and cumsum debugging.
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_cumsum_numeric_stability \
   --log_dir protection_zero_0_no_compile_cumsum_debugging \
@@ -2092,10 +2092,23 @@ cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --n
 
 Protection zero, with compile and cumsum debugging.
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_cumsum_numeric_stability \
   --log_dir protection_zero_0_compile_cumsum_debugging \
   --protection_kind zero \
+  --max_steps 500
+  --batch_size 4
+```
+
+## OK, let's now figure out an fp64 protect-and-attack impl. And hopefully make torch.compile work again.
+
+FP64 mini-model for cumsum. Should hopefully be super accurate. And hopefully better loss than the fp32 one. OK maybe that's a pipe dream.
+
+```
+DEBUG_CUM_SUM=true SKIP_WANDB=false python -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir fp64_bliasson_cumsum \
+  --protection_kind none_custom_cumsum_bliasson_fp64 \
   --max_steps 500
 ```

@@ -68,6 +68,8 @@
 # dA = [-3, -2, -1]
 # dP = [1, 1, 0]
 
+import torch._dynamo as dynamo
+
 from typing import List, Callable, Tuple
 import torch  # <--- added torch import for the pytorch implementation
 
@@ -762,12 +764,12 @@ class CumsumTritonEfficientParallelScanFunction(torch.autograd.Function):
 import torch
 from typing import Callable
 
-def bliasson_associative_scan(x: torch.Tensor, merge_fn: Callable, dim: int=-1):
+def bliasson_associative_scan(x: torch.Tensor, merge_fn: Callable, dim: int=-1, dtype=torch.float32):
     x = x.transpose(dim, x.ndim-1) if dim != -1 else x
     *rest, n = x.shape
     bit_length = n.bit_length()
     closest_power_of_2 = 2**bit_length
-    x_big = torch.zeros((*rest, closest_power_of_2), dtype=x.dtype, device=x.device)
+    x_big = torch.zeros((*rest, closest_power_of_2), dtype=dtype, device=x.device)
     x_big[...,:n] = x
 
     # ok so now we're going to do several rounds of summing.
@@ -794,22 +796,79 @@ def bliasson_associative_scan(x: torch.Tensor, merge_fn: Callable, dim: int=-1):
 
     return raw_out.transpose(dim, x.ndim-1) if dim != -1 else raw_out
 
-def bliasson_cumsum(x: torch.Tensor, dim: int=-1):
-    return bliasson_associative_scan(x, lambda l, r: l + r, dim)
+def bliasson_associative_scan_two(x: torch.Tensor, y: torch.Tensor, merge_fn: Callable, dim: int=-1):
+    x = x.transpose(dim, x.ndim-1) if dim != -1 else x
+    y = y.transpose(dim, y.ndim-1) if dim != -1 else y
+
+    assert x.shape == y.shape
+
+    *rest, n = x.shape
+    bit_length = n.bit_length()
+    closest_power_of_2 = 2**bit_length
+    x_big = torch.zeros((*rest, closest_power_of_2), dtype=x.dtype, device=x.device)
+    x_big[...,:n] = x
+    y_big = torch.zeros((*rest, closest_power_of_2), dtype=y.dtype, device=y.device)
+    y_big[...,:n] = y
+
+    # ok so now we're going to do several rounds of summing.
+    # each round will have half as many active nodes as the previous one. the final round will have 1 active node. after that round, we'll just return the sum.
+    # ok so we can compute this by just using a diff set of indices each time.
+
+    indices = torch.arange(0, closest_power_of_2)
+
+    while len(indices) > 1:
+        assert len(indices) % 2 == 0
+        next_indices = indices[1::2]
+        x1 = x_big[...,indices[::2]]
+        x2 = x_big[...,indices[1::2]]
+        y1 = y_big[...,indices[::2]]
+        y2 = y_big[...,indices[1::2]]
+        out_x_big,out_y_big = merge_fn(x1,y1,x2,y2)
+        x_big[...,next_indices] = out_x_big
+        y_big[...,next_indices] = out_y_big
+        indices = next_indices
+    
+    # ok now we're going to propagate the info back down the tree, from top-down.
+
+    for i in range(bit_length,1,-1):
+        end_of_first_chunk = torch.arange(2 ** (i-1),closest_power_of_2,2 ** (i-1)) - 1
+        end_of_first_half_of_second_chunk = end_of_first_chunk + 2 ** (i - 2)
+
+        x1 = x_big[...,end_of_first_chunk]
+        x2 = x_big[...,end_of_first_half_of_second_chunk]
+        y1 = y_big[...,end_of_first_chunk]
+        y2 = y_big[...,end_of_first_half_of_second_chunk]
+        out_x_big,out_y_big = merge_fn(x1,y1,x2,y2)
+        x_big[...,end_of_first_half_of_second_chunk] = out_x_big
+        y_big[...,end_of_first_half_of_second_chunk] = out_y_big
+    
+    raw_out_x = x_big[...,:n]
+    raw_out_y = y_big[...,:n]
+
+    reshaped_out_x = raw_out_x.transpose(dim, x.ndim-1) if dim != -1 else raw_out_x
+    reshaped_out_y = raw_out_y.transpose(dim, x.ndim-1) if dim != -1 else raw_out_y
+
+    return reshaped_out_x, reshaped_out_y
+
+
+def bliasson_cumsum(x: torch.Tensor, dim: int=-1, dtype=torch.float32):
+    return bliasson_associative_scan(x, lambda l, r: l + r, dim, dtype)
 
 class CumsumBliassonFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x, dim):
+    def forward(ctx, x, dim, dtype):
         ctx.dim = dim
-        return bliasson_cumsum(x, dim)
+        ctx.dtype = dtype
+        return bliasson_cumsum(x, dim, dtype)
     
     @staticmethod
     def backward(ctx, grad_output):
-        return bliasson_cumsum(grad_output.flip(ctx.dim), ctx.dim).flip(ctx.dim), None
+        return bliasson_cumsum(grad_output.to(ctx.dtype).flip(ctx.dim), ctx.dim, ctx.dtype).flip(ctx.dim).to(grad_output.dtype), None, None
 
 
-def cumsum_bliasson(x, dim=-1):
-    return CumsumBliassonFunction.apply(x, dim)
+@dynamo.disable
+def cumsum_bliasson(x, dim=-1, dtype=torch.float32):
+    return CumsumBliassonFunction.apply(x, dim, dtype)
 
 from .packing import pack_tensors, unpack_tensor
 
@@ -829,11 +888,7 @@ def bliasson_protect_and_attack(A,P,dim=-1):
     U = torch.relu(-A_hat)
     V = torch.relu(A_hat)
 
-    C = pack_tensors(U,V)
-
-    C_out = bliasson_associative_scan(C,merge_fn,dim)
-
-    U_out,V_out = unpack_tensor(C_out)
+    U_out,V_out = bliasson_associative_scan_two(U,V,merge_fn,dim)
 
     T = U_out == 0.0 # whether this token took damage in this turn. taking zero damage IS included - as long as the token was not protected!
 
@@ -878,8 +933,9 @@ def kernel_bliasson_protect_and_attack_backward(
 
 class AttackAndProtectBliassonFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, A, P, dim):
+    def forward(ctx, A, P, dim,dtype):
         ctx.dim = dim
+        ctx.dtype = dtype
         ctx.orig_shape = A.shape
         H,T = bliasson_attack_and_protect(A,P,dim)
         ctx.save_for_backward(T)
@@ -889,7 +945,7 @@ class AttackAndProtectBliassonFunction(torch.autograd.Function):
     def backward(ctx, grad_H):
         T, = ctx.saved_tensors
 
-        flipped_cumsum_grad_H = bliasson_cumsum(grad_H.flip(ctx.dim),ctx.dim).flip(ctx.dim)
+        flipped_cumsum_grad_H = bliasson_cumsum(grad_H.to(ctx.dtype).flip(ctx.dim),ctx.dim).flip(ctx.dim)
 
         dA = torch.zeros(*ctx.orig_shape, dtype=grad_H.dtype, device=grad_H.device)
         dP = torch.zeros(*ctx.orig_shape, dtype=grad_H.dtype, device=grad_H.device)
@@ -918,10 +974,11 @@ class AttackAndProtectBliassonFunction(torch.autograd.Function):
         dP_transposed = dP_flat.reshape(dP_transposed.shape)
         dP = dP_transposed.transpose(ctx.dim, len(ctx.orig_shape)-1)
 
-        return dA,dP,None
+        return dA,dP,None,None
     
-def attack_and_protect_bliasson(A,P,dim=-1):
-    return AttackAndProtectBliassonFunction.apply(A,P,dim)
+@dynamo.disable
+def attack_and_protect_bliasson(A,P,dim=-1,dtype=torch.float32):
+    return AttackAndProtectBliassonFunction.apply(A,P,dim,dtype)
 
 protect_and_attack_fn = attack_and_protect_bliasson
 

@@ -18,6 +18,7 @@ class ProtectionKind(StrEnum):
     NONE_CUSTOM_CUMSUM_PARALLEL = auto()
     BIG_CONSTANT = auto()
     NONE_CUSTOM_CUMSUM_BLIASSON = auto()
+    NONE_CUSTOM_CUMSUM_BLIASSON_FP64 = auto()
 
 class SelectionHeadLinearComboKind(StrEnum):
     NONE = auto()
@@ -123,6 +124,8 @@ class CausalSelectiveSelfAttention(nn.Module):
             FF = FF_64.to(torch.float32)
         elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON:
             FF = cumsum_bliasson(S, dim=-2)
+        elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON_FP64:
+            FF = cumsum_bliasson(S.to(torch.float64),dim=-2,dtype=torch.float64).to(torch.float32)
         else:
             # First, compute Sp
 
@@ -167,7 +170,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         # here, we assert that FF is very close to FF_64
         # protection kind=None should be *pretty* close. like 1e-5 seems reasonable.
 
-        if os.environ.get("DEBUG_CUM_SUM", None) == "true" and random.random() < 0.01:
+        if os.environ.get("DEBUG_CUM_SUM", None) == "true" and random.random() < 0.01 and self.training:
             gt_FF_64 = torch.cumsum(S_64, dim=-2)
             max_diff = (FF - gt_FF_64).abs().max()
             print(f"Max diff between FF and gt_FF_64: {max_diff}")
