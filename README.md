@@ -2145,10 +2145,11 @@ DEBUG_CUM_SUM=true SKIP_WANDB=false python -m context_compression.train \
 
 ## OK, FP64 seems ok? protect-and-attack def seems worse than normal cumsum, which I should investigate more. But let's try running protection=0 on the real model.
 
-```vast
+```vast:running/18037621
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection_2 \
   --log_dir protection_zero_1_compile_fp64_cumsum_debugging \
   --protection_kind zero_fp64 \
   --max_steps 500
+  --batch_size 2
 ```

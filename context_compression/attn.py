@@ -180,10 +180,10 @@ class CausalSelectiveSelfAttention(nn.Module):
         if os.environ.get("DEBUG_CUM_SUM", None) == "true" and random.random() < 0.01 and self.training:
             gt_FF_64 = torch.cumsum(S_64, dim=-2)
             max_diff = (FF - gt_FF_64).abs().max()
-            print(f"Max diff between FF and gt_FF_64: {max_diff}")
+            print(f"Max diff between FF and gt_FF_64: {max_diff.item()}")
             import wandb
             try:
-                wandb.log({"max_diff": max_diff})
+                wandb.log({"max_diff": max_diff.item()})
             except:
                 pass
 
