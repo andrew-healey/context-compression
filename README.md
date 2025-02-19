@@ -2044,7 +2044,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection zero, with no compile
 
-```vast:fail/18034357
+```vast:running/18034357
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_stable_protect_and_attack \
   --log_dir protection_zero_0_no_compile \
@@ -2056,7 +2056,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection head2, with no compile
 
-```vast:fail/18034409
+```vast:running/18034409
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group testing_stable_protect_and_attack \
   --log_dir protection_head2_0_no_compile \
@@ -2064,4 +2064,38 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --max_steps 500 \
   --no_use_compile \
   --batch_size 4
+```
+
+Protection none, with no compile and cumsum debugging.
+
+```vast
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir protection_none_0_no_compile_cumsum_debugging \
+  --protection_kind none \
+  --max_steps 500 \
+  --no_use_compile \
+  --batch_size 4
+```
+
+Protection zero, with no compile and cumsum debugging.
+
+```vast
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir protection_zero_0_no_compile_cumsum_debugging \
+  --protection_kind zero \
+  --max_steps 500 \
+  --no_use_compile \
+  --batch_size 4
+```
+
+Protection zero, with compile and cumsum debugging.
+
+```vast
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir protection_zero_0_compile_cumsum_debugging \
+  --protection_kind zero \
+  --max_steps 500
 ```

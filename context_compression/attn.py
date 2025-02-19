@@ -174,9 +174,9 @@ class CausalSelectiveSelfAttention(nn.Module):
             import wandb
             wandb.log({"max_diff": max_diff})
 
-            inputs_causing_instability.append((S_64.cpu().detach().numpy(), max_diff.item()))
+            # inputs_causing_instability.append((S_64.cpu().detach().numpy(), max_diff.item()))
             # let's actually just save it to a file
-            torch.save(inputs_causing_instability, "inputs_causing_instability.pt")
+            # torch.save(inputs_causing_instability, "inputs_causing_instability.pt")
 
         assert (FF < 0).any() == False, f"FF should be positive. minimum value: {FF.min()}"
         FF_shifted = torch.roll(FF, 1, -2)
