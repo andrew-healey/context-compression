@@ -1994,7 +1994,7 @@ SKIP_WANDB=false python -m context_compression.train \
 
 Protection zero.
 
-```vast:running/18031331
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection_2 \
   --log_dir protection_zero_3 \
@@ -2004,7 +2004,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection none:
 
-```vast:running/18031342
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection_2 \
   --log_dir protection_none_3 \
@@ -2014,10 +2014,54 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection head2:
 
-```vast:running/18031357
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection_2 \
   --log_dir protection_head2_3 \
   --protection_kind head_two \
   --random_seed 1337
+```
+
+Protection zero (again)
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection_2 \
+  --log_dir protection_zero_4 \
+  --protection_kind zero \
+  --random_seed 1337
+```
+
+Protection head2 (again)
+
+```vast:running/18033681
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection_2 \
+  --log_dir protection_head2_4 \
+  --protection_kind head_two \
+  --random_seed 1337
+```
+
+Protection zero, with no compile
+
+```vast:fail/18034357
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_stable_protect_and_attack \
+  --log_dir protection_zero_0_no_compile \
+  --protection_kind zero \
+  --max_steps 500 \
+  --no_use_compile \
+  --batch_size 4
+```
+
+Protection head2, with no compile
+
+```vast:fail/18034409
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_stable_protect_and_attack \
+  --log_dir protection_head2_0_no_compile \
+  --protection_kind head_two \
+  --max_steps 500 \
+  --no_use_compile \
+  --batch_size 4
 ```
