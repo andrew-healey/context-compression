@@ -9,6 +9,7 @@ from .protection.protect_and_attack import protect_and_attack_triton, cumsum_tri
 from enum import StrEnum, auto
 class ProtectionKind(StrEnum):
     HEAD_TWO = auto()
+    HEAD_TWO_FP64 = auto()
     LINEAR_COMBO = auto()
     LINEAR_COMBO_HEAD_TWO = auto()
     LEAKY_RELU = auto()
@@ -133,7 +134,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             # First, compute Sp
 
-            if self.config.protection_kind == ProtectionKind.HEAD_TWO:
+            if self.config.protection_kind in [ProtectionKind.HEAD_TWO, ProtectionKind.HEAD_TWO_FP64]:
                 Sp = att[:, 1].clone()
                 Sp = F.relu(Sp)
             elif self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
@@ -163,7 +164,7 @@ class CausalSelectiveSelfAttention(nn.Module):
                 raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
 
             # Second, run the protect-and-attack algorithm on Sp and S
-            if self.config.protection_kind == ProtectionKind.ZERO_FP64:
+            if self.config.protection_kind in [ProtectionKind.ZERO_FP64, ProtectionKind.HEAD_TWO_FP64]:
                 FF = attack_and_protect_bliasson(S, Sp, dim=-2, dtype=torch.float64) * -1
                 assert FF.dtype == torch.float32
             else:
@@ -179,18 +180,19 @@ class CausalSelectiveSelfAttention(nn.Module):
         # protection kind=None should be *pretty* close. like 1e-5 seems reasonable.
 
         if os.environ.get("DEBUG_CUM_SUM", None) == "true" and random.random() < 0.01 and self.training:
-            gt_FF_64 = torch.cumsum(S_64, dim=-2)
-            max_diff = (FF - gt_FF_64).abs().max()
-            print(f"Max diff between FF and gt_FF_64: {max_diff.item()}")
-            import wandb
-            try:
-                wandb.log({"max_diff": max_diff.item()})
-            except:
-                pass
+            with torch.no_grad():
+                gt_FF_64 = torch.cumsum(S_64.cpu(), dim=-2)
+                max_diff = (FF.cpu() - gt_FF_64).abs().max()
+                print(f"Max diff between FF and gt_FF_64: {max_diff.item()}")
+                import wandb
+                try:
+                    wandb.log({"max_diff": max_diff.item()})
+                except:
+                    pass
 
-            # inputs_causing_instability.append((S_64.cpu().detach().numpy(), max_diff.item()))
-            # let's actually just save it to a file
-            # torch.save(inputs_causing_instability, "inputs_causing_instability.pt")
+                # inputs_causing_instability.append((S_64.cpu().detach().numpy(), max_diff.item()))
+                # let's actually just save it to a file
+                # torch.save(inputs_causing_instability, "inputs_causing_instability.pt")
 
         assert (FF < 0).any() == False, f"FF should be positive. minimum value: {FF.min()}"
         FF_shifted = torch.roll(FF, 1, -2)
