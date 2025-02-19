@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import random
 import os
 
-from .protection.protect_and_attack import protect_and_attack_triton, cumsum_triton, cumsum_bliasson
+from .protection.protect_and_attack import protect_and_attack_triton, cumsum_triton, cumsum_bliasson, attack_and_protect_bliasson
 from enum import StrEnum, auto
 class ProtectionKind(StrEnum):
     HEAD_TWO = auto()
@@ -156,7 +156,7 @@ class CausalSelectiveSelfAttention(nn.Module):
                 raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
 
             # Second, run the protect-and-attack algorithm on Sp and S
-            FF = protect_and_attack_triton(S, Sp, dim=-2) * -1
+            FF = attack_and_protect_bliasson(S, Sp, dim=-2) * -1
 
             # if self.config.protection_kind == ProtectionKind.BIG_CONSTANT:
             #     assert (FF == 0).all(), "FF should be 0"

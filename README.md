@@ -1978,3 +1978,13 @@ SKIP_WANDB=false python -m context_compression.train \
   --protection_kind none_custom_cumsum_bliasson \
   --max_steps 500
 ```
+
+Stable protect-and-attack impl, with protection=zero. Should match the baseline loss curve.
+
+```
+SKIP_WANDB=false python -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir stable_attack_and_protect \
+  --protection_kind zero \
+  --max_steps 500
+```

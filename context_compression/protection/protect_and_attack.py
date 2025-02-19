@@ -910,8 +910,6 @@ class AttackAndProtectBliassonFunction(torch.autograd.Function):
         combined_batch_dim = flipped_cumsum_grad_H_flat.shape[0]
 
         grid = (combined_batch_dim,)
-        print("T_flat",T_flat)
-        print("flipped_cumsum_grad_H_flat",flipped_cumsum_grad_H_flat)
         kernel_bliasson_protect_and_attack_backward[grid](flipped_cumsum_grad_H_flat, T_flat, dA_flat, dP_flat, final_dim, final_dim)
 
         dA_transposed = dA_flat.reshape(dA_transposed.shape)
