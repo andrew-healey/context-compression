@@ -473,263 +473,6 @@ def protect_and_attack_triton(A, P, dim=-1):
 # -------------------------------------------------------------------
 # New tests for the Triton version
 
-@pytest.mark.parametrize("A_list, P_list, dH_list, expected_H, expected_dA, expected_dP", [
-    # These are the same as your original test cases.
-    ([1], [0], [1], [-1], [-1], [0]),
-    ([0], [0], [1], [0], [-1], [0]),
-    ([0, 1], [2, 0], [1, 1], [0, 0], [-2, 0], [0, 0]),
-    ([0, 1], [1, 0], [1, 1], [0, 0], [-2, -1], [1, 0]),
-    ([1, 1, 10], [5, 0, 0], [1, 1, 1], [-1, -1, -7], [-3, -1, -1], [1, 1, 0]),
-])
-def test_protect_and_attack_triton_single_dim(A_list, P_list, dH_list, expected_H, expected_dA, expected_dP):
-    # Create tensors on CUDA.
-    A = torch.tensor(A_list, dtype=torch.float32, requires_grad=True, device="cuda")
-    P = torch.tensor(P_list, dtype=torch.float32, requires_grad=True, device="cuda")
-    dH = torch.tensor(dH_list, dtype=torch.float32, device="cuda")
-    H = protect_and_attack_triton(A, P, dim=0)
-    # Check forward pass (move result back to CPU for comparison).
-    assert torch.allclose(H.cpu(), torch.tensor(expected_H, dtype=torch.float32)), f"H: {H.cpu()}, expected: {expected_H}"
-    # Compute gradients.
-    H.backward(dH)
-    assert torch.allclose(A.grad.cpu(), torch.tensor(expected_dA, dtype=torch.float32)), f"dA: {A.grad.cpu()}, expected: {expected_dA}"
-    assert torch.allclose(P.grad.cpu(), torch.tensor(expected_dP, dtype=torch.float32)), f"dP: {P.grad.cpu()}, expected: {expected_dP}"
-
-def test_protect_and_attack_triton_multi_dim():
-    # Test on a 2D tensor processing along dim=1.
-    A = torch.tensor([[0, 1], [1, 0]], dtype=torch.float32, requires_grad=True, device="cuda")
-    P = torch.tensor([[2, 0], [1, 0]], dtype=torch.float32, requires_grad=True, device="cuda")
-    # For row 0:
-    #   i=0: a=0 -> condition (0-0)<=0 so damage occurs → H[0]=0, took_damage=True.
-    #         then add p=2 → P_running becomes 2.
-    #   i=1: a=1 -> condition (2-1)>0 so no damage, H remains 0.
-    # For row 1:
-    #   i=0: a=1 -> condition (0-1)<=0 → H becomes -1, took_damage=True, then add p=1 → P_running becomes 1.
-    #   i=1: a=0 -> no damage → H remains -1.
-    expected_H = torch.tensor([[0, 0], [-1, -1]], dtype=torch.float32)
-    A_clone = A.clone().detach().requires_grad_(True)
-    P_clone = P.clone().detach().requires_grad_(True)
-    H = protect_and_attack_triton(A_clone, P_clone, dim=1)
-    assert torch.allclose(H.cpu(), expected_H)
-    dH = torch.ones_like(H, device="cuda")
-    H.backward(dH)
-    # Backward calculations based on the iterative loop (see inline comments).
-    # For both rows, the backward loop yields:
-    #   For index i=1: dP = 0, dA = 0.
-    #   For index i=0: dP = 0, dA = - (sum of dH from this turn onward) = -2.
-    expected_dA = torch.tensor([[-2, 0], [-2, 0]], dtype=torch.float32)
-    expected_dP = torch.tensor([[0, 0], [0, 0]], dtype=torch.float32)
-    assert torch.allclose(A_clone.grad.cpu(), expected_dA), f"multi-dim dA: {A_clone.grad.cpu()}"
-    assert torch.allclose(P_clone.grad.cpu(), expected_dP), f"multi-dim dP: {P_clone.grad.cpu()}"
-
-# -------------------------------------------------------------------
-# New tests for 3D tensors (non-degenerate) for both the PyTorch-based and Triton-based implementations.
-
-import pytest
-
-def test_protect_and_attack_pytorch_3d():
-    # We create a 3D tensor of shape (2, 2, 2) where processing is done along the last dimension.
-    # For each slice the simulation is as follows:
-    #
-    # Batch 0, row 0: A = [0, 1], P = [2, 0]
-    #   token0: (0-0)<=0 -> damage flag True, H becomes 0, then add p=2 → P_running becomes 2.
-    #   token1: (2-1)>0 -> no damage, H remains 0.
-    #   => H = [0, 0]; backward yields: dA = [-2, 0], dP = [0, 0].
-    #
-    # Batch 0, row 1: A = [1, 0], P = [0, 1]
-    #   token0: (0-1)<=0 -> damage, H becomes -1, then add protection.
-    #   token1: damage flag True -> H remains -1.
-    #   => H = [-1, -1]; backward yields: dA = [-2, -1], dP = [1, 0].
-    #
-    # Batch 1, row 0: A = [0, 1], P = [1, 0]
-    #   token0: damage flag True -> H = 0, then add protection.
-    #   token1: (1-1)<=0 -> damage, H remains 0.
-    #   => H = [0, 0]; backward yields: dA = [-2, -1], dP = [1, 0].
-    #
-    # Batch 1, row 1: A = [1, 0], P = [2, 0]
-    #   token0: (0-1)<=0 -> damage (damage=1), H becomes -1, then add protection (P_running becomes 2).
-    #   token1: (2-0)>0 -> no damage, H remains -1.
-    #   => H = [-1, -1]; backward yields: dA = [-2, 0], dP = [0, 0].
-
-    A = torch.tensor([
-            [[0, 1],
-             [1, 0]],
-            [[0, 1],
-             [1, 0]]
-        ], dtype=torch.float32, requires_grad=True)
-    
-    P = torch.tensor([
-            [[2, 0],
-             [0, 1]],
-            [[1, 0],
-             [2, 0]]
-        ], dtype=torch.float32, requires_grad=True)
-
-    expected_H = torch.tensor([
-            [[0,  0],
-             [-1, -1]],
-            [[0,  0],
-             [-1, -1]]
-        ], dtype=torch.float32)
-
-    H = protect_and_attack_pytorch(A, P, dim=-1)
-    assert torch.allclose(H, expected_H), f"Forward pass error: H = {H}, expected {expected_H}"
-
-    dH = torch.ones_like(H)
-    H.backward(dH)
-
-    expected_dA = torch.tensor([
-            [[-2,  0],
-             [-2, -1]],
-            [[-2, -1],
-             [-2,  0]]
-        ], dtype=torch.float32)
-    expected_dP = torch.tensor([
-            [[0, 0],
-             [1, 0]],
-            [[1, 0],
-             [0, 0]]
-        ], dtype=torch.float32)
-
-    assert torch.allclose(A.grad, expected_dA), f"PyTorch backward dA error: {A.grad}, expected: {expected_dA}"
-    assert torch.allclose(P.grad, expected_dP), f"PyTorch backward dP error: {P.grad}, expected: {expected_dP}"
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
-def test_protect_and_attack_triton_3d():
-    # Similar 3D test for the Triton implementation.
-    A = torch.tensor([
-            [[0, 1],
-             [1, 0]],
-            [[0, 1],
-             [1, 0]]
-        ], dtype=torch.float32, requires_grad=True, device="cuda")
-    
-    P = torch.tensor([
-            [[2, 0],
-             [0, 1]],
-            [[1, 0],
-             [2, 0]]
-        ], dtype=torch.float32, requires_grad=True, device="cuda")
-
-    expected_H = torch.tensor([
-            [[0,  0],
-             [-1, -1]],
-            [[0,  0],
-             [-1, -1]]
-        ], dtype=torch.float32)
-    
-    H = protect_and_attack_triton(A, P, dim=-1)
-    assert torch.allclose(H.cpu(), expected_H), f"Triton forward error: H = {H.cpu()}, expected {expected_H}"
-
-    dH = torch.ones_like(H, device="cuda")
-    H.backward(dH)
-
-    expected_dA = torch.tensor([
-            [[-2,  0],
-             [-2, -1]],
-            [[-2, -1],
-             [-2,  0]]
-        ], dtype=torch.float32)
-    expected_dP = torch.tensor([
-            [[0, 0],
-             [1, 0]],
-            [[1, 0],
-             [0, 0]]
-        ], dtype=torch.float32)
-
-    assert torch.allclose(A.grad.cpu(), expected_dA), f"Triton backward dA error: {A.grad.cpu()}, expected {expected_dA}"
-    assert torch.allclose(P.grad.cpu(), expected_dP), f"Triton backward dP error: {P.grad.cpu()}, expected {expected_dP}"
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
-def test_protect_and_attack_triton_random_A_P0():
-    """
-    Test that when P is zero and A is random the health output equals -cumsum(A)
-    and that with dH=ones the gradients are:
-        dA = -[N, N-1, ..., 1]
-        dP = [N-1, N-2, ..., 0]
-    """
-    N = 10
-    A = torch.rand(N, dtype=torch.float32, device="cuda", requires_grad=True)
-    P = torch.zeros_like(A, requires_grad=True)
-    H = protect_and_attack_triton(A, P, dim=0)
-    expected_H = -torch.cumsum(A, dim=0)
-    assert torch.allclose(H.cpu(), expected_H.cpu(), atol=1e-5), (
-        f"Output health {H.cpu()} does not match expected {expected_H.cpu()}"
-    )
-    dH = torch.ones_like(H)
-    H.backward(dH)
-    # Expected gradients:
-    # For a sequence of length N, since every token is "vulnerable", the backward pass computes:
-    #   dA[0] = -N, dA[1] = -(N-1), ..., dA[N-1] = -1.
-    #   dP[0] = N-1, dP[1] = N-2, ..., dP[N-1] = 0.
-    expected_dA = -torch.arange(N, 0, -1, dtype=torch.float32, device="cuda")
-    expected_dP = torch.arange(N-1, -1, -1, dtype=torch.float32, device="cuda")
-    assert torch.allclose(A.grad, expected_dA, atol=1e-5), (
-        f"dA {A.grad} does not match expected {expected_dA}"
-    )
-    assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
-        f"dP {P.grad} does not match expected {expected_dP}"
-    )
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
-def test_protect_and_attack_triton_A0_Ppositive():
-    """
-    Test that when A is zero and P is positive, the simulation produces
-    zero health at every turn and the backward pass produces gradients where
-    only the first token gets nonzero gradient:
-        dA[0] = -N  and all other entries zero,
-        dP = all zeros.
-    """
-    N = 10
-    A = torch.zeros(N, dtype=torch.float32, device="cuda", requires_grad=True)
-    # Choose a positive protection value; here we use ones.
-    P = torch.ones(N, dtype=torch.float32, device="cuda", requires_grad=True)
-    H = protect_and_attack_triton(A, P, dim=0)
-    expected_H = torch.zeros_like(A)
-    assert torch.allclose(H.cpu(), expected_H.cpu(), atol=1e-5), (
-        f"Output health {H.cpu()} does not match expected {expected_H.cpu()}"
-    )
-    dH = torch.ones_like(H)
-    H.backward(dH)
-    # With A==0 and P>0, only token 0 is vulnerable:
-    expected_dA = torch.zeros_like(A)
-    expected_dA[0] = -float(N)  # gradient accumulates all the dH values = -N at token 0
-    expected_dP = torch.zeros_like(P)
-    assert torch.allclose(A.grad, expected_dA, atol=1e-5), (
-        f"dA {A.grad} does not match expected {expected_dA}"
-    )
-    assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
-        f"dP {P.grad} does not match expected {expected_dP}"
-    )
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
-def test_protect_and_attack_triton_A0_P0():
-    """
-    Test that when both A and P are zero the health output equals -cumsum(A)=0,
-    and with dH=ones the backward gradients are:
-        dA = -[N, N-1, ..., 1]
-        dP = [N-1, N-2, ..., 0]
-    (which is the same as when P is zero, since the condition always triggers).
-    """
-    N = 10
-    A = torch.zeros(N, dtype=torch.float32, device="cuda", requires_grad=True)
-    P = torch.zeros(N, dtype=torch.float32, device="cuda", requires_grad=True)
-    H = protect_and_attack_triton(A, P, dim=0)
-    expected_H = -torch.cumsum(A, dim=0)  # which is all zeros
-    assert torch.allclose(H.cpu(), expected_H.cpu(), atol=1e-5), (
-        f"Output health {H.cpu()} does not match expected {expected_H.cpu()}"
-    )
-    dH = torch.ones_like(H)
-    H.backward(dH)
-    expected_dA = -torch.arange(N, 0, -1, dtype=torch.float32, device="cuda")
-    expected_dP = torch.arange(N-1, -1, -1, dtype=torch.float32, device="cuda")
-    assert torch.allclose(A.grad, expected_dA, atol=1e-5), (
-        f"dA {A.grad} does not match expected {expected_dA}"
-    )
-    assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
-        f"dP {P.grad} does not match expected {expected_dP}"
-    )
-
 # -------------------------------------------------------------------
 # Triton kernel implementation of cumulative sum
 
@@ -1017,8 +760,9 @@ class CumsumTritonEfficientParallelScanFunction(torch.autograd.Function):
 
 
 import torch
+from typing import Callable
 
-def bliasson_cumsum(x: torch.Tensor, dim: int=-1):
+def bliasson_associative_scan(x: torch.Tensor, merge_fn: Callable, dim: int=-1):
     x = x.transpose(dim, x.ndim-1) if dim != -1 else x
     *rest, n = x.shape
     bit_length = n.bit_length()
@@ -1035,7 +779,7 @@ def bliasson_cumsum(x: torch.Tensor, dim: int=-1):
     while len(indices) > 1:
         assert len(indices) % 2 == 0
         next_indices = indices[1::2]
-        x_big[...,next_indices] = x_big[...,indices[::2]] + x_big[...,indices[1::2]]
+        x_big[...,next_indices] = merge_fn(x_big[...,indices[::2]], x_big[...,indices[1::2]])
         indices = next_indices
     
     # ok now we're going to propagate the info back down the tree, from top-down.
@@ -1044,12 +788,14 @@ def bliasson_cumsum(x: torch.Tensor, dim: int=-1):
         end_of_first_chunk = torch.arange(2 ** (i-1),closest_power_of_2,2 ** (i-1)) - 1
         end_of_first_half_of_second_chunk = end_of_first_chunk + 2 ** (i - 2)
 
-        x_big[...,end_of_first_half_of_second_chunk] += x_big[...,end_of_first_chunk]
+        x_big[...,end_of_first_half_of_second_chunk] = merge_fn(x_big[...,end_of_first_chunk], x_big[...,end_of_first_half_of_second_chunk])
     
     raw_out = x_big[...,:n]
 
     return raw_out.transpose(dim, x.ndim-1) if dim != -1 else raw_out
 
+def bliasson_cumsum(x: torch.Tensor, dim: int=-1):
+    return bliasson_associative_scan(x, lambda l, r: l + r, dim)
 
 class CumsumBliassonFunction(torch.autograd.Function):
     @staticmethod
@@ -1064,3 +810,376 @@ class CumsumBliassonFunction(torch.autograd.Function):
 
 def cumsum_bliasson(x, dim=-1):
     return CumsumBliassonFunction.apply(x, dim)
+
+from .packing import pack_tensors, unpack_tensor
+
+def merge_fn(C1,C2):
+    # unpack l into U and V
+    U1,V1 = unpack_tensor(C1)
+    # unpack r into W and X
+    U2,V2 = unpack_tensor(C2)
+
+    V = V1 + V2 - torch.minimum(U1,V2)
+    U = U2 + torch.relu(U1-V2)
+
+    return pack_tensors(U,V)
+
+def bliasson_protect_and_attack(A,P,dim=-1):
+    A_hat = (A - P).float()
+    U = torch.relu(-A_hat)
+    V = torch.relu(A_hat)
+
+    C = pack_tensors(U,V)
+
+    C_out = bliasson_associative_scan(C,merge_fn,dim)
+
+    U_out,V_out = unpack_tensor(C_out)
+
+    T = U_out == 0.0 # whether this token took damage in this turn. taking zero damage IS included - as long as the token was not protected!
+
+    return -1*V_out,T
+
+# attack and protect means the attack phase in every turn happens before the protection for that turn.
+def bliasson_attack_and_protect(A: torch.Tensor, P: torch.Tensor, dim: int=-1):
+    rolled_P = P.roll(shifts=1, dims=dim)
+    # then set the first element of P to 0
+    index = [slice(None)] * P.ndim
+    index[dim] = 0
+    rolled_P[tuple(index)] = 0
+
+    return bliasson_protect_and_attack(A,rolled_P,dim)
+
+
+# NOTE: this assumes that the dim in question is the last dimension.
+# So we need to transpose the tensor accordingly to make this true.
+@triton.jit
+def kernel_bliasson_protect_and_attack_backward(
+    reverse_cumsum_grad_H_ptr, T_ptr, dA_ptr, dP_ptr,
+    L: tl.constexpr, stride: tl.constexpr
+):
+    """
+    Backward pass computed in reverse order.
+    """
+    b = tl.program_id(0)
+    base = b * stride
+    all_dhealths = 0.0
+    all_dhealths_after = 0.0
+    # Loop backwards: from i=L-1 down to 0.
+    for i in range(L, 0, -1):
+        idx = i - 1
+        grad_val = tl.load(reverse_cumsum_grad_H_ptr + base + idx)
+        tl.store(dP_ptr + base + idx, all_dhealths_after)
+        all_dhealths = grad_val
+        flag = tl.load(T_ptr + base + idx)
+        if flag != 0:
+            all_dhealths_after = all_dhealths
+        tl.store(dA_ptr + base + idx, -all_dhealths_after)
+
+
+class AttackAndProtectBliassonFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, A, P, dim):
+        ctx.dim = dim
+        ctx.orig_shape = A.shape
+        H,T = bliasson_attack_and_protect(A,P,dim)
+        ctx.save_for_backward(T)
+        return H
+    
+    @staticmethod
+    def backward(ctx, grad_H):
+        T, = ctx.saved_tensors
+
+        flipped_cumsum_grad_H = bliasson_cumsum(grad_H.flip(ctx.dim),ctx.dim).flip(ctx.dim)
+
+        dA = torch.zeros(*ctx.orig_shape, dtype=grad_H.dtype, device=grad_H.device)
+        dP = torch.zeros(*ctx.orig_shape, dtype=grad_H.dtype, device=grad_H.device)
+
+        final_dim = ctx.orig_shape[ctx.dim]
+
+        # now let's invoke the triton function here.
+        flipped_cumsum_grad_H_transposed = flipped_cumsum_grad_H.transpose(ctx.dim, len(ctx.orig_shape)-1)
+        flipped_cumsum_grad_H_flat = flipped_cumsum_grad_H_transposed.reshape(-1,final_dim)
+        dA_transposed = dA.transpose(ctx.dim, len(ctx.orig_shape)-1)
+        dA_flat = dA_transposed.reshape(-1,final_dim)
+        dP_transposed = dP.transpose(ctx.dim, len(ctx.orig_shape)-1)
+        dP_flat = dP_transposed.reshape(-1,final_dim)
+
+        T_transposed = T.transpose(ctx.dim, len(ctx.orig_shape)-1)
+        T_flat = T_transposed.reshape(-1,final_dim)
+
+        combined_batch_dim = flipped_cumsum_grad_H_flat.shape[0]
+
+        grid = (combined_batch_dim,)
+        print("T_flat",T_flat)
+        print("flipped_cumsum_grad_H_flat",flipped_cumsum_grad_H_flat)
+        kernel_bliasson_protect_and_attack_backward[grid](flipped_cumsum_grad_H_flat, T_flat, dA_flat, dP_flat, final_dim, final_dim)
+
+        dA_transposed = dA_flat.reshape(dA_transposed.shape)
+        dA = dA_transposed.transpose(ctx.dim, len(ctx.orig_shape)-1)
+
+        dP_transposed = dP_flat.reshape(dP_transposed.shape)
+        dP = dP_transposed.transpose(ctx.dim, len(ctx.orig_shape)-1)
+
+        return dA,dP,None
+    
+def attack_and_protect_bliasson(A,P,dim=-1):
+    return AttackAndProtectBliassonFunction.apply(A,P,dim)
+
+protect_and_attack_fn = attack_and_protect_bliasson
+
+@pytest.mark.parametrize("A_list, P_list, dH_list, expected_H, expected_dA, expected_dP", [
+    # These are the same as your original test cases.
+    ([1], [0], [1], [-1], [-1], [0]),
+    # ([0], [0], [1], [0], [-1], [0]),
+    # ([0, 1], [2, 0], [1, 1], [0, 0], [-2, 0], [0, 0]),
+    # ([0, 1], [1, 0], [1, 1], [0, 0], [-2, -1], [1, 0]),
+    # ([1, 1, 10], [5, 0, 0], [1, 1, 1], [-1, -1, -7], [-3, -1, -1], [1, 1, 0]),
+])
+def test_protect_and_attack_triton_single_dim(A_list, P_list, dH_list, expected_H, expected_dA, expected_dP):
+    # Create tensors on CUDA.
+    A = torch.tensor(A_list, dtype=torch.float32, requires_grad=True, device="cuda")
+    P = torch.tensor(P_list, dtype=torch.float32, requires_grad=True, device="cuda")
+    dH = torch.tensor(dH_list, dtype=torch.float32, device="cuda")
+    H = protect_and_attack_fn(A, P, dim=0)
+    # Check forward pass (move result back to CPU for comparison).
+    assert torch.allclose(H.cpu(), torch.tensor(expected_H, dtype=torch.float32)), f"H: {H.cpu()}, expected: {expected_H}"
+    # Compute gradients.
+    H.backward(dH)
+    assert torch.allclose(A.grad.cpu(), torch.tensor(expected_dA, dtype=torch.float32)), f"dA: {A.grad.cpu()}, expected: {expected_dA}"
+    assert torch.allclose(P.grad.cpu(), torch.tensor(expected_dP, dtype=torch.float32)), f"dP: {P.grad.cpu()}, expected: {expected_dP}"
+
+def test_protect_and_attack_triton_multi_dim():
+    # Test on a 2D tensor processing along dim=1.
+    A = torch.tensor([[0, 1], [1, 0]], dtype=torch.float32, requires_grad=True, device="cuda")
+    P = torch.tensor([[2, 0], [1, 0]], dtype=torch.float32, requires_grad=True, device="cuda")
+    # For row 0:
+    #   i=0: a=0 -> condition (0-0)<=0 so damage occurs → H[0]=0, took_damage=True.
+    #         then add p=2 → P_running becomes 2.
+    #   i=1: a=1 -> condition (2-1)>0 so no damage, H remains 0.
+    # For row 1:
+    #   i=0: a=1 -> condition (0-1)<=0 → H becomes -1, took_damage=True, then add p=1 → P_running becomes 1.
+    #   i=1: a=0 -> no damage → H remains -1.
+    expected_H = torch.tensor([[0, 0], [-1, -1]], dtype=torch.float32)
+    A_clone = A.clone().detach().requires_grad_(True)
+    P_clone = P.clone().detach().requires_grad_(True)
+    H = protect_and_attack_fn(A_clone, P_clone, dim=1)
+    assert torch.allclose(H.cpu(), expected_H)
+    dH = torch.ones_like(H, device="cuda")
+    H.backward(dH)
+    # Backward calculations based on the iterative loop (see inline comments).
+    # For both rows, the backward loop yields:
+    #   For index i=1: dP = 0, dA = 0.
+    #   For index i=0: dP = 0, dA = - (sum of dH from this turn onward) = -2.
+    expected_dA = torch.tensor([[-2, 0], [-2, 0]], dtype=torch.float32)
+    expected_dP = torch.tensor([[0, 0], [0, 0]], dtype=torch.float32)
+    assert torch.allclose(A_clone.grad.cpu(), expected_dA), f"multi-dim dA: {A_clone.grad.cpu()}"
+    assert torch.allclose(P_clone.grad.cpu(), expected_dP), f"multi-dim dP: {P_clone.grad.cpu()}"
+
+# -------------------------------------------------------------------
+# New tests for 3D tensors (non-degenerate) for both the PyTorch-based and Triton-based implementations.
+
+import pytest
+
+def test_protect_and_attack_pytorch_3d():
+    # We create a 3D tensor of shape (2, 2, 2) where processing is done along the last dimension.
+    # For each slice the simulation is as follows:
+    #
+    # Batch 0, row 0: A = [0, 1], P = [2, 0]
+    #   token0: (0-0)<=0 -> damage flag True, H becomes 0, then add p=2 → P_running becomes 2.
+    #   token1: (2-1)>0 -> no damage, H remains 0.
+    #   => H = [0, 0]; backward yields: dA = [-2, 0], dP = [0, 0].
+    #
+    # Batch 0, row 1: A = [1, 0], P = [0, 1]
+    #   token0: (0-1)<=0 -> damage, H becomes -1, then add protection.
+    #   token1: damage flag True -> H remains -1.
+    #   => H = [-1, -1]; backward yields: dA = [-2, -1], dP = [1, 0].
+    #
+    # Batch 1, row 0: A = [0, 1], P = [1, 0]
+    #   token0: damage flag True -> H = 0, then add protection.
+    #   token1: (1-1)<=0 -> damage, H remains 0.
+    #   => H = [0, 0]; backward yields: dA = [-2, -1], dP = [1, 0].
+    #
+    # Batch 1, row 1: A = [1, 0], P = [2, 0]
+    #   token0: (0-1)<=0 -> damage (damage=1), H becomes -1, then add protection (P_running becomes 2).
+    #   token1: (2-0)>0 -> no damage, H remains -1.
+    #   => H = [-1, -1]; backward yields: dA = [-2, 0], dP = [0, 0].
+
+    A = torch.tensor([
+            [[0, 1],
+             [1, 0]],
+            [[0, 1],
+             [1, 0]]
+        ], dtype=torch.float32, requires_grad=True,device="cuda")
+    
+    P = torch.tensor([
+            [[2, 0],
+             [0, 1]],
+            [[1, 0],
+             [2, 0]]
+        ], dtype=torch.float32, requires_grad=True,device="cuda")
+
+    expected_H = torch.tensor([
+            [[0,  0],
+             [-1, -1]],
+            [[0,  0],
+             [-1, -1]]
+        ], dtype=torch.float32,device="cuda")
+
+    H = protect_and_attack_fn(A, P, dim=-1)
+    assert torch.allclose(H, expected_H), f"Forward pass error: H = {H}, expected {expected_H}"
+
+    dH = torch.ones_like(H)
+    H.backward(dH)
+
+    expected_dA = torch.tensor([
+            [[-2,  0],
+             [-2, -1]],
+            [[-2, -1],
+             [-2,  0]]
+        ], dtype=torch.float32,device="cuda")
+    expected_dP = torch.tensor([
+            [[0, 0],
+             [1, 0]],
+            [[1, 0],
+             [0, 0]]
+        ], dtype=torch.float32,device="cuda")
+
+    assert torch.allclose(A.grad, expected_dA), f"PyTorch backward dA error:\n{A.grad}, expected:\n{expected_dA}"
+    assert torch.allclose(P.grad, expected_dP), f"PyTorch backward dP error: {P.grad}, expected: {expected_dP}"
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_protect_and_attack_triton_3d():
+    # Similar 3D test for the Triton implementation.
+    A = torch.tensor([
+            [[0, 1],
+             [1, 0]],
+            [[0, 1],
+             [1, 0]]
+        ], dtype=torch.float32, requires_grad=True, device="cuda")
+    
+    P = torch.tensor([
+            [[2, 0],
+             [0, 1]],
+            [[1, 0],
+             [2, 0]]
+        ], dtype=torch.float32, requires_grad=True, device="cuda")
+
+    expected_H = torch.tensor([
+            [[0,  0],
+             [-1, -1]],
+            [[0,  0],
+             [-1, -1]]
+        ], dtype=torch.float32)
+    
+    H = protect_and_attack_fn(A, P, dim=-1)
+    assert torch.allclose(H.cpu(), expected_H), f"Triton forward error: H = {H.cpu()}, expected {expected_H}"
+
+    dH = torch.ones_like(H, device="cuda")
+    H.backward(dH)
+
+    expected_dA = torch.tensor([
+            [[-2,  0],
+             [-2, -1]],
+            [[-2, -1],
+             [-2,  0]]
+        ], dtype=torch.float32)
+    expected_dP = torch.tensor([
+            [[0, 0],
+             [1, 0]],
+            [[1, 0],
+             [0, 0]]
+        ], dtype=torch.float32)
+
+    assert torch.allclose(A.grad.cpu(), expected_dA), f"Triton backward dA error:\n{A.grad.cpu()}, expected:\n{expected_dA}"
+    assert torch.allclose(P.grad.cpu(), expected_dP), f"Triton backward dP error:\n{P.grad.cpu()}, expected:\n{expected_dP}"
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_protect_and_attack_triton_random_A_P0():
+    """
+    Test that when P is zero and A is random the health output equals -cumsum(A)
+    and that with dH=ones the gradients are:
+        dA = -[N, N-1, ..., 1]
+        dP = [N-1, N-2, ..., 0]
+    """
+    N = 10
+    A = torch.rand(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    P = torch.zeros_like(A, requires_grad=True)
+    H = protect_and_attack_fn(A, P, dim=0)
+    expected_H = -torch.cumsum(A, dim=0)
+    assert torch.allclose(H.cpu(), expected_H.cpu(), atol=1e-5), (
+        f"Output health {H.cpu()} does not match expected {expected_H.cpu()}"
+    )
+    dH = torch.ones_like(H)
+    H.backward(dH)
+    # Expected gradients:
+    # For a sequence of length N, since every token is "vulnerable", the backward pass computes:
+    #   dA[0] = -N, dA[1] = -(N-1), ..., dA[N-1] = -1.
+    #   dP[0] = N-1, dP[1] = N-2, ..., dP[N-1] = 0.
+    expected_dA = -torch.arange(N, 0, -1, dtype=torch.float32, device="cuda")
+    expected_dP = torch.arange(N-1, -1, -1, dtype=torch.float32, device="cuda")
+    assert torch.allclose(A.grad, expected_dA, atol=1e-5), (
+        f"dA {A.grad} does not match expected {expected_dA}"
+    )
+    assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
+        f"dP {P.grad} does not match expected {expected_dP}"
+    )
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_protect_and_attack_triton_A0_Ppositive():
+    """
+    Test that when A is zero and P is positive, the simulation produces
+    zero health at every turn and the backward pass produces gradients where
+    only the first token gets nonzero gradient:
+        dA[0] = -N  and all other entries zero,
+        dP = all zeros.
+    """
+    N = 10
+    A = torch.zeros(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    # Choose a positive protection value; here we use ones.
+    P = torch.ones(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    H = protect_and_attack_fn(A, P, dim=0)
+    expected_H = torch.zeros_like(A)
+    assert torch.allclose(H.cpu(), expected_H.cpu(), atol=1e-5), (
+        f"Output health {H.cpu()} does not match expected {expected_H.cpu()}"
+    )
+    dH = torch.ones_like(H)
+    H.backward(dH)
+    # With A==0 and P>0, only token 0 is vulnerable:
+    expected_dA = torch.zeros_like(A)
+    expected_dA[0] = -float(N)  # gradient accumulates all the dH values = -N at token 0
+    expected_dP = torch.zeros_like(P)
+    assert torch.allclose(A.grad, expected_dA, atol=1e-5), (
+        f"dA {A.grad} does not match expected {expected_dA}"
+    )
+    assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
+        f"dP {P.grad} does not match expected {expected_dP}"
+    )
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for Triton tests")
+def test_protect_and_attack_triton_A0_P0():
+    """
+    Test that when both A and P are zero the health output equals -cumsum(A)=0,
+    and with dH=ones the backward gradients are:
+        dA = -[N, N-1, ..., 1]
+        dP = [N-1, N-2, ..., 0]
+    (which is the same as when P is zero, since the condition always triggers).
+    """
+    N = 10
+    A = torch.zeros(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    P = torch.zeros(N, dtype=torch.float32, device="cuda", requires_grad=True)
+    H = protect_and_attack_fn(A, P, dim=0)
+    expected_H = -torch.cumsum(A, dim=0)  # which is all zeros
+    assert torch.allclose(H.cpu(), expected_H.cpu(), atol=1e-5), (
+        f"Output health {H.cpu()} does not match expected {expected_H.cpu()}"
+    )
+    dH = torch.ones_like(H)
+    H.backward(dH)
+    expected_dA = -torch.arange(N, 0, -1, dtype=torch.float32, device="cuda")
+    expected_dP = torch.arange(N-1, -1, -1, dtype=torch.float32, device="cuda")
+    assert torch.allclose(A.grad, expected_dA, atol=1e-5), (
+        f"dA {A.grad} does not match expected {expected_dA}"
+    )
+    assert torch.allclose(P.grad, expected_dP, atol=1e-5), (
+        f"dP {P.grad} does not match expected {expected_dP}"
+    )
