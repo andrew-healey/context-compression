@@ -1988,3 +1988,36 @@ SKIP_WANDB=false python -m context_compression.train \
   --protection_kind zero \
   --max_steps 500
 ```
+
+
+## Testing stable protect-and-attack
+
+Protection zero.
+
+```vast:running/18031331
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection_2 \
+  --log_dir protection_zero_3 \
+  --protection_kind zero \
+  --random_seed 1337
+```
+
+Protection none:
+
+```vast:running/18031342
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection_2 \
+  --log_dir protection_none_3 \
+  --protection_kind none \
+  --random_seed 1337
+```
+
+Protection head2:
+
+```vast:running/18031357
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection_2 \
+  --log_dir protection_head2_3 \
+  --protection_kind head_two \
+  --random_seed 1337
+```

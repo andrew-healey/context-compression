@@ -819,7 +819,7 @@ def merge_fn(C1,C2):
     # unpack r into W and X
     U2,V2 = unpack_tensor(C2)
 
-    V = V1 + V2 - torch.minimum(U1,V2)
+    V = V1 + torch.relu(V2-U1)
     U = U2 + torch.relu(U1-V2)
 
     return pack_tensors(U,V)
