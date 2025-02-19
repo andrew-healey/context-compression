@@ -179,7 +179,8 @@ class CausalSelectiveSelfAttention(nn.Module):
         # here, we assert that FF is very close to FF_64
         # protection kind=None should be *pretty* close. like 1e-5 seems reasonable.
 
-        if os.environ.get("DEBUG_CUM_SUM", None) == "true" and random.random() < 0.01 and self.training:
+        threshold = 0.01 if os.environ.get("IS_MINI_MODEL", None) == "true" else 0.0001
+        if os.environ.get("DEBUG_CUM_SUM", None) == "true" and random.random() < threshold and self.training:
             with torch.no_grad():
                 gt_FF_64 = torch.cumsum(S_64.cpu(), dim=-2)
                 max_diff = (FF.cpu() - gt_FF_64).abs().max()
