@@ -172,7 +172,10 @@ class CausalSelectiveSelfAttention(nn.Module):
             max_diff = (FF - gt_FF_64).abs().max()
             print(f"Max diff between FF and gt_FF_64: {max_diff}")
             import wandb
-            wandb.log({"max_diff": max_diff})
+            try:
+                wandb.log({"max_diff": max_diff})
+            except:
+                pass
 
             # inputs_causing_instability.append((S_64.cpu().detach().numpy(), max_diff.item()))
             # let's actually just save it to a file
