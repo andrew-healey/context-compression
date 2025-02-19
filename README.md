@@ -2195,21 +2195,29 @@ OK, let's go back to basics. Let's run *experiments*, where the goal of *experim
 
 Let's do a run with protection=none_custom_cumsum_bliasson, with torch.compile enabled vs. disabled. I expect torch.compile will be slightly worse.
 
+Short-run result: [wandb graph](https://wandb.ai/sesamestrong/context_compression?nw=j1cu4nr6b8r).
+
+Warning: I think there's just a lotta inter-run variation, that's a function of the seed, the numerics, etc.
+
+So the numbers were lower for torch.compile disabled. Pretty consistently, actually, but not by much. It might be because torch.compile is worse for bliasson.
+
+A datapoint against that belief might be that for torch.cumsum, the difference between torch.compile enabled and disabled was similarly consistent but in the OPPOSITE direction.
+
+So probably I don't actually know which is better.
+
 ```vast:running/18037621
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
-  --group measuring_instability \
+  --group measuring_instability_2 \
   --log_dir bliasson_cumsum_compiled \
   --protection_kind none_custom_cumsum_bliasson \
-  --max_steps 500 \
   --batch_size 4
 ```
 
 ```vast:running/18037640
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
-  --group measuring_instability \
+  --group measuring_instability_2 \
   --log_dir bliasson_cumsum_not_compiled \
   --protection_kind none_custom_cumsum_bliasson \
-  --max_steps 500 \
   --no_use_compile \
   --batch_size 4
 ```
@@ -2222,21 +2230,27 @@ Let's get some for protection=none, with compile enabled.
 
 ```vast:running/18037731
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
-  --group measuring_instability \
+  --group measuring_instability_2 \
   --log_dir none_torch_compile \
   --protection_kind none \
-  --max_steps 500 \
   --batch_size 4
 ```
 
 You know, and since it's cheap and fast, let's also do protection=none with compile disabled.
 
+I hypothesize that these will be basically identical.
+
+Short-run result: [wandb graph](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=j1cu4nr6b8r).
+
+Not identical. There is a consistent difference over the last steps of the run, but it's not that big.
+
+So I think I don't acc know if they're different or not.
+
 ```vast:running/18057878
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
-  --group measuring_instability \
+  --group measuring_instability_2 \
   --log_dir none_not_compiled \
   --protection_kind none \
-  --max_steps 500 \
   --no_use_compile \
   --batch_size 4
 ```
@@ -2247,23 +2261,45 @@ If this really was as good as protection=none, then an experiment with protectio
 
 Hypothesis: this run will have similar/lower grad diffs than protection=none, and a very similar/lower loss curve.
 
+Short-run result: [wandb graph](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=j1cu4nr6b8r).
+
+Looks like it, maybe! But again, I don't have a ton of resolution. I need to wait on the longer run.
+
 ```vast:running/18057881
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
-  --group measuring_instability \
+  --group measuring_instability_2 \
   --log_dir zero_fp64_compiled \
   --protection_kind zero_fp64 \
-  --max_steps 500 \
   --batch_size 4
 ```
 
 Actually, let's also do a run with protection=head_two and fp64. It's the run I meant to do last night. For random path-dependent reasons, I didn't. But I should have.
 
+Hypothesis: this will be better than protection=none.
+
+Short-run result: [wandb graph](https://wandb.ai/sesamestrong/context_compression/panel/7i8l8u02w?nw=j1cu4nr6b8r).
+
+Nope, it's def worse on this short-run graph. It's possible that it biases the model towards less selectivity... in which case I should maybe try adding diff scaling factors, or maybe biases, to P.
+
+But it's a v short run that goes down to a very high loss. So I should wait for the longer run.
+
 
 ```vast:running/18058244
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
-  --group measuring_instability \
+  --group measuring_instability_2 \
   --log_dir head_two_fp64_compiled \
   --protection_kind head_two_fp64 \
-  --max_steps 500 \
   --batch_size 4
 ```
+
+## Understanding loss curve orderings in the mini model
+
+We can experiment much faster here.
+
+I'm kinda suspicious about ordering the "quality" of numerics based on their loss curve with a single seed.
+
+Since honestly, the max error for most of these runs is small.
+
+OK. Once I launch the 2500-step runs for all of these, I can start experimenting on the mini model.
+
+Update: the 500-step run makes me a little hopeful that my fp64 numerics are good enough to run with. So I'm gonna hold off from these experiments for now, I think.
