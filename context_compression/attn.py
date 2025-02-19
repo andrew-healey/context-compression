@@ -164,7 +164,8 @@ class CausalSelectiveSelfAttention(nn.Module):
 
             # Second, run the protect-and-attack algorithm on Sp and S
             if self.config.protection_kind == ProtectionKind.ZERO_FP64:
-                FF = attack_and_protect_bliasson(S.to(torch.float64), Sp.to(torch.float64), dim=-2, dtype=torch.float64).to(torch.float32) * -1
+                FF = attack_and_protect_bliasson(S, Sp, dim=-2, dtype=torch.float64) * -1
+                assert FF.dtype == torch.float32
             else:
                 FF = attack_and_protect_bliasson(S, Sp, dim=-2) * -1
 

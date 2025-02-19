@@ -934,9 +934,10 @@ class AttackAndProtectBliassonFunction(torch.autograd.Function):
         ctx.dim = dim
         ctx.dtype = dtype
         ctx.orig_shape = A.shape
-        H,T = bliasson_attack_and_protect(A,P,dim,dtype)
+        ctx.orig_dtype = A.dtype
+        H,T = bliasson_attack_and_protect(A.to(dtype),P.to(dtype),dim,dtype)
         ctx.save_for_backward(T)
-        return H
+        return H.to(ctx.orig_dtype)
     
     @staticmethod
     def backward(ctx, grad_H):
@@ -944,8 +945,8 @@ class AttackAndProtectBliassonFunction(torch.autograd.Function):
 
         flipped_cumsum_grad_H = bliasson_cumsum(grad_H.to(ctx.dtype).flip(ctx.dim),ctx.dim,ctx.dtype).flip(ctx.dim)
 
-        dA = torch.zeros(*ctx.orig_shape, dtype=ctx.dtype, device=grad_H.device)
-        dP = torch.zeros(*ctx.orig_shape, dtype=ctx.dtype, device=grad_H.device)
+        dA = torch.zeros(*ctx.orig_shape, dtype=grad_H.dtype, device=grad_H.device)
+        dP = torch.zeros(*ctx.orig_shape, dtype=grad_H.dtype, device=grad_H.device)
 
         final_dim = ctx.orig_shape[ctx.dim]
 
@@ -970,6 +971,9 @@ class AttackAndProtectBliassonFunction(torch.autograd.Function):
 
         dP_transposed = dP_flat.reshape(dP_transposed.shape)
         dP = dP_transposed.transpose(ctx.dim, len(ctx.orig_shape)-1)
+
+        assert dA.dtype == grad_H.dtype
+        assert dP.dtype == grad_H.dtype
 
         return dA,dP,None,None
     
