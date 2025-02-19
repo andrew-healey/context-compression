@@ -2101,6 +2101,16 @@ cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --n
   --batch_size 4
 ```
 
+Protection zero, with compile and fp64 and cumsum debugging.
+
+```vast:finished
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir protection_zero_0_compile_fp64_cumsum_debugging \
+  --protection_kind zero_fp64 \
+  --max_steps 500
+```
+
 ## OK, let's now figure out an fp64 protect-and-attack impl. And hopefully make torch.compile work again.
 
 FP64 mini-model for cumsum. Should hopefully be super accurate. And hopefully better loss than the fp32 one. OK maybe that's a pipe dream.
@@ -2110,5 +2120,35 @@ DEBUG_CUM_SUM=true SKIP_WANDB=false python -m context_compression.train \
   --group testing_cumsum_numeric_stability \
   --log_dir fp64_bliasson_cumsum \
   --protection_kind none_custom_cumsum_bliasson_fp64 \
+  --max_steps 500
+```
+
+FP64 mini-model for attack-and-protect zero. Should do everything that cumsum just did.
+
+```
+DEBUG_CUM_SUM=true SKIP_WANDB=false python -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir fp64_attack_and_protect_zero \
+  --protection_kind zero_fp64 \
+  --max_steps 500
+```
+
+FP64 torch.cumsum
+
+```
+DEBUG_CUM_SUM=true SKIP_WANDB=false python -m context_compression.train \
+  --group testing_cumsum_numeric_stability \
+  --log_dir fp64_torch_cumsum \
+  --protection_kind none_torch_cumsum_fp64 \
+  --max_steps 500
+```
+
+## OK, FP64 seems ok? protect-and-attack def seems worse than normal cumsum, which I should investigate more. But let's try running protection=0 on the real model.
+
+```vast
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection_2 \
+  --log_dir protection_zero_1_compile_fp64_cumsum_debugging \
+  --protection_kind zero_fp64 \
   --max_steps 500
 ```

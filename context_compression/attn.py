@@ -13,12 +13,14 @@ class ProtectionKind(StrEnum):
     LINEAR_COMBO_HEAD_TWO = auto()
     LEAKY_RELU = auto()
     ZERO = auto()
+    ZERO_FP64 = auto()
     NONE = auto()
     NONE_CUSTOM_CUMSUM = auto()
     NONE_CUSTOM_CUMSUM_PARALLEL = auto()
     BIG_CONSTANT = auto()
     NONE_CUSTOM_CUMSUM_BLIASSON = auto()
     NONE_CUSTOM_CUMSUM_BLIASSON_FP64 = auto()
+    NONE_TORCH_CUMSUM_FP64 = auto()
 
 class SelectionHeadLinearComboKind(StrEnum):
     NONE = auto()
@@ -126,6 +128,8 @@ class CausalSelectiveSelfAttention(nn.Module):
             FF = cumsum_bliasson(S, dim=-2)
         elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON_FP64:
             FF = cumsum_bliasson(S.to(torch.float64),dim=-2,dtype=torch.float64).to(torch.float32)
+        elif self.config.protection_kind == ProtectionKind.NONE_TORCH_CUMSUM_FP64:
+            FF = torch.cumsum(S.to(torch.float64), dim=-2).to(torch.float32)
         else:
             # First, compute Sp
 
@@ -151,7 +155,7 @@ class CausalSelectiveSelfAttention(nn.Module):
                 # we use the "leaky" half of S_pre_relu
                 # This makes our model act as if we used a leaky relu to construct S, BUT with the negative half acting like protection, NOT like healing
                 Sp = (-S_pre_relu * self.config.leaky_relu_alpha + self.config.leaky_relu_bias).relu()
-            elif self.config.protection_kind == ProtectionKind.ZERO:
+            elif self.config.protection_kind in [ProtectionKind.ZERO, ProtectionKind.ZERO_FP64]:
                 Sp = torch.zeros_like(S)
             elif self.config.protection_kind == ProtectionKind.BIG_CONSTANT:
                 Sp = torch.ones_like(S).fill_(50)
@@ -159,7 +163,10 @@ class CausalSelectiveSelfAttention(nn.Module):
                 raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
 
             # Second, run the protect-and-attack algorithm on Sp and S
-            FF = attack_and_protect_bliasson(S, Sp, dim=-2) * -1
+            if self.config.protection_kind == ProtectionKind.ZERO_FP64:
+                FF = attack_and_protect_bliasson(S.to(torch.float64), Sp.to(torch.float64), dim=-2, dtype=torch.float64).to(torch.float32) * -1
+            else:
+                FF = attack_and_protect_bliasson(S, Sp, dim=-2) * -1
 
             # if self.config.protection_kind == ProtectionKind.BIG_CONSTANT:
             #     assert (FF == 0).all(), "FF should be 0"

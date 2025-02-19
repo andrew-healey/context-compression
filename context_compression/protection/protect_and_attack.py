@@ -796,7 +796,7 @@ def bliasson_associative_scan(x: torch.Tensor, merge_fn: Callable, dim: int=-1, 
 
     return raw_out.transpose(dim, x.ndim-1) if dim != -1 else raw_out
 
-def bliasson_associative_scan_two(x: torch.Tensor, y: torch.Tensor, merge_fn: Callable, dim: int=-1):
+def bliasson_associative_scan_two(x: torch.Tensor, y: torch.Tensor, merge_fn: Callable, dim: int=-1, dtype=torch.float32):
     x = x.transpose(dim, x.ndim-1) if dim != -1 else x
     y = y.transpose(dim, y.ndim-1) if dim != -1 else y
 
@@ -805,9 +805,9 @@ def bliasson_associative_scan_two(x: torch.Tensor, y: torch.Tensor, merge_fn: Ca
     *rest, n = x.shape
     bit_length = n.bit_length()
     closest_power_of_2 = 2**bit_length
-    x_big = torch.zeros((*rest, closest_power_of_2), dtype=x.dtype, device=x.device)
+    x_big = torch.zeros((*rest, closest_power_of_2), dtype=dtype, device=x.device)
     x_big[...,:n] = x
-    y_big = torch.zeros((*rest, closest_power_of_2), dtype=y.dtype, device=y.device)
+    y_big = torch.zeros((*rest, closest_power_of_2), dtype=dtype, device=y.device)
     y_big[...,:n] = y
 
     # ok so now we're going to do several rounds of summing.
@@ -872,37 +872,33 @@ def cumsum_bliasson(x, dim=-1, dtype=torch.float32):
 
 from .packing import pack_tensors, unpack_tensor
 
-def merge_fn(C1,C2):
-    # unpack l into U and V
-    U1,V1 = unpack_tensor(C1)
-    # unpack r into W and X
-    U2,V2 = unpack_tensor(C2)
+def merge_fn(U1,V1,U2,V2):
 
-    V = V1 + torch.relu(V2-U1)
     U = U2 + torch.relu(U1-V2)
+    V = V1 + torch.relu(V2-U1)
 
-    return pack_tensors(U,V)
+    return U,V
 
-def bliasson_protect_and_attack(A,P,dim=-1):
+def bliasson_protect_and_attack(A,P,dim=-1,dtype=torch.float32):
     A_hat = (A - P).float()
     U = torch.relu(-A_hat)
     V = torch.relu(A_hat)
 
-    U_out,V_out = bliasson_associative_scan_two(U,V,merge_fn,dim)
+    U_out,V_out = bliasson_associative_scan_two(U,V,merge_fn,dim,dtype)
 
     T = U_out == 0.0 # whether this token took damage in this turn. taking zero damage IS included - as long as the token was not protected!
 
     return -1*V_out,T
 
 # attack and protect means the attack phase in every turn happens before the protection for that turn.
-def bliasson_attack_and_protect(A: torch.Tensor, P: torch.Tensor, dim: int=-1):
+def bliasson_attack_and_protect(A: torch.Tensor, P: torch.Tensor, dim: int=-1, dtype=torch.float32):
     rolled_P = P.roll(shifts=1, dims=dim)
     # then set the first element of P to 0
     index = [slice(None)] * P.ndim
     index[dim] = 0
     rolled_P[tuple(index)] = 0
 
-    return bliasson_protect_and_attack(A,rolled_P,dim)
+    return bliasson_protect_and_attack(A,rolled_P,dim,dtype)
 
 
 # NOTE: this assumes that the dim in question is the last dimension.
@@ -917,8 +913,9 @@ def kernel_bliasson_protect_and_attack_backward(
     """
     b = tl.program_id(0)
     base = b * stride
-    all_dhealths = 0.0
-    all_dhealths_after = 0.0
+    data_of_dtype = tl.load(reverse_cumsum_grad_H_ptr + base)
+    all_dhealths = data_of_dtype - data_of_dtype # zero! just with the right dtype.
+    all_dhealths_after = data_of_dtype - data_of_dtype # zero also!
     # Loop backwards: from i=L-1 down to 0.
     for i in range(L, 0, -1):
         idx = i - 1
@@ -933,11 +930,11 @@ def kernel_bliasson_protect_and_attack_backward(
 
 class AttackAndProtectBliassonFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, A, P, dim,dtype):
+    def forward(ctx, A, P, dim, dtype):
         ctx.dim = dim
         ctx.dtype = dtype
         ctx.orig_shape = A.shape
-        H,T = bliasson_attack_and_protect(A,P,dim)
+        H,T = bliasson_attack_and_protect(A,P,dim,dtype)
         ctx.save_for_backward(T)
         return H
     
@@ -945,10 +942,10 @@ class AttackAndProtectBliassonFunction(torch.autograd.Function):
     def backward(ctx, grad_H):
         T, = ctx.saved_tensors
 
-        flipped_cumsum_grad_H = bliasson_cumsum(grad_H.to(ctx.dtype).flip(ctx.dim),ctx.dim).flip(ctx.dim)
+        flipped_cumsum_grad_H = bliasson_cumsum(grad_H.to(ctx.dtype).flip(ctx.dim),ctx.dim,ctx.dtype).flip(ctx.dim)
 
-        dA = torch.zeros(*ctx.orig_shape, dtype=grad_H.dtype, device=grad_H.device)
-        dP = torch.zeros(*ctx.orig_shape, dtype=grad_H.dtype, device=grad_H.device)
+        dA = torch.zeros(*ctx.orig_shape, dtype=ctx.dtype, device=grad_H.device)
+        dP = torch.zeros(*ctx.orig_shape, dtype=ctx.dtype, device=grad_H.device)
 
         final_dim = ctx.orig_shape[ctx.dim]
 
