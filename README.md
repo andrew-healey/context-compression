@@ -2145,11 +2145,125 @@ DEBUG_CUM_SUM=true SKIP_WANDB=false python -m context_compression.train \
 
 ## OK, FP64 seems ok? protect-and-attack def seems worse than normal cumsum, which I should investigate more. But let's try running protection=0 on the real model.
 
-```vast:running/18037621
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_protection_2 \
   --log_dir protection_zero_1_compile_fp64_cumsum_debugging \
   --protection_kind zero_fp64 \
   --max_steps 500
   --batch_size 2
+```
+
+Let's rerun with head_two with no compile and debug enabled.
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_protection_2 \
+  --log_dir protection_head_two_1_no_compile \
+  --protection_kind head_two_fp64 \
+  --max_steps 500
+  --no_use_compile
+```
+
+## OK, it's rly slow. We should fix this somehow.
+
+I think it's slowing down the whole model, which is crazy. We should maybe use a cuda kernel, I think. IDK if there's an easier way.
+
+I wonder if the CUDA kernel would be too crazy hard? ig I could make one in a notebook somewhere, and associative scan is prob a common algo.
+
+Then I'd have to impl a second version for the attack-and-protect scenario. Which would honestly prob take like 15 more minutes. So not horrible.
+
+But I would have to make it generic w.r.t. the dtype. On the one hand, might be educational. On the other, prob a lot of work!
+
+Hrrm. Is there anything we can do to hold this off.
+
+Well what do I know?
+
+Well, I don't know if bliasson cumsum makes a full training run better or worse. B/c it's so damn slow.
+
+I don't know why Bliasson attack-and-protect head2 did so much worse on its most recent run.
+
+I don't know if attack-and-protect with protection=0 is fundamentally worse than bliasson cumsum. (I suspect it's a little worse, since the loss curve was slightly worse on the mini model run.)
+
+I don't know if attack-and-protect with protection=0 gets worse loss on the real model than Bliasson cumsum does.
+
+I'm dealing with like a 4x slowdown by switching from none -> zero_fp64. Debilitating, how can I get it back.
+
+OK, let's go back to basics. Let's run *experiments*, where the goal of *experiments* is to understand my current code better. Success is measured by whether I answered these questions.
+
+## Understanding if/how torch.compile affects real training runs
+
+Let's do a run with protection=none_custom_cumsum_bliasson, with torch.compile enabled vs. disabled. I expect torch.compile will be slightly worse.
+
+```vast:running/18037621
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group measuring_instability \
+  --log_dir bliasson_cumsum_compiled \
+  --protection_kind none_custom_cumsum_bliasson \
+  --max_steps 500 \
+  --batch_size 4
+```
+
+```vast:running/18037640
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group measuring_instability \
+  --log_dir bliasson_cumsum_not_compiled \
+  --protection_kind none_custom_cumsum_bliasson \
+  --max_steps 500 \
+  --no_use_compile \
+  --batch_size 4
+```
+
+## Understanding grad diffs in real training runs
+
+So our torch.compile experiment will give us grad diffs and loss curves for protection=zero.
+
+Let's get some for protection=none, with compile enabled.
+
+```vast:running/18037731
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group measuring_instability \
+  --log_dir none_torch_compile \
+  --protection_kind none \
+  --max_steps 500 \
+  --batch_size 4
+```
+
+You know, and since it's cheap and fast, let's also do protection=none with compile disabled.
+
+```vast:running/18057878
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group measuring_instability \
+  --log_dir none_not_compiled \
+  --protection_kind none \
+  --max_steps 500 \
+  --no_use_compile \
+  --batch_size 4
+```
+
+
+And let's check for protection=zero, with fp64 and compile enabled. A previous loss curve made this look possibly as good as protection=none.
+If this really was as good as protection=none, then an experiment with protection=head_two and fp64 would be in order.
+
+Hypothesis: this run will have similar/lower grad diffs than protection=none, and a very similar/lower loss curve.
+
+```vast:running/18057881
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group measuring_instability \
+  --log_dir zero_fp64_compiled \
+  --protection_kind zero_fp64 \
+  --max_steps 500 \
+  --batch_size 4
+```
+
+Actually, let's also do a run with protection=head_two and fp64. It's the run I meant to do last night. For random path-dependent reasons, I didn't. But I should have.
+
+
+```vast:running/18058244
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group measuring_instability \
+  --log_dir head_two_fp64_compiled \
+  --protection_kind head_two_fp64 \
+  --max_steps 500 \
+  --batch_size 4
 ```
