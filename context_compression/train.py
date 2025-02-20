@@ -93,6 +93,10 @@ parser.add_argument("--seq_len", type=int, default=1024,
                     help="Sequence length")
 parser.add_argument("--batch_size", type=int, default=8,
                     help="Batch size")
+parser.add_argument("--protection_head_scaling_factor", type=float, default=1.0,
+                    help="Scaling factor for the protection head")
+parser.add_argument("--protection_head_bias", type=float, default=0.0,
+                    help="Bias for the protection head")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -185,7 +189,9 @@ config = GPTConfig(
     selection_head_linear_combo_scale=args.selection_head_linear_combo_scale,
     protection_kind=args.protection_kind,
     leaky_relu_alpha=args.leaky_relu_alpha,
-    leaky_relu_bias=args.leaky_relu_bias
+    leaky_relu_bias=args.leaky_relu_bias,
+    protection_head_scaling_factor=args.protection_head_scaling_factor,
+    protection_head_bias=args.protection_head_bias
 )
 
 model = GPT(config)

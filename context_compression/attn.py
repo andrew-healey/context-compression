@@ -162,6 +162,11 @@ class CausalSelectiveSelfAttention(nn.Module):
                 Sp = torch.ones_like(S).fill_(50)
             else:
                 raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
+            
+            if self.config.protection_head_scaling_factor != 1.0:
+                Sp = Sp * self.config.protection_head_scaling_factor
+            if self.config.protection_head_bias != 0.0:
+                Sp = F.relu(Sp + self.config.protection_head_bias)
 
             # Second, run the protect-and-attack algorithm on Sp and S
             if self.config.protection_kind in [ProtectionKind.ZERO_FP64, ProtectionKind.HEAD_TWO_FP64]:

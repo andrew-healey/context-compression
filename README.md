@@ -2205,7 +2205,7 @@ A datapoint against that belief might be that for torch.cumsum, the difference b
 
 So probably I don't actually know which is better.
 
-```vast:running/18037621
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group measuring_instability_2 \
   --log_dir bliasson_cumsum_compiled \
@@ -2213,7 +2213,7 @@ cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --n
   --batch_size 4
 ```
 
-```vast:running/18037640
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group measuring_instability_2 \
   --log_dir bliasson_cumsum_not_compiled \
@@ -2228,12 +2228,23 @@ So our torch.compile experiment will give us grad diffs and loss curves for prot
 
 Let's get some for protection=none, with compile enabled.
 
-```vast:running/18037731
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group measuring_instability_2 \
   --log_dir none_torch_compile \
   --protection_kind none \
   --batch_size 4
+```
+
+With another seed:
+
+```vast:finished
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group measuring_instability_2 \
+  --log_dir none_torch_compile_2 \
+  --protection_kind none \
+  --batch_size 4 \
+  --random_seed 1338
 ```
 
 You know, and since it's cheap and fast, let's also do protection=none with compile disabled.
@@ -2246,13 +2257,25 @@ Not identical. There is a consistent difference over the last steps of the run, 
 
 So I think I don't acc know if they're different or not.
 
-```vast:running/18057878
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group measuring_instability_2 \
   --log_dir none_not_compiled \
   --protection_kind none \
   --no_use_compile \
   --batch_size 4
+```
+
+With another seed:
+
+```vast:finished
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group measuring_instability_2 \
+  --log_dir none_not_compiled_2 \
+  --protection_kind none \
+  --no_use_compile \
+  --batch_size 4 \
+  --random_seed 1338
 ```
 
 
@@ -2265,12 +2288,23 @@ Short-run result: [wandb graph](https://wandb.ai/sesamestrong/context_compressio
 
 Looks like it, maybe! But again, I don't have a ton of resolution. I need to wait on the longer run.
 
-```vast:running/18057881
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group measuring_instability_2 \
   --log_dir zero_fp64_compiled \
   --protection_kind zero_fp64 \
   --batch_size 4
+```
+
+With another seed:
+
+```vast:finished
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group measuring_instability_2 \
+  --log_dir zero_fp64_compiled_2 \
+  --protection_kind zero_fp64 \
+  --batch_size 4 \
+  --random_seed 1338
 ```
 
 Actually, let's also do a run with protection=head_two and fp64. It's the run I meant to do last night. For random path-dependent reasons, I didn't. But I should have.
@@ -2284,7 +2318,7 @@ Nope, it's def worse on this short-run graph. It's possible that it biases the m
 But it's a v short run that goes down to a very high loss. So I should wait for the longer run.
 
 
-```vast:running/18058244
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group measuring_instability_2 \
   --log_dir head_two_fp64_compiled \
@@ -2303,3 +2337,131 @@ Since honestly, the max error for most of these runs is small.
 OK. Once I launch the 2500-step runs for all of these, I can start experimenting on the mini model.
 
 Update: the 500-step run makes me a little hopeful that my fp64 numerics are good enough to run with. So I'm gonna hold off from these experiments for now, I think.
+
+
+## Understanding head_two being worse, new baselines losing to old baselines
+
+Well, it's worse on both big models and small models.
+
+I *think* masking is better on both big models and small models. So maybe we can just experiment on small models?
+
+I'm curious what the failure mode is for head_two. Is it that it's too easy to protect ppl from masking? i.e. barely any tokens are masked? Is it that it removes a head?
+Is it that almost all masking is just super local, so protection is not necessary? This would be interesting.
+Is it that protection is actually a pretty binary decision (i.e. to mask or not to mask myself), so by choosing not to mask, you're doing enough? In which case protection is not necessary? (this may even work w/ the KVs of a given token in just one layer)
+Should I expect some theoretical motivation for protection being better? i.e. Leviathan said their motivation for selective attention was from writing transformer programs. I haven't motivated my search in the same way. Should I find inspiration by solving toy problems?
+
+Hrrm. So what am I looking for in my quest for understanding.
+
+IG I could make a visualization of masking patterns with and without protection. Hrrm that would fit in 2 hours.
+
+I could try to think of where a model with selective attn spends unnecessary circuitry.
+
+I could try to look at some examples of maskings and see how much they could be improved. i.e. that is slightly more of a problem-focused and less solution-focused answer.
+
+I could think hard abt what protection needs to be a pareto improvement. i.e. maybe some scale factor or bias that I crank up.
+
+Hrrm ok. I'll do smth in between. I'll kickoff a bunch of variants like this of head two (including an fp32 version), and see if any close the gap.
+
+Then while those are training, I will make a selectivity visualization tool. This should be fun and educational. It would be fun to do it on a code pretraining set. I wonder if fineweb has a code split. I'm guessing no.
+
+Hrrm... after looking at the new loss curves vs. the old loss curves, they seem different and worse! And by a big margin too - what's going on here? Does it show up in mini model loss curves too?
+
+Hrrm... actually the story changes if you look at the ce_loss vs. pplx curves. Why? Is this some weird wandb nonsense with gathering gradients, maybe? I doubt it but it's possible.
+
+Hrrm we can probably just plug the ce loss into an expression for perplexity to see what is the mismatch.
+
+We can maybe repro this inconsistency w/ the mini model, then git bisect it on an 8x4090 rig.
+
+Note: we can prob speed up the mini model by increasing its microbatch size.
+
+Q: should I even go down this rabbithole?
+
+Several possible options:
+
+- I suspect that cumsum debugging is causing it. So I turn that off and everything is fixed.
+- I decide it's some random measurement fluke, and the new models are as good as the old models.
+  - We can settle this by uploading a model trained with the fastest setting to HF. Hrrm maybe let's just do that? We can figure out the uploading-to-HF stuff at the end.
+  - Hrrm. Do we have the old baseline model performances to compare to? Looks like it. OK let's do this thing.
+- I decide it's an actual bug that's degrading the model, but it doesn't affect the ordering of my experiments.
+- It's a bug, and it does affect the ordering/magnitude of differences.
+- It's a bug, but it'll take too long to solve.
+
+<hr>
+
+OK, hypotheses:
+
+- When I train a model with protection=none, its final validation loss, when measured on the same software, will be basically the same as the baselines from the past.
+
+- Using the fp32 Bliasson algorithm will not noticeably widen the gap between protection and non-protection.
+
+- Adding a 1/5x scaling factor to the protection head WILL close the gap somewhat.
+
+- Adding a bias=1 to the protection head WILL close the gap somewhat.
+
+- Setting bos_protection to false will not noticeably change the head_two loss curve. Which will be a good sign.
+
+- Setting bos_protection to false will noticeably change the baseline loss curve. Which is expected (from previous experiments).
+
+<hr>
+
+Protection=none model:
+
+```vast:running/18104026
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir protection_none_torch_compile \
+  --protection_kind none
+```
+
+fp32 Bliasson protection=zero (should ~match protection=none):
+
+```vast:running/18104027
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir zero_fp32_bliasson_torch_compile \
+  --protection_kind zero
+```
+
+Protection=head_two_fp64 and 1/5x scaling factor:
+
+```vast:fail/18104028
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir head_two_fp64_torch_compile_1_5x_scaling_factor \
+  --protection_kind head_two_fp64
+  --protection_head_scaling_factor 0.2
+```
+
+Protection=head_two_fp64 and bias=-0.1:
+
+```vast:fail/18104029
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir head_two_fp64_torch_compile_bias_minus_0_1 \
+  --protection_kind head_two_fp64
+  --protection_head_bias -0.1
+```
+
+Protection=head_two_fp64 with bos_protection=false:
+
+```vast:fail/18104031
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir head_two_fp64_bos_protection_false \
+  --protection_kind head_two_fp64
+  --protect_bos_token false
+```
+
+Protection=none with bos_protection=false:
+
+```vast:fail/18104034
+cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir protection_none_bos_protection_false \
+  --protection_kind none
+  --protect_bos_token false
+```
+
+## Super-fast mini model experiments (testing the same things as above, hopefully like 50x faster)
+
+When I come back from lunch, I should a) make my microbatch bigger for the mini model, and b) run the same experiments as above on my mini modell.

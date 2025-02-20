@@ -57,6 +57,8 @@ class GPTConfig:
     protection_kind: Optional[ProtectionKind] = None
     leaky_relu_alpha: Optional[float] = None
     leaky_relu_bias: Optional[float] = None
+    protection_head_scaling_factor: float = 1.0
+    protection_head_bias: float = 0.0
 
 class GPT(nn.Module):
     def __init__(self, config):
