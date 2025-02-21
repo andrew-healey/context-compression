@@ -157,8 +157,8 @@ enc = tiktoken.get_encoding("gpt2")
 use_mini_model = os.environ.get("USE_MINI_MODEL", "false").lower() == "true" or args.use_mini_model
 
 if use_mini_model:
-    total_batch_size = 12288
-    B = 12 # micro batch size
+    total_batch_size = 20480
+    B = 20 # micro batch size
     T = args.seq_len # sequence length
 else:
     total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
