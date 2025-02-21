@@ -3,7 +3,7 @@ import torch
 import math
 import torch.nn.functional as F
 from dataclasses import dataclass
-from .attn import get_attention_cls, AttentionKind, ProtectionKind
+from .attn import get_attention_cls, AttentionKind, ProtectionKind, SelectionHeadLinearComboKind
 import os
 import inspect
 
@@ -31,7 +31,7 @@ class Block(nn.Module):
 
     def forward(self, x,ff_cache=None):
         # Get both attention output and memory requirements
-        attn_out, M = self.attn(self.ln_1(x),ff_cache)
+        attn_out, M = self.attn(self.ln_1(x),ff_cache=ff_cache)
         assert attn_out.shape == x.shape
         x = x + attn_out
         x = x + self.mlp(self.ln_2(x))
@@ -52,7 +52,7 @@ class GPTConfig:
     hard_pruning_constant: Optional[float] = None # to fix the pruning during inference
     protect_bos_token: bool = True
     prevent_from_masking_myself: bool = True
-    selection_head_linear_combo: bool = False
+    selection_head_linear_combo: SelectionHeadLinearComboKind = SelectionHeadLinearComboKind.NONE
     selection_head_linear_combo_scale: float = 1.0
     protection_kind: ProtectionKind = ProtectionKind.NONE
     leaky_relu_alpha: Optional[float] = None
@@ -115,7 +115,7 @@ class GPT(nn.Module):
         # Collect memory requirements from all layers
         memory_reqs = []
         for i, block in enumerate(self.transformer.h):
-            x, M = block(x,ff_cache)
+            x, M = block(x,ff_cache=ff_cache)
             memory_reqs.append(M)
 
         # Final layer norm and get logits

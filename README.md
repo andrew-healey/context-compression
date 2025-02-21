@@ -2533,7 +2533,7 @@ It's confusing how protect_bos_token=false performed better on protection=none. 
 Protection=none, with a second seed:
 
 ```vast:running/18110744
-cd /workspace/context-compression && git pull && python -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir protection_none_2 \
   --protection_kind none \
@@ -2543,7 +2543,7 @@ cd /workspace/context-compression && git pull && python -m context_compression.t
 Protection=head_two_fp64 and 1/50x scaling factor:
 
 ```vast:running/18110745
-cd /workspace/context-compression && git pull && python -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_1_50x_scaling_factor \
   --protection_kind head_two_fp64 \
@@ -2554,7 +2554,7 @@ cd /workspace/context-compression && git pull && python -m context_compression.t
 Protection=head_two_fp64 and bias=-1:
 
 ```vast:running/18110746
-cd /workspace/context-compression && git pull && python -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_bias_minus_1 \
   --protection_kind head_two_fp64 \
@@ -2565,7 +2565,7 @@ cd /workspace/context-compression && git pull && python -m context_compression.t
 Protection=head_two_fp64 with bos_protection=false and a second seed:
 
 ```vast:running/18119340
-cd /workspace/context-compression && git pull && python -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_bos_protection_false_2 \
   --protection_kind head_two_fp64 \
@@ -2576,12 +2576,10 @@ cd /workspace/context-compression && git pull && python -m context_compression.t
 Protection=none with bos_protection=false and a second seed:
 
 ```vast:running/18138123
-cd /workspace/context-compression && git pull && python -m context_compression.train \
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir protection_none_bos_protection_false_2 \
   --protection_kind none \
   --no_protect_bos_token \
   --random_seed 1338
 ```
-
-

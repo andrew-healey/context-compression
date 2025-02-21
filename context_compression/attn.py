@@ -270,7 +270,7 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         self.protect_bos_token = config.protect_bos_token
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
 
-        if self.config.selection_head_linear_combo:
+        if self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             self.selection_head = nn.Linear(config.n_head, 1)
         else:
             self.selection_head = None
@@ -445,7 +445,7 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
         self.protect_bos_token = config.protect_bos_token
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
 
-        if self.config.selection_head_linear_combo: raise NotImplementedError("Linear combo not implemented for memory penalty")
+        if self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE: raise NotImplementedError("Linear combo not implemented for memory penalty")
         if self.config.protection_kind != ProtectionKind.NONE: raise NotImplementedError("Protection not implemented for memory penalty")
 
     def forward(self, x,ff_cache=None):
