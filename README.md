@@ -2473,7 +2473,7 @@ Protection=none model:
 
 ```
 SKIP_WANDB=false python -m context_compression.train \
-  --group super_fast_mini_model_experiments \
+  --group super_fast_mini_model_experiments_1k \
   --log_dir protection_none_torch_compile \
   --protection_kind none
 ```
@@ -2482,7 +2482,7 @@ fp32 Bliasson protection=zero (should be equally good as protection=none):
 
 ```
 SKIP_WANDB=false python -m context_compression.train \
-  --group super_fast_mini_model_experiments \
+  --group super_fast_mini_model_experiments_1k \
   --log_dir zero_fp32_bliasson_torch_compile \
   --protection_kind zero
 ```
@@ -2491,7 +2491,7 @@ fp32 Bliasson protection=head_two:
 
 ```
 SKIP_WANDB=false python -m context_compression.train \
-  --group super_fast_mini_model_experiments \
+  --group super_fast_mini_model_experiments_1k \
   --log_dir head_two_fp32_bliasson_torch_compile \
   --protection_kind head_two
 ```
@@ -2500,7 +2500,7 @@ fp64 Bliasson protection=head_two (should be equally good as fp32 Bliasson prote
 
 ```
 SKIP_WANDB=false python -m context_compression.train \
-  --group super_fast_mini_model_experiments \
+  --group super_fast_mini_model_experiments_1k \
   --log_dir head_two_fp64_bliasson_torch_compile \
   --protection_kind head_two_fp64
 ```
@@ -2509,7 +2509,7 @@ fp32 Bliasson protection=head_two with bos_protection=false (should match normal
 
 ```
 SKIP_WANDB=false python -m context_compression.train \
-  --group super_fast_mini_model_experiments \
+  --group super_fast_mini_model_experiments_1k \
   --log_dir head_two_fp32_bliasson_bos_protection_false \
   --protection_kind head_two \
   --no_protect_bos_token
@@ -2519,7 +2519,7 @@ protection=none with bos_protection=false (should be slightly worse than normal 
 
 ```
 SKIP_WANDB=false python -m context_compression.train \
-  --group super_fast_mini_model_experiments \
+  --group super_fast_mini_model_experiments_1k \
   --log_dir protection_none_bos_protection_false \
   --protection_kind none \
   --no_protect_bos_token

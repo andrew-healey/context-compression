@@ -158,7 +158,7 @@ use_mini_model = os.environ.get("USE_MINI_MODEL", "false").lower() == "true" or 
 
 if use_mini_model:
     total_batch_size = 20480
-    B = 20 # micro batch size
+    B = 10 # micro batch size
     T = args.seq_len # sequence length
 else:
     total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
@@ -178,7 +178,7 @@ torch.set_float32_matmul_precision('high')
 # create model
 config = GPTConfig(
     n_head=13,
-    n_layer=2 if use_mini_model else 12,
+    n_layer=4 if use_mini_model else 12,
     vocab_size=50304,
     attention_kind=args.attention_kind,
     for_inference=False,
@@ -204,8 +204,13 @@ raw_model = model # always contains the "raw" unwrapped model
 
 max_lr = 6e-4
 min_lr = max_lr * 0.1
-warmup_steps = 715
-max_steps = args.max_steps
+
+if use_mini_model:
+    warmup_steps = 100
+    max_steps = 1000
+else:
+    warmup_steps = 715
+    max_steps = args.max_steps
 
 def get_lr(it):
     # 1 linear warmup for warmup_iters steps
@@ -336,7 +341,7 @@ if ddp:
 
 torch.cuda.empty_cache()
 
-eval_period = 25
+eval_period = 50
 save_period = 2500
 hellaswag_period = 250
 
