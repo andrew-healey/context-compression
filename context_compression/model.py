@@ -29,9 +29,9 @@ class Block(nn.Module):
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = MLP(config)
 
-    def forward(self, x):
+    def forward(self, x,ff_cache=None):
         # Get both attention output and memory requirements
-        attn_out, M = self.attn(self.ln_1(x))
+        attn_out, M = self.attn(self.ln_1(x),ff_cache)
         assert attn_out.shape == x.shape
         x = x + attn_out
         x = x + self.mlp(self.ln_2(x))
@@ -102,7 +102,7 @@ class GPT(nn.Module):
         memory_loss = avg_memory / (T)
         return memory_loss
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None,ff_cache=None):
         B, T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
 
@@ -115,7 +115,7 @@ class GPT(nn.Module):
         # Collect memory requirements from all layers
         memory_reqs = []
         for i, block in enumerate(self.transformer.h):
-            x, M = block(x)
+            x, M = block(x,ff_cache)
             memory_reqs.append(M)
 
         # Final layer norm and get logits

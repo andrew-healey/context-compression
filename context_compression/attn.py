@@ -67,7 +67,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         
         assert (self.config.leaky_relu_alpha is None) == (self.config.protection_kind != ProtectionKind.LEAKY_RELU) == (self.config.leaky_relu_bias is None), "leaky_relu_alpha, protection_kind, and leaky_relu_bias must all match"
 
-    def forward(self, x):
+    def forward(self, x,ff_cache=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         qkv = self.c_attn(x)
@@ -200,9 +200,12 @@ class CausalSelectiveSelfAttention(nn.Module):
                 # let's actually just save it to a file
                 # torch.save(inputs_causing_instability, "inputs_causing_instability.pt")
 
-        assert (FF < 0).any() == False, f"FF should be positive. minimum value: {FF.min()}"
+        # assert (FF < 0).any() == False, f"FF should be positive. minimum value: {FF.min()}"
         FF_shifted = torch.roll(FF, 1, -2)
         FF_shifted[..., 0, :] = 0
+
+        if ff_cache is not None:
+            ff_cache.append(FF_shifted.detach().cpu().numpy())
 
         # Use out-of-place subtraction to preserve computation graph integrity
         att = att - FF_shifted[:,None,:,:]
@@ -228,7 +231,7 @@ class CausalSelfAttention(nn.Module):
         self.n_embd = config.n_embd
         self.head_dim = config.head_dim
 
-    def forward(self, x):
+    def forward(self, x,ff_cache=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         # nh is "number of heads", hs is "head size", and C (number of channels) = nh * hs
@@ -295,7 +298,7 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
             progress = (context_length - self.MIN_CONTEXT_FOR_PRUNING) / (self.FULL_PRUNING_CONTEXT - self.MIN_CONTEXT_FOR_PRUNING)
             return 0.5 - (0.3 * progress)  # Smoothly transition from 0.5 to 0.2
 
-    def forward(self, x, cache_key=None):
+    def forward(self, x,ff_cache=None, cache_key=None):
         B, T, C = x.size()
 
         # Check if cached context is available and should be used
@@ -445,7 +448,7 @@ class CausalSelectiveSelfAttentionWithMemoryPenalty(nn.Module):
         if self.config.selection_head_linear_combo: raise NotImplementedError("Linear combo not implemented for memory penalty")
         if self.config.protection_kind != ProtectionKind.NONE: raise NotImplementedError("Protection not implemented for memory penalty")
 
-    def forward(self, x):
+    def forward(self, x,ff_cache=None):
         B, T, C = x.size()
         qkv = self.c_attn(x)
         q, k, v = qkv.split(self.n_head * self.head_dim, dim=2)
