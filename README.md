@@ -2424,7 +2424,7 @@ cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --n
 
 Protection=head_two_fp64 and 1/5x scaling factor:
 
-```vast:running/18110743
+```vast:running/18110744
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_torch_compile_1_5x_scaling_factor \
@@ -2435,7 +2435,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64 and bias=-0.1:
 
-```vast:running/18110744
+```vast:running/18110745
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_torch_compile_bias_minus_0_1 \
@@ -2445,7 +2445,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64 with bos_protection=false (failed b/c of bad args):
 
-```vast:running/18110745
+```vast:running/18110746
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_bos_protection_false \
@@ -2455,7 +2455,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=none with bos_protection=false (failed b/c of bad args):
 
-```vast:running/18110746
+```vast:running/18119340
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir protection_none_bos_protection_false \
