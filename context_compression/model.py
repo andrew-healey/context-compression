@@ -54,7 +54,7 @@ class GPTConfig:
     prevent_from_masking_myself: bool = True
     selection_head_linear_combo: bool = False
     selection_head_linear_combo_scale: float = 1.0
-    protection_kind: Optional[ProtectionKind] = None
+    protection_kind: ProtectionKind = ProtectionKind.NONE
     leaky_relu_alpha: Optional[float] = None
     leaky_relu_bias: Optional[float] = None
     protection_head_scaling_factor: float = 1.0

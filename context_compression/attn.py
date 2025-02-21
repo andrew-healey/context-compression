@@ -337,7 +337,7 @@ class CausalSelectiveSelfAttentionForInference(nn.Module):
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
 
         # Apply selective attention with forgetting
-        if self.config.linear_combo:
+        if False and self.config.linear_combo:
             S = att[:, :, :, :] # shape: (B, n_head, T, T')
             S = S.transpose(1, 3) # shape: (B, T', T, n_head)
             S = self.selection_head(S) # shape: (B, T', T, 1)
