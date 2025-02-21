@@ -2424,7 +2424,7 @@ cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --n
 
 Protection=head_two_fp64 and 1/5x scaling factor:
 
-```vast:running/18110744
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_torch_compile_1_5x_scaling_factor \
@@ -2435,7 +2435,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64 and bias=-0.1:
 
-```vast:running/18110745
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_torch_compile_bias_minus_0_1 \
@@ -2445,7 +2445,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64 with bos_protection=false (failed b/c of bad args):
 
-```vast:running/18110746
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_bos_protection_false \
@@ -2455,7 +2455,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=none with bos_protection=false (failed b/c of bad args):
 
-```vast:running/18119340
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir protection_none_bos_protection_false \
@@ -2524,4 +2524,64 @@ SKIP_WANDB=false python -m context_compression.train \
   --protection_kind none \
   --no_protect_bos_token
 ```
+
+
+## Understanding head_two being worse, part 2
+
+It's confusing how protect_bos_token=false performed better on protection=none. Is this just because of one seed? Or is my model different than it was before (when I determined that protect_bos_token=false was worse)? So let's run this another time, with another round of seeds, for both protection=none and protection=head_two.
+
+Protection=none, with a second seed:
+
+```vast:running/18110744
+cd /workspace/context-compression && git pull && python -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir protection_none_2 \
+  --protection_kind none \
+  --random_seed 1338
+```
+
+Protection=head_two_fp64 and 1/50x scaling factor:
+
+```vast:running/18110746
+cd /workspace/context-compression && git pull && python -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir head_two_fp64_1_50x_scaling_factor \
+  --protection_kind head_two_fp64 \
+  --protection_head_scaling_factor 0.02 \
+  --random_seed 1338
+```
+
+Protection=head_two_fp64 and bias=-1:
+
+```vast:running/18119340
+cd /workspace/context-compression && git pull && python -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir head_two_fp64_bias_minus_1 \
+  --protection_kind head_two_fp64 \
+  --protection_head_bias -1.0 \
+  --random_seed 1338
+```
+
+Protection=head_two_fp64 with bos_protection=false and a second seed:
+
+```vast:running/18138123
+cd /workspace/context-compression && git pull && python -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir head_two_fp64_bos_protection_false_2 \
+  --protection_kind head_two_fp64 \
+  --no_protect_bos_token \
+  --random_seed 1338
+```
+
+Protection=none with bos_protection=false and a second seed:
+
+```vast:running/18110745
+cd /workspace/context-compression && git pull && python -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir protection_none_bos_protection_false_2 \
+  --protection_kind none \
+  --no_protect_bos_token \
+  --random_seed 1338
+```
+
 
