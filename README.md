@@ -2406,7 +2406,7 @@ OK, hypotheses:
 
 Protection=none model:
 
-```vast:running/18104026
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir protection_none_torch_compile \
@@ -2415,7 +2415,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 fp32 Bliasson protection=zero (should ~match protection=none):
 
-```vast:running/18104027
+```vast:finished
 cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir zero_fp32_bliasson_torch_compile \
@@ -2424,44 +2424,49 @@ cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --n
 
 Protection=head_two_fp64 and 1/5x scaling factor:
 
-```vast:fail/18104028
-cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+```vast:running/18110743
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_torch_compile_1_5x_scaling_factor \
   --protection_kind head_two_fp64
-  --protection_head_scaling_factor 0.2
+  --protection_head_scaling_factor 0.2 \
+  --batch_size 4
 ```
 
 Protection=head_two_fp64 and bias=-0.1:
 
-```vast:fail/18104029
-cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+```vast:running/18110744
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_torch_compile_bias_minus_0_1 \
-  --protection_kind head_two_fp64
+  --protection_kind head_two_fp64 \
   --protection_head_bias -0.1
 ```
 
-Protection=head_two_fp64 with bos_protection=false:
+Protection=head_two_fp64 with bos_protection=false (failed b/c of bad args):
 
-```vast:fail/18104031
-cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+```vast:running/18110745
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_bos_protection_false \
-  --protection_kind head_two_fp64
-  --protect_bos_token false
+  --protection_kind head_two_fp64 \
+  --no_protect_bos_token
 ```
 
-Protection=none with bos_protection=false:
+Protection=none with bos_protection=false (failed b/c of bad args):
 
-```vast:fail/18104034
-cd /workspace/context-compression && git pull && DEBUG_CUM_SUM=true torchrun --nproc_per_node=gpu -m context_compression.train \
+```vast:running/18110746
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir protection_none_bos_protection_false \
-  --protection_kind none
-  --protect_bos_token false
+  --protection_kind none \
+  --no_protect_bos_token
 ```
 
 ## Super-fast mini model experiments (testing the same things as above, hopefully like 50x faster)
 
-When I come back from lunch, I should a) make my microbatch bigger for the mini model, and b) run the same experiments as above on my mini modell.
+When I come back from lunch, I should a) make my microbatch bigger for the mini model, and then b) run the same experiments as above on my mini model.
+
+Let's try for 50x faster!!!
+
+Hrrm, let's first check the run statuses.
