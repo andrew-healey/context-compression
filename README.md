@@ -2586,7 +2586,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64 and bias=-10:
 
-```vast:fail/18152796
+```vast:running/18152796
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_bias_minus_10 \
@@ -2597,7 +2597,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64:
 
-```vast
+```vast:running/18153176
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64 \
