@@ -91,14 +91,15 @@ class CausalSelectiveSelfAttention(nn.Module):
             # For some reason, when I don't do this, torch.compile causes a CUDA memory alignment error
             # That's not fixed by .contiguous() or .reshape() or .clone()
             # But is fixed by i.e. F.sigmoid or by using this copy code
-            S_fresh = torch.zeros((B, T, T), device=S.device)
-            S_fresh[:,:,:] = S[:,:,:,0]
+            S_fresh = torch.zeros(S.shape, device=S.device)
+            S_fresh[:,:,:,:] = S[:,:,:,:]
             S = S_fresh
 
-            S = S.masked_fill(self.bias[0,:,:T,:T].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
-            S = S.transpose(1,2).clone() # shape: (B, T, T')
+            bias_reshaped = self.bias[0,:,:T,:T].transpose(1,3) # shape: (1, T', T, 1)
+            S = S.masked_fill(bias_reshaped == 0, 0) # shape: (B, T', T, 1)
+            S = S.transpose(1,3).clone() # shape: (B, 1, T, T')
         else:
-            S = att[:, 0].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
+            S = att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
 
         S_pre_relu = S
         S = F.relu(S)  # Only positive selection
@@ -208,7 +209,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             ff_cache.append(FF_shifted.detach().cpu().numpy())
 
         # Use out-of-place subtraction to preserve computation graph integrity
-        att = att - FF_shifted[:,None,:,:]
+        att = att - FF_shifted[:,:,:,:]
 
         att = F.softmax(att, dim=-1)
 
