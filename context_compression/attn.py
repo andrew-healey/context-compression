@@ -29,6 +29,7 @@ class SelectionHeadLinearComboKind(StrEnum):
     WITH_HEAD_ZERO = auto()
     WITH_HEAD_ZERO_AND_BIAS = auto()
     ONE_MASK_PER_HEAD = auto()
+    TWO_MASKS = auto()
 
 # List[Tuple[fp64 torch.Tensor, magnitude of instability]]
 inputs_causing_instability = []
@@ -40,7 +41,12 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         # double the number of heads if we're using one mask per head
         # yes, this is very inefficient. but it's just for testing.
-        self.n_c_attn_heads = config.n_head*2 if config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD else config.n_head
+        if config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
+            self.n_c_attn_heads = config.n_head*2
+        elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.TWO_MASKS:
+            self.n_c_attn_heads = config.n_head + 2
+        else:
+            self.n_c_attn_heads = config.n_head
 
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * self.n_c_attn_heads * config.head_dim)
@@ -56,7 +62,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
         self.config = config
 
-        if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
+        if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD, SelectionHeadLinearComboKind.TWO_MASKS]:
             self.selection_head = None
         elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             use_bias = self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]
@@ -94,6 +100,12 @@ class CausalSelectiveSelfAttention(nn.Module):
             S = att[:, :self.n_head, :, :].clone()
             att = att[:, self.n_head:, :, :]
             v = v[:, self.n_head:, :, :]
+        
+        elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.TWO_MASKS:
+            # ok let's split att into two halves: the S and the real att
+            S = att[:, :2, :, :].clone()
+            att = att[:, 2:, :, :]
+            v = v[:, 2:, :, :]
 
         elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             S = att[:, :, :, :] # shape: (B, n_head, T, T')
@@ -232,6 +244,17 @@ class CausalSelectiveSelfAttention(nn.Module):
         #     debugpy.wait_for_client()
         #     debugpy.breakpoint()
         # assert att.shape == FF_shifted.shape,f"att.shape: {att.shape}, FF_shifted.shape: {FF_shifted.shape}"
+
+        n_masks = FF_shifted.shape[1]
+        if n_masks < self.n_head:
+            # repeat interleaved
+            from math import ceil
+            FF_shifted_even = FF_shifted.repeat_interleave(self.n_head // n_masks, dim=1)[:,:self.n_head,:,:]
+            if self.n_head % n_masks == 0:
+                FF_shifted = FF_shifted_even
+            else:
+                FF_shifted = torch.cat([FF_shifted_even, FF_shifted[:,:self.n_head % n_masks,:,:]], dim=1)
+
         att = att - FF_shifted[:,:,:,:]
 
         att = F.softmax(att, dim=-1)
