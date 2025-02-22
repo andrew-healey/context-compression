@@ -49,6 +49,8 @@ parser.add_argument("--add_head_to_end", action="store_false", dest="add_head_to
                     help="Place the new head at the end")
 parser.add_argument("--new_head_init", type=lambda x: NewHeadInit(x.lower()), default=NewHeadInit.NORMAL,
                     help="Initialization type for the new head (e.g., normal, o_rescaled, o_zero, ko_zero)")
+parser.add_argument("--n_heads", type=int, default=13,
+                    help="Number of heads")
 parser.add_argument("--protect_bos_token", action="store_true",
                     help="Protect the BOS token")
 parser.set_defaults(protect_bos_token=True)
@@ -158,7 +160,7 @@ use_mini_model = os.environ.get("USE_MINI_MODEL", "false").lower() == "true" or 
 
 if use_mini_model:
     total_batch_size = 20480
-    B = 10 # micro batch size
+    B = 5 # micro batch size
     T = args.seq_len # sequence length
 else:
     total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
@@ -177,7 +179,7 @@ torch.set_float32_matmul_precision('high')
 
 # create model
 config = GPTConfig(
-    n_head=13,
+    n_head=args.n_heads,
     n_layer=4 if use_mini_model else 12,
     vocab_size=50304,
     attention_kind=args.attention_kind,

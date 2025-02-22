@@ -28,6 +28,7 @@ class SelectionHeadLinearComboKind(StrEnum):
     TRUE = auto()
     WITH_HEAD_ZERO = auto()
     WITH_HEAD_ZERO_AND_BIAS = auto()
+    ONE_MASK_PER_HEAD = auto()
 
 # List[Tuple[fp64 torch.Tensor, magnitude of instability]]
 inputs_causing_instability = []
@@ -36,8 +37,13 @@ class CausalSelectiveSelfAttention(nn.Module):
 
     def __init__(self, config):
         super().__init__()
+
+        # double the number of heads if we're using one mask per head
+        # yes, this is very inefficient. but it's just for testing.
+        self.n_c_attn_heads = config.n_head*2 if config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD else config.n_head
+
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_head * config.head_dim)
+        self.c_attn = nn.Linear(config.n_embd, 3 * self.n_c_attn_heads * config.head_dim)
         # output projection
         self.c_proj = nn.Linear(config.n_head * config.head_dim, config.n_embd)
         # regularization
@@ -50,7 +56,9 @@ class CausalSelectiveSelfAttention(nn.Module):
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
         self.config = config
 
-        if self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
+        if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
+            self.selection_head = None
+        elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             use_bias = self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]
             self.selection_head = nn.Linear(config.n_head, 1, bias=use_bias)
             if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO, SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]:
@@ -71,17 +79,23 @@ class CausalSelectiveSelfAttention(nn.Module):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         qkv = self.c_attn(x)
-        q, k, v = qkv.split(self.n_head * self.head_dim, dim=2)
-        k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
-        q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
-        v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+        q, k, v = qkv.split(self.n_c_attn_heads * self.head_dim, dim=2)
+        k = k.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+        q = q.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+        v = v.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
 
         # Standard attention computation
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         # Apply selective attention
 
-        if self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
+        if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
+            # ok let's split att into two halves: the S and the real att
+            S = att[:, :self.n_head, :, :].clone()
+            att = att[:, self.n_head:, :, :]
+            v = v[:, self.n_head:, :, :]
+
+        elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             S = att[:, :, :, :] # shape: (B, n_head, T, T')
             S = S.transpose(1, 3) # shape: (B, T', T, n_head)
             S = S.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
@@ -209,6 +223,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             ff_cache.append(FF_shifted.detach().cpu().numpy())
 
         # Use out-of-place subtraction to preserve computation graph integrity
+        assert att.shape == FF_shifted.shape,f"att.shape: {att.shape}, FF_shifted.shape: {FF_shifted.shape}"
         att = att - FF_shifted[:,:,:,:]
 
         att = F.softmax(att, dim=-1)
