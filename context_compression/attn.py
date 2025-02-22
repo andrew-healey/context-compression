@@ -106,6 +106,9 @@ class CausalSelectiveSelfAttention(nn.Module):
             assert self.head_dim % n_masks == 0, "head_dim must be divisible by n_sliced_masks or n_latent_masks"
             k = k.view(B, T, self.n_c_attn_heads * n_masks, self.head_dim // n_masks).transpose(1, 2) # (B, nh, T, hs)
             q = q.view(B, T, self.n_c_attn_heads * n_masks, self.head_dim // n_masks).transpose(1, 2) # (B, nh, T, hs)
+        else:
+            k = k.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+            q = q.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
 
         # Standard attention computation
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
