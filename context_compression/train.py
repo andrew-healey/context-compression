@@ -99,8 +99,10 @@ parser.add_argument("--protection_head_scaling_factor", type=float, default=1.0,
                     help="Scaling factor for the protection head")
 parser.add_argument("--protection_head_bias", type=float, default=0.0,
                     help="Bias for the protection head")
-parser.add_argument("--n_sliced_masks_per_head", type=int, default=None,
+parser.add_argument("--n_sliced_masks", type=int, default=None,
                     help="Number of sliced masks per head")
+parser.add_argument("--n_latent_masks", type=int, default=None,
+                    help="Number of latent masks per head")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -196,7 +198,8 @@ config = GPTConfig(
     leaky_relu_bias=args.leaky_relu_bias,
     protection_head_scaling_factor=args.protection_head_scaling_factor,
     protection_head_bias=args.protection_head_bias,
-    n_sliced_masks_per_head=args.n_sliced_masks_per_head
+    n_sliced_masks=args.n_sliced_masks,
+    n_latent_masks=args.n_latent_masks
 )
 
 model = GPT(config)

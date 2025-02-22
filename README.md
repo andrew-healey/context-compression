@@ -2673,9 +2673,9 @@ One mask, shared across 1 head worth of KV cache space (should be identical to b
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir one_mask_shared_1_head \
-  --selection_head_linear_combo n_sliced_masks_per_head \
+  --selection_head_linear_combo n_sliced_masks \
   --n_heads 12 \
-  --n_sliced_masks_per_head 1
+  --n_sliced_masks 1
 ```
 
 Two masks, but shared across 1 head worth of KV cache space:
@@ -2684,7 +2684,29 @@ Two masks, but shared across 1 head worth of KV cache space:
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir two_masks_shared_1_head \
-  --selection_head_linear_combo n_sliced_masks_per_head \
+  --selection_head_linear_combo n_sliced_masks \
   --n_heads 12 \
-  --n_sliced_masks_per_head 2
+  --n_sliced_masks 2
+```
+
+One mask per head, but all constructed from one latent mask:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir one_mask_per_head_1_latent_vector \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 1
+```
+
+One mask per head, but constructed from 2 latent masks:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir one_mask_per_head_2_latent_vectors \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 2
 ```

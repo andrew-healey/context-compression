@@ -30,7 +30,8 @@ class SelectionHeadLinearComboKind(StrEnum):
     WITH_HEAD_ZERO_AND_BIAS = auto()
     ONE_MASK_PER_HEAD = auto()
     TWO_MASKS = auto()
-    N_SLICED_MASKS_PER_HEAD = auto()
+    N_SLICED_MASKS = auto()
+    N_LATENT_MASKS = auto()
 
 # List[Tuple[fp64 torch.Tensor, magnitude of instability]]
 inputs_causing_instability = []
@@ -46,7 +47,9 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.n_c_attn_heads = config.n_head*2
         elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.TWO_MASKS:
             self.n_c_attn_heads = config.n_head + 2
-        elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS_PER_HEAD:
+        elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
+            self.n_c_attn_heads = config.n_head + 1
+        elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
             self.n_c_attn_heads = config.n_head + 1
         else:
             self.n_c_attn_heads = config.n_head
@@ -65,8 +68,10 @@ class CausalSelectiveSelfAttention(nn.Module):
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
         self.config = config
 
-        if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD, SelectionHeadLinearComboKind.TWO_MASKS, SelectionHeadLinearComboKind.N_SLICED_MASKS_PER_HEAD]:
+        if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD, SelectionHeadLinearComboKind.TWO_MASKS, SelectionHeadLinearComboKind.N_SLICED_MASKS]:
             self.selection_head = None
+        elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
+            self.selection_head = nn.Linear(config.n_latent_masks, config.n_head)
         elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             use_bias = self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]
             self.selection_head = nn.Linear(config.n_head, 1, bias=use_bias)
@@ -91,10 +96,11 @@ class CausalSelectiveSelfAttention(nn.Module):
         q, k, v = qkv.split(self.n_c_attn_heads * self.head_dim, dim=2)
         v = v.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
 
-        if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS_PER_HEAD:
-            assert self.head_dim % self.config.n_sliced_masks_per_head == 0, "head_dim must be divisible by n_sliced_masks_per_head"
-            k = k.view(B, T, self.n_c_attn_heads * self.config.n_sliced_masks_per_head, self.head_dim // self.config.n_sliced_masks_per_head).transpose(1, 2) # (B, nh, T, hs)
-            q = q.view(B, T, self.n_c_attn_heads * self.config.n_sliced_masks_per_head, self.head_dim // self.config.n_sliced_masks_per_head).transpose(1, 2) # (B, nh, T, hs)
+        if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.N_SLICED_MASKS, SelectionHeadLinearComboKind.N_LATENT_MASKS]:
+            n_masks = self.config.n_sliced_masks if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS else self.config.n_latent_masks
+            assert self.head_dim % n_masks == 0, "head_dim must be divisible by n_sliced_masks or n_latent_masks"
+            k = k.view(B, T, self.n_c_attn_heads * n_masks, self.head_dim // n_masks).transpose(1, 2) # (B, nh, T, hs)
+            q = q.view(B, T, self.n_c_attn_heads * n_masks, self.head_dim // n_masks).transpose(1, 2) # (B, nh, T, hs)
 
         # Standard attention computation
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
@@ -113,10 +119,27 @@ class CausalSelectiveSelfAttention(nn.Module):
             att = att[:, 2:, :, :]
             v = v[:, 2:, :, :]
         
-        elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS_PER_HEAD:
-            S = att[:, :self.config.n_sliced_masks_per_head, :, :] # shape: (B, n_sliced_masks_per_head, T, T')
-            att = att[:, self.config.n_sliced_masks_per_head:, :, :] # shape: (B, nh*(n_sliced_masks_per_head-1), T, T')
-            att = att.view(B, self.n_head, self.config.n_sliced_masks_per_head, T, T).sum(dim=2) # shape: (B, nh, T, T')
+        elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
+            S = att[:, :self.config.n_sliced_masks, :, :] # shape: (B, n_sliced_masks, T, T')
+            att = att[:, self.config.n_sliced_masks:, :, :] # shape: (B, nh*(n_sliced_masks-1), T, T')
+            att = att.view(B, self.n_head, self.config.n_sliced_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
+
+            v = v[:, 1:, :, :]
+        
+        elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
+            S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
+            S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
+            S_latent = S_latent.masked_fill(self.bias[0,:,:T,:T,None] == 1, 0) # shape: (B, T, T', n_latent_masks)
+            S = self.selection_head(S_latent) # shape: (B, T, T', nh)
+
+            # perform the crazy copy move into a fresh tensor
+            S_fresh = torch.zeros(S.shape, device=S.device)
+            S_fresh[:,:,:,:] = S[:,:,:,:]
+            S = S_fresh
+            S = S.transpose(1, 3) # shape: (B, nh, T, T')
+
+            att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
+            att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
             v = v[:, 1:, :, :]
 
