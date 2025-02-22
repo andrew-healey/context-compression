@@ -65,7 +65,7 @@ parser.add_argument("--max_steps", type=int, default=2500,
                     help="Maximum number of training steps")
 parser.add_argument("--group", type=str, default=None,
                     help="Group name for the run")
-parser.add_argument("--no-wandb", dest="use_wandb", action="store_false",
+parser.add_argument("--no_use_wandb", dest="use_wandb", action="store_false",
                     help="Disable wandb logging")
 parser.set_defaults(use_wandb=True)
 parser.add_argument("--kill_self_after_run", action="store_true",
@@ -99,6 +99,8 @@ parser.add_argument("--protection_head_scaling_factor", type=float, default=1.0,
                     help="Scaling factor for the protection head")
 parser.add_argument("--protection_head_bias", type=float, default=0.0,
                     help="Bias for the protection head")
+parser.add_argument("--n_sliced_masks_per_head", type=int, default=None,
+                    help="Number of sliced masks per head")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -193,7 +195,8 @@ config = GPTConfig(
     leaky_relu_alpha=args.leaky_relu_alpha,
     leaky_relu_bias=args.leaky_relu_bias,
     protection_head_scaling_factor=args.protection_head_scaling_factor,
-    protection_head_bias=args.protection_head_bias
+    protection_head_bias=args.protection_head_bias,
+    n_sliced_masks_per_head=args.n_sliced_masks_per_head
 )
 
 model = GPT(config)

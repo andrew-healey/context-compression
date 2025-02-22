@@ -2613,6 +2613,12 @@ I didn't write down any hypotheses for this. My memory says I thought one mask p
 
 BUT having two masks beat baselines. AFAICT, it's the first thing that has beaten baselines. This might just be because it freed up the 13th head, or because it found a way to use the extra FLOPs. And I should check if there was actually any difference between the two masks for each layer.
 
+Ah, *damn* - I accidentally deleted the trained weights for that run. OK, let's try it again with only one new mask, or 2 new masks. And are we comparing to n=12 heads or n=13 heads? What's the most honest comparison moving forward?
+
+Internally (i.e. between my experiments), 13 seems best. Well, I guess the most honest answer is that I'm constraining myself to that total # of flops (basically).
+
+OK, so let's stick with 13 heads, but try to make the various mask patterns fit into that one head worth of KV cache space.
+
 ALSO, I think for now I should stop with the protection experiments. They're 4x slower than other experiments, and they don't seem super promising.
 
 <hr>
@@ -2649,4 +2655,36 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --batch_size 4
 ```
 
+<hr>
 
+Two masks (with 12 heads, so the 13th head is dedicated to selection):
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir two_masks_12_heads \
+  --selection_head_linear_combo two_masks \
+  --n_heads 12
+```
+
+One mask, shared across 1 head worth of KV cache space (should be identical to baseline):
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir one_mask_shared_1_head \
+  --selection_head_linear_combo n_sliced_masks_per_head \
+  --n_heads 12 \
+  --n_sliced_masks_per_head 1
+```
+
+Two masks, but shared across 1 head worth of KV cache space:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir two_masks_shared_1_head \
+  --selection_head_linear_combo n_sliced_masks_per_head \
+  --n_heads 12 \
+  --n_sliced_masks_per_head 2
+```
