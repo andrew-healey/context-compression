@@ -2586,7 +2586,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64 and bias=-10:
 
-```vast:running/18152796
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_bias_minus_10 \
@@ -2597,7 +2597,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64:
 
-```vast:running/18153176
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64 \
@@ -2609,9 +2609,17 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 ## Allowing more selection patterns
 
+I didn't write down any hypotheses for this. My memory says I thought one mask per head would be the best. But I was wrong. I'm not sure why - it might just be that there's less positive transfer when you're training lots of independent heads.
+
+BUT having two masks beat baselines. AFAICT, it's the first thing that has beaten baselines. This might just be because it freed up the 13th head, or because it found a way to use the extra FLOPs. And I should check if there was actually any difference between the two masks for each layer.
+
+ALSO, I think for now I should stop with the protection experiments. They're 4x slower than other experiments, and they don't seem super promising.
+
+<hr>
+
 One mask per head (with 12 heads):
 
-```vast:running/18152791
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir one_mask_per_head \
@@ -2621,22 +2629,24 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 One mask per head, with 13 heads (for consistency):
 
-```vast:running/18152791
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir one_mask_per_head_13_heads \
   --selection_head_linear_combo one_mask_per_head \
-  --n_heads 13
+  --n_heads 13 \
+  --batch_size 4
 ```
 
 Two masks, with 13 heads:
 
-```vast:running/18152791
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir two_masks_13_heads \
   --selection_head_linear_combo two_masks \
-  --n_heads 13
+  --n_heads 13 \
+  --batch_size 4
 ```
 
 
