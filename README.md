@@ -2659,7 +2659,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Two masks (with 12 heads, so the 13th head is dedicated to selection):
 
-```
+```vast:running/18162582
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir two_masks_12_heads \
@@ -2702,24 +2702,24 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 One mask per head, but constructed from 2 latent masks:
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir one_mask_per_head_2_latent_vectors \
   --selection_head_linear_combo n_latent_masks \
   --n_heads 12 \
-  --n_latent_masks 2
+  --n_latent_masks 2 \
+  --batch_size 4
 ```
 
 One mask per head, but constructed from 4 latent masks:
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir one_mask_per_head_4_latent_vectors \
   --selection_head_linear_combo n_latent_masks \
   --n_heads 12 \
-  --n_latent_masks 4
+  --n_latent_masks 4 \
+  --batch_size 4
 ```
-
-
