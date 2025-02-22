@@ -106,6 +106,9 @@ parser.add_argument("--n_latent_masks", type=int, default=None,
 parser.add_argument("--mask_layernorm", action="store_true",
                     help="Use layernorm on the mask")
 parser.set_defaults(mask_layernorm=False)
+parser.add_argument("--residual_attention_masks", action="store_true",
+                    help="Use residual attention masks")
+parser.set_defaults(residual_attention_masks=False)
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -203,7 +206,8 @@ config = GPTConfig(
     protection_head_bias=args.protection_head_bias,
     n_sliced_masks=args.n_sliced_masks,
     n_latent_masks=args.n_latent_masks,
-    mask_layernorm=args.mask_layernorm
+    mask_layernorm=args.mask_layernorm,
+    residual_attention_masks=args.residual_attention_masks
 )
 
 model = GPT(config)

@@ -29,13 +29,13 @@ class Block(nn.Module):
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = MLP(config)
 
-    def forward(self, x,ff_cache=None):
+    def forward(self, x,ff_cache=None,old_raw_att=None):
         # Get both attention output and memory requirements
-        attn_out, M = self.attn(self.ln_1(x),ff_cache=ff_cache)
+        attn_out, M, raw_att = self.attn(self.ln_1(x),ff_cache=ff_cache,old_raw_att=old_raw_att)
         assert attn_out.shape == x.shape
         x = x + attn_out
         x = x + self.mlp(self.ln_2(x))
-        return x, M
+        return x, M, raw_att
 
 from typing import Optional
 @dataclass
@@ -62,6 +62,7 @@ class GPTConfig:
     n_sliced_masks: Optional[int] = None
     n_latent_masks: Optional[int] = None
     mask_layernorm: bool = False
+    residual_attention_masks: bool = False
 
 class GPT(nn.Module):
     def __init__(self, config):
@@ -117,9 +118,12 @@ class GPT(nn.Module):
 
         # Collect memory requirements from all layers
         memory_reqs = []
+        raw_att = None
         for i, block in enumerate(self.transformer.h):
-            x, M = block(x,ff_cache=ff_cache)
+            x, M, raw_att = block(x,ff_cache=ff_cache,old_raw_att=raw_att)
             memory_reqs.append(M)
+        
+        del raw_att
 
         # Final layer norm and get logits
         x = self.transformer.ln_f(x)
@@ -232,8 +236,8 @@ class GPT(nn.Module):
         # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
         # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
         selection_head_params = [p for n, p in param_dict.items() if "selection_head" in n]
-        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2 and not "selection_head" in n]
-        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2 and not "selection_head" in n]
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2 and not "selection_head" in n and not "raw_att_head" in n]
+        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2 and not "selection_head" in n and not "raw_att_head" in n]
         optim_groups = [
             {'params': decay_params, 'weight_decay': weight_decay},
             {'params': nodecay_params, 'weight_decay': 0.0},

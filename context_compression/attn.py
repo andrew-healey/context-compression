@@ -93,8 +93,10 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.mask_layernorm = nn.LayerNorm((config.n_head, config.block_size))
         else:
             self.mask_layernorm = None
+        
+        self.raw_att_head = nn.Linear(self.n_c_attn_heads, self.n_c_attn_heads) # transforming old raw attention heads to new ones
 
-    def forward(self, x,ff_cache=None):
+    def forward(self, x,ff_cache=None,old_raw_att=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         qkv = self.c_attn(x)
@@ -113,6 +115,16 @@ class CausalSelectiveSelfAttention(nn.Module):
         # Standard attention computation
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+
+        if self.config.residual_attention_masks:
+            if old_raw_att is not None:
+                old_raw_att_reshaped = old_raw_att.transpose(1,3)
+                att = self.raw_att_head(old_raw_att_reshaped).transpose(1,3) + att 
+                att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+            raw_att = att
+        else:
+            raw_att = None
+
         # Apply selective attention
 
         if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
@@ -273,7 +285,6 @@ class CausalSelectiveSelfAttention(nn.Module):
                 # let's actually just save it to a file
                 # torch.save(inputs_causing_instability, "inputs_causing_instability.pt")
 
-        # assert (FF < 0).any() == False, f"FF should be positive. minimum value: {FF.min()}"
         FF_shifted = torch.roll(FF, 1, -2)
         FF_shifted[..., 0, :] = 0
 
@@ -281,13 +292,6 @@ class CausalSelectiveSelfAttention(nn.Module):
             ff_cache.append(FF_shifted.detach().cpu().numpy())
 
         # Use out-of-place subtraction to preserve computation graph integrity
-        # if att.shape != FF_shifted.shape:
-        #     print("ok starting debugpy")
-        #     import debugpy
-        #     debugpy.listen(5678)
-        #     debugpy.wait_for_client()
-        #     debugpy.breakpoint()
-        # assert att.shape == FF_shifted.shape,f"att.shape: {att.shape}, FF_shifted.shape: {FF_shifted.shape}"
 
         n_masks = FF_shifted.shape[1]
         if n_masks < self.n_head:
@@ -307,7 +311,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         y = att @ v
         y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim)
         y = self.c_proj(y)
-        return y, None
+        return y, None, raw_att
 
 class CausalSelfAttention(nn.Module):
 
@@ -337,7 +341,7 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim) # re-assemble all head outputs side by side
         # output projection
         y = self.c_proj(y)
-        return y, None
+        return y, None, None
 
 class CausalSelectiveSelfAttentionForInference(nn.Module):
     def __init__(self, config):

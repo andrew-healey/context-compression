@@ -2723,3 +2723,12 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --n_latent_masks 4 \
   --batch_size 4
 ```
+
+Residual attention masks:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group residual_attention_masks \
+  --log_dir residual_attention_masks \
+  --residual_attention_masks
+```
