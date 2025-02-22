@@ -118,9 +118,9 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         if self.config.residual_attention_masks:
             if old_raw_att is not None:
+                old_raw_att = old_raw_att.masked_fill(self.bias[:,:,:T,:T] == 0, float('0'))
                 old_raw_att_reshaped = old_raw_att.transpose(1,3)
-                att = self.raw_att_head(old_raw_att_reshaped).transpose(1,3) + att 
-                att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+                att = self.raw_att_head(old_raw_att_reshaped).transpose(1,3).masked_fill(self.bias[:,:,:T,:T] == 0, 0) + att 
             raw_att = att
         else:
             raw_att = None
