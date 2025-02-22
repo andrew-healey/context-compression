@@ -89,6 +89,11 @@ class CausalSelectiveSelfAttention(nn.Module):
         
         assert (self.config.leaky_relu_alpha is None) == (self.config.protection_kind != ProtectionKind.LEAKY_RELU) == (self.config.leaky_relu_bias is None), "leaky_relu_alpha, protection_kind, and leaky_relu_bias must all match"
 
+        if self.config.mask_layernorm:
+            self.mask_layernorm = nn.LayerNorm((config.n_head, config.block_size))
+        else:
+            self.mask_layernorm = None
+
     def forward(self, x,ff_cache=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -283,13 +288,14 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         n_masks = FF_shifted.shape[1]
         if n_masks < self.n_head:
-            # repeat interleaved
-            from math import ceil
             FF_shifted_even = FF_shifted.repeat_interleave(self.n_head // n_masks, dim=1)[:,:self.n_head,:,:]
             if self.n_head % n_masks == 0:
                 FF_shifted = FF_shifted_even
             else:
                 FF_shifted = torch.cat([FF_shifted_even, FF_shifted[:,:self.n_head % n_masks,:,:]], dim=1)
+
+        if self.config.mask_layernorm:
+            FF_shifted = self.mask_layernorm(FF_shifted.transpose(1, 2)).transpose(1, 2) / torch.arange(T,0,-1,device=FF_shifted.device)[None,None,None,:]
 
         att = att - FF_shifted[:,:,:,:]
 

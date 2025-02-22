@@ -61,6 +61,7 @@ class GPTConfig:
     protection_head_bias: float = 0.0
     n_sliced_masks: Optional[int] = None
     n_latent_masks: Optional[int] = None
+    mask_layernorm: bool = False
 
 class GPT(nn.Module):
     def __init__(self, config):

@@ -2659,7 +2659,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Two masks (with 12 heads, so the 13th head is dedicated to selection):
 
-```vast
+```
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir two_masks_12_heads \
@@ -2669,7 +2669,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 One mask, shared across 1 head worth of KV cache space (should be identical to baseline):
 
-```vast
+```
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir one_mask_shared_1_head \
@@ -2680,7 +2680,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Two masks, but shared across 1 head worth of KV cache space:
 
-```vast
+```
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir two_masks_shared_1_head \
@@ -2691,7 +2691,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 One mask per head, but all constructed from one latent mask:
 
-```vast
+```
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir one_mask_per_head_1_latent_vector \
@@ -2710,3 +2710,16 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --n_heads 12 \
   --n_latent_masks 2
 ```
+
+One mask per head, but constructed from 4 latent masks:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir one_mask_per_head_4_latent_vectors \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 4
+```
+
+
