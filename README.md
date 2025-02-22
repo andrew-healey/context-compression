@@ -2532,7 +2532,7 @@ It's confusing how protect_bos_token=false performed better on protection=none. 
 
 Protection=none, with a second seed:
 
-```vast:running/18110744
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir protection_none_2 \
@@ -2542,7 +2542,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64 and 1/50x scaling factor:
 
-```vast:running/18110745
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_1_50x_scaling_factor \
@@ -2553,7 +2553,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64 and bias=-1:
 
-```vast:running/18110746
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_bias_minus_1 \
@@ -2564,7 +2564,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=head_two_fp64 with bos_protection=false and a second seed:
 
-```vast:running/18119340
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir head_two_fp64_bos_protection_false_2 \
@@ -2575,11 +2575,46 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Protection=none with bos_protection=false and a second seed:
 
-```vast:running/18138123
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group debugging_head_two_and_baselines \
   --log_dir protection_none_bos_protection_false_2 \
   --protection_kind none \
   --no_protect_bos_token \
   --random_seed 1338
+```
+
+Protection=head_two_fp64 and bias=-10:
+
+```vast:fail/18152796
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir head_two_fp64_bias_minus_10 \
+  --protection_kind head_two_fp64 \
+  --protection_head_bias -10.0 \
+  --random_seed 1338
+```
+
+Protection=head_two_fp64:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group debugging_head_two_and_baselines \
+  --log_dir head_two_fp64 \
+  --protection_kind head_two_fp64 \
+  --random_seed 1338
+```
+
+
+
+## Allowing more selection patterns
+
+One mask per head:
+
+```vast:running/18152791
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir one_mask_per_head \
+  --selection_head_linear_combo one_mask_per_head \
+  --n_heads 12
 ```

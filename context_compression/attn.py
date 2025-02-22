@@ -182,6 +182,8 @@ class CausalSelectiveSelfAttention(nn.Module):
                 Sp = Sp * self.config.protection_head_scaling_factor
             if self.config.protection_head_bias != 0.0:
                 Sp = F.relu(Sp + self.config.protection_head_bias)
+            
+            Sp = Sp[:,None,:,:]
 
             # Second, run the protect-and-attack algorithm on Sp and S
             if self.config.protection_kind in [ProtectionKind.ZERO_FP64, ProtectionKind.HEAD_TWO_FP64]:
@@ -223,7 +225,13 @@ class CausalSelectiveSelfAttention(nn.Module):
             ff_cache.append(FF_shifted.detach().cpu().numpy())
 
         # Use out-of-place subtraction to preserve computation graph integrity
-        assert att.shape == FF_shifted.shape,f"att.shape: {att.shape}, FF_shifted.shape: {FF_shifted.shape}"
+        # if att.shape != FF_shifted.shape:
+        #     print("ok starting debugpy")
+        #     import debugpy
+        #     debugpy.listen(5678)
+        #     debugpy.wait_for_client()
+        #     debugpy.breakpoint()
+        # assert att.shape == FF_shifted.shape,f"att.shape: {att.shape}, FF_shifted.shape: {FF_shifted.shape}"
         att = att - FF_shifted[:,:,:,:]
 
         att = F.softmax(att, dim=-1)
