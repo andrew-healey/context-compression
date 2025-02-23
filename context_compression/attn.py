@@ -68,6 +68,12 @@ class CausalSelectiveSelfAttention(nn.Module):
         self.prevent_from_masking_myself = config.prevent_from_masking_myself
         self.config = config
 
+        self.attn_mult = config.attn_mult
+        self.attn_score = nn.Identity() # for mup coord checking
+        self.query = nn.Identity()
+        self.key = nn.Identity()
+        self.value = nn.Identity()
+
         if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD, SelectionHeadLinearComboKind.TWO_MASKS, SelectionHeadLinearComboKind.N_SLICED_MASKS]:
             self.selection_head = None
         elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
@@ -104,6 +110,12 @@ class CausalSelectiveSelfAttention(nn.Module):
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         qkv = self.c_attn(x)
         q, k, v = qkv.split(self.n_c_attn_heads * self.head_dim, dim=2)
+
+        # mup - just the identity
+        q = self.query(q)
+        k = self.key(k)
+        v = self.value(v)
+
         v = v.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
 
         if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.N_SLICED_MASKS, SelectionHeadLinearComboKind.N_LATENT_MASKS]:
@@ -114,9 +126,11 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             k = k.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
             q = q.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+        
 
         # Standard attention computation
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = (q @ k.transpose(-2, -1)) * self.attn_mult
+        att = self.attn_score(att)
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
 
         if self.config.residual_attention_masks:

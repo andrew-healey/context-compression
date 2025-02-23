@@ -66,6 +66,12 @@ class GPTConfig:
     disable_selection: bool = False
     use_hf_style_inputs: bool = False
     mup: bool = False
+    attn_mult: Optional[float] = None
+
+    def __post_init__(self):
+        if self.attn_mult is None:
+            self.attn_mult = (self.n_embd / self.n_head)**0.5
+
 class GPT(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -95,9 +101,19 @@ class GPT(nn.Module):
                 module.weight.data[:,module.ONE_HOT_INIT] = 1.0
                 return
             std = 0.02
+
+            # ANDREWTODO make sure nanogpt init is applied to all my new linear layers.
+            # it should be, right?
             if hasattr(module, 'NANOGPT_SCALE_INIT'):
                 std *= (2 * self.config.n_layer) ** -0.5
-            torch.nn.init.normal_(module.weight, mean=0.0, std=std)
+
+            # set by mup
+            if hasattr(module,'infhshape'):
+                from mup import normal_
+                normal_(module.weight,mean=0.0,std=std)
+            else:
+                torch.nn.init.normal_(module.weight, mean=0.0, std=std)
+
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
