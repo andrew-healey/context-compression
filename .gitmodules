@@ -4,3 +4,6 @@
 [submodule "vast_commands/vast-cli"]
 	path = vast_commands/vast-cli
 	url = https://github.com/vast-ai/vast-cli
+[submodule "external/mutransformers"]
+	path = external/mutransformers
+	url = https://github.com/microsoft/mutransformers
