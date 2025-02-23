@@ -63,7 +63,9 @@ class GPTConfig:
     n_latent_masks: Optional[int] = None
     mask_layernorm: bool = False
     residual_attention_masks: bool = False
-
+    disable_selection: bool = False
+    use_hf_style_inputs: bool = False
+    mup: bool = False
 class GPT(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -75,7 +77,14 @@ class GPT(nn.Module):
             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
             ln_f = nn.LayerNorm(config.n_embd),
         ))
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+
+        if config.mup:
+            from mup import MuReadout
+            lm_head_cls = MuReadout
+        else:
+            lm_head_cls = nn.Linear
+
+        self.lm_head = lm_head_cls(config.n_embd, config.vocab_size, bias=False)
         self.transformer.wte.weight = self.lm_head.weight
         self.apply(self._init_weights)
 
@@ -107,6 +116,16 @@ class GPT(nn.Module):
         return memory_loss
 
     def forward(self, idx, targets=None,ff_cache=None):
+
+        # if self.config.use_hf_style_inputs and type(idx) == dict:
+        #     hf_style_inputs = idx
+        #     assert type(hf_style_inputs) == dict, "hf_style_inputs must be a dict"
+        #     assert "idx" in hf_style_inputs, "hf_style_inputs must contain an 'idx' key"
+        #     idx = hf_style_inputs["idx"]
+        #     targets = hf_style_inputs["targets"]
+        #     assert ff_cache is None, "ff_cache must be None when using hf_style_inputs"
+        #     assert targets is not None, "targets must not be None when using hf_style_inputs"
+
         B, T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
 
@@ -151,7 +170,10 @@ class GPT(nn.Module):
             if loss.isnan().any():
                 raise Exception("Oh no! Loss is nan!")
 
-        return logits, loss, losses
+        if self.config.use_hf_style_inputs:
+            return {"logits": logits, "loss": loss, "losses": losses}
+        else:
+            return logits, loss, losses
 
     @classmethod
     def from_pretrained(cls, model_type):

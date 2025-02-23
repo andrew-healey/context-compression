@@ -130,184 +130,186 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         # Apply selective attention
 
-        if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
-            # ok let's split att into two halves: the S and the real att
-            S = att[:, :self.n_head, :, :].clone()
-            att = att[:, self.n_head:, :, :]
-            v = v[:, self.n_head:, :, :]
-        
-        elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.TWO_MASKS:
-            # ok let's split att into two halves: the S and the real att
-            S = att[:, :2, :, :].clone()
-            att = att[:, 2:, :, :]
-            v = v[:, 2:, :, :]
-        
-        elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
-            S = att[:, :self.config.n_sliced_masks, :, :] # shape: (B, n_sliced_masks, T, T')
-            att = att[:, self.config.n_sliced_masks:, :, :] # shape: (B, nh*(n_sliced_masks-1), T, T')
-            att = att.view(B, self.n_head, self.config.n_sliced_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
+        if not self.config.disable_selection:
 
-            v = v[:, 1:, :, :]
-        
-        elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
-            S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
-            S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
-            S_latent = S_latent.masked_fill(self.bias[0,:,:T,:T,None] == 1, 0) # shape: (B, T, T', n_latent_masks)
-            S = self.selection_head(S_latent) # shape: (B, T, T', nh)
-
-            # perform the crazy copy move into a fresh tensor
-            S_fresh = torch.zeros(S.shape, device=S.device)
-            S_fresh[:,:,:,:] = S[:,:,:,:]
-            S = S_fresh
-            S = S.transpose(1, 3) # shape: (B, nh, T, T')
-
-            att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
-            att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
-
-            v = v[:, 1:, :, :]
-
-        elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
-            S = att[:, :, :, :] # shape: (B, n_head, T, T')
-            S = S.transpose(1, 3) # shape: (B, T', T, n_head)
-            S = S.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
-            S = self.selection_head(S) # shape: (B, T', T, 1)
-
-            # I copy the output of the selection_head to a fresh tensor
-            # For some reason, when I don't do this, torch.compile causes a CUDA memory alignment error
-            # That's not fixed by .contiguous() or .reshape() or .clone()
-            # But is fixed by i.e. F.sigmoid or by using this copy code
-            S_fresh = torch.zeros(S.shape, device=S.device)
-            S_fresh[:,:,:,:] = S[:,:,:,:]
-            S = S_fresh
-
-            bias_reshaped = self.bias[0,:,:T,:T].transpose(1,3) # shape: (1, T', T, 1)
-            S = S.masked_fill(bias_reshaped == 0, 0) # shape: (B, T', T, 1)
-            S = S.transpose(1,3).clone() # shape: (B, 1, T, T')
-        else:
-            S = att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
-
-        S_pre_relu = S
-        S = F.relu(S)  # Only positive selection
-
-        # Use torch.zeros_like to safely modify without inplace ops
-        S_masked = torch.zeros_like(S)  # Create a mask to avoid in-place ops
-        if self.protect_bos_token:
-            S_masked[..., 1:] = S[..., 1:]  # Do not mask <BOS> token, leave it unchanged
-        else:
-            S_masked[...] = S
-
-        eye_mask = 1 - torch.eye(T, device=S.device)  # Do not let me hide myself from future tokens
-        if self.prevent_from_masking_myself:
-            S = S_masked * eye_mask
-        else:
-            S = S_masked
-
-        S_64 = S.to(torch.float64)
-        FF_64 = torch.cumsum(S_64, dim=-2)
-        if self.config.protection_kind == ProtectionKind.NONE:
-            FF = torch.cumsum(S, dim=-2)
-        elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM:
-            FF = cumsum_triton(S, dim=-2)
-        elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_PARALLEL:
-            FF_64 = cumsum_triton(S, dim=-2, parallel_scan=True)
-            FF = FF_64.to(torch.float32)
-        elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON:
-            FF = cumsum_bliasson(S, dim=-2)
-        elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON_FP64:
-            FF = cumsum_bliasson(S.to(torch.float64),dim=-2,dtype=torch.float64).to(torch.float32)
-        elif self.config.protection_kind == ProtectionKind.NONE_TORCH_CUMSUM_FP64:
-            FF = torch.cumsum(S.to(torch.float64), dim=-2).to(torch.float32)
-        else:
-            # First, compute Sp
-
-            if self.config.protection_kind in [ProtectionKind.HEAD_TWO, ProtectionKind.HEAD_TWO_FP64]:
-                Sp = att[:, 1].clone()
-                Sp = F.relu(Sp)
-            elif self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
-                Sp = att[:,:,:,:] # shape: (B, n_head, T, T')
-                Sp = Sp.transpose(1, 3) # shape: (B, T', T, n_head)
-                Sp = Sp.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
-                Sp = self.protection_head(Sp) # shape: (B, T', T, 1)
-
-                # Same copy trick as for the selection head above
-                Sp_fresh = torch.zeros((B, T, T), device=Sp.device)
-                Sp_fresh[:,:,:] = Sp[:,:,:,0]
-                Sp = Sp_fresh
-
-                Sp = Sp.masked_fill(self.bias[0,:,:T,:T].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
-                Sp = Sp.squeeze(-1) # shape: (B, T', T)
-                Sp = Sp.transpose(1,2) # shape: (B, T, T')
-                Sp = F.relu(Sp)
-            elif self.config.protection_kind == ProtectionKind.LEAKY_RELU:
-                # we use the "leaky" half of S_pre_relu
-                # This makes our model act as if we used a leaky relu to construct S, BUT with the negative half acting like protection, NOT like healing
-                Sp = (-S_pre_relu * self.config.leaky_relu_alpha + self.config.leaky_relu_bias).relu()
-            elif self.config.protection_kind in [ProtectionKind.ZERO, ProtectionKind.ZERO_FP64]:
-                Sp = torch.zeros_like(S)
-            elif self.config.protection_kind == ProtectionKind.BIG_CONSTANT:
-                Sp = torch.ones_like(S).fill_(50)
-            else:
-                raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
+            if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
+                # ok let's split att into two halves: the S and the real att
+                S = att[:, :self.n_head, :, :].clone()
+                att = att[:, self.n_head:, :, :]
+                v = v[:, self.n_head:, :, :]
             
-            if self.config.protection_head_scaling_factor != 1.0:
-                Sp = Sp * self.config.protection_head_scaling_factor
-            if self.config.protection_head_bias != 0.0:
-                Sp = F.relu(Sp + self.config.protection_head_bias)
+            elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.TWO_MASKS:
+                # ok let's split att into two halves: the S and the real att
+                S = att[:, :2, :, :].clone()
+                att = att[:, 2:, :, :]
+                v = v[:, 2:, :, :]
             
-            Sp = Sp[:,None,:,:]
+            elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
+                S = att[:, :self.config.n_sliced_masks, :, :] # shape: (B, n_sliced_masks, T, T')
+                att = att[:, self.config.n_sliced_masks:, :, :] # shape: (B, nh*(n_sliced_masks-1), T, T')
+                att = att.view(B, self.n_head, self.config.n_sliced_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
-            # Second, run the protect-and-attack algorithm on Sp and S
-            if self.config.protection_kind in [ProtectionKind.ZERO_FP64, ProtectionKind.HEAD_TWO_FP64]:
-                FF = attack_and_protect_bliasson(S, Sp, dim=-2, dtype=torch.float64) * -1
-                assert FF.dtype == torch.float32
+                v = v[:, 1:, :, :]
+            
+            elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
+                S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
+                S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
+                S_latent = S_latent.masked_fill(self.bias[0,:,:T,:T,None] == 1, 0) # shape: (B, T, T', n_latent_masks)
+                S = self.selection_head(S_latent) # shape: (B, T, T', nh)
+
+                # perform the crazy copy move into a fresh tensor
+                S_fresh = torch.zeros(S.shape, device=S.device)
+                S_fresh[:,:,:,:] = S[:,:,:,:]
+                S = S_fresh
+                S = S.transpose(1, 3) # shape: (B, nh, T, T')
+
+                att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
+                att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
+
+                v = v[:, 1:, :, :]
+
+            elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
+                S = att[:, :, :, :] # shape: (B, n_head, T, T')
+                S = S.transpose(1, 3) # shape: (B, T', T, n_head)
+                S = S.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
+                S = self.selection_head(S) # shape: (B, T', T, 1)
+
+                # I copy the output of the selection_head to a fresh tensor
+                # For some reason, when I don't do this, torch.compile causes a CUDA memory alignment error
+                # That's not fixed by .contiguous() or .reshape() or .clone()
+                # But is fixed by i.e. F.sigmoid or by using this copy code
+                S_fresh = torch.zeros(S.shape, device=S.device)
+                S_fresh[:,:,:,:] = S[:,:,:,:]
+                S = S_fresh
+
+                bias_reshaped = self.bias[0,:,:T,:T].transpose(1,3) # shape: (1, T', T, 1)
+                S = S.masked_fill(bias_reshaped == 0, 0) # shape: (B, T', T, 1)
+                S = S.transpose(1,3).clone() # shape: (B, 1, T, T')
             else:
-                FF = attack_and_protect_bliasson(S, Sp, dim=-2) * -1
+                S = att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
 
-            # if self.config.protection_kind == ProtectionKind.BIG_CONSTANT:
-            #     assert (FF == 0).all(), "FF should be 0"
-            # elif self.config.protection_kind == ProtectionKind.ZERO:
-            #     assert torch.allclose(FF, torch.cumsum(S, dim=-2)), "FF should be equal to the cumulative sum of S"
-        
-        # sanity checking section
-        # here, we assert that FF is very close to FF_64
-        # protection kind=None should be *pretty* close. like 1e-5 seems reasonable.
+            S_pre_relu = S
+            S = F.relu(S)  # Only positive selection
 
-        threshold = 0.01 if os.environ.get("IS_MINI_MODEL", None) == "true" else 0.0001
-        if os.environ.get("DEBUG_CUM_SUM", None) == "true" and random.random() < threshold and self.training:
-            with torch.no_grad():
-                gt_FF_64 = torch.cumsum(S_64.cpu(), dim=-2)
-                max_diff = (FF.cpu() - gt_FF_64).abs().max()
-                print(f"Max diff between FF and gt_FF_64: {max_diff.item()}")
-                import wandb
-                try:
-                    wandb.log({"max_diff": max_diff.item()})
-                except:
-                    pass
-
-                # inputs_causing_instability.append((S_64.cpu().detach().numpy(), max_diff.item()))
-                # let's actually just save it to a file
-                # torch.save(inputs_causing_instability, "inputs_causing_instability.pt")
-
-        FF_shifted = torch.roll(FF, 1, -2)
-        FF_shifted[..., 0, :] = 0
-
-        if ff_cache is not None:
-            ff_cache.append(FF_shifted.detach().cpu().numpy())
-
-        # Use out-of-place subtraction to preserve computation graph integrity
-
-        n_masks = FF_shifted.shape[1]
-        if n_masks < self.n_head:
-            FF_shifted_even = FF_shifted.repeat_interleave(self.n_head // n_masks, dim=1)[:,:self.n_head,:,:]
-            if self.n_head % n_masks == 0:
-                FF_shifted = FF_shifted_even
+            # Use torch.zeros_like to safely modify without inplace ops
+            S_masked = torch.zeros_like(S)  # Create a mask to avoid in-place ops
+            if self.protect_bos_token:
+                S_masked[..., 1:] = S[..., 1:]  # Do not mask <BOS> token, leave it unchanged
             else:
-                FF_shifted = torch.cat([FF_shifted_even, FF_shifted[:,:self.n_head % n_masks,:,:]], dim=1)
+                S_masked[...] = S
 
-        if self.config.mask_layernorm:
-            FF_shifted = self.mask_layernorm(FF_shifted.transpose(1, 2)).transpose(1, 2) / torch.arange(T,0,-1,device=FF_shifted.device)[None,None,None,:]
+            eye_mask = 1 - torch.eye(T, device=S.device)  # Do not let me hide myself from future tokens
+            if self.prevent_from_masking_myself:
+                S = S_masked * eye_mask
+            else:
+                S = S_masked
 
-        att = att - FF_shifted[:,:,:,:]
+            S_64 = S.to(torch.float64)
+            FF_64 = torch.cumsum(S_64, dim=-2)
+            if self.config.protection_kind == ProtectionKind.NONE:
+                FF = torch.cumsum(S, dim=-2)
+            elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM:
+                FF = cumsum_triton(S, dim=-2)
+            elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_PARALLEL:
+                FF_64 = cumsum_triton(S, dim=-2, parallel_scan=True)
+                FF = FF_64.to(torch.float32)
+            elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON:
+                FF = cumsum_bliasson(S, dim=-2)
+            elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON_FP64:
+                FF = cumsum_bliasson(S.to(torch.float64),dim=-2,dtype=torch.float64).to(torch.float32)
+            elif self.config.protection_kind == ProtectionKind.NONE_TORCH_CUMSUM_FP64:
+                FF = torch.cumsum(S.to(torch.float64), dim=-2).to(torch.float32)
+            else:
+                # First, compute Sp
+
+                if self.config.protection_kind in [ProtectionKind.HEAD_TWO, ProtectionKind.HEAD_TWO_FP64]:
+                    Sp = att[:, 1].clone()
+                    Sp = F.relu(Sp)
+                elif self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
+                    Sp = att[:,:,:,:] # shape: (B, n_head, T, T')
+                    Sp = Sp.transpose(1, 3) # shape: (B, T', T, n_head)
+                    Sp = Sp.masked_fill(self.bias[0,:,:T,:T,None].transpose(1,2) == 0, 0) # shape: (B, T', T, n_head)
+                    Sp = self.protection_head(Sp) # shape: (B, T', T, 1)
+
+                    # Same copy trick as for the selection head above
+                    Sp_fresh = torch.zeros((B, T, T), device=Sp.device)
+                    Sp_fresh[:,:,:] = Sp[:,:,:,0]
+                    Sp = Sp_fresh
+
+                    Sp = Sp.masked_fill(self.bias[0,:,:T,:T].transpose(1,2) == 0, 0) # shape: (B, T', T, 1)
+                    Sp = Sp.squeeze(-1) # shape: (B, T', T)
+                    Sp = Sp.transpose(1,2) # shape: (B, T, T')
+                    Sp = F.relu(Sp)
+                elif self.config.protection_kind == ProtectionKind.LEAKY_RELU:
+                    # we use the "leaky" half of S_pre_relu
+                    # This makes our model act as if we used a leaky relu to construct S, BUT with the negative half acting like protection, NOT like healing
+                    Sp = (-S_pre_relu * self.config.leaky_relu_alpha + self.config.leaky_relu_bias).relu()
+                elif self.config.protection_kind in [ProtectionKind.ZERO, ProtectionKind.ZERO_FP64]:
+                    Sp = torch.zeros_like(S)
+                elif self.config.protection_kind == ProtectionKind.BIG_CONSTANT:
+                    Sp = torch.ones_like(S).fill_(50)
+                else:
+                    raise NotImplementedError(f"Protection kind {self.config.protection_kind} not implemented")
+                
+                if self.config.protection_head_scaling_factor != 1.0:
+                    Sp = Sp * self.config.protection_head_scaling_factor
+                if self.config.protection_head_bias != 0.0:
+                    Sp = F.relu(Sp + self.config.protection_head_bias)
+                
+                Sp = Sp[:,None,:,:]
+
+                # Second, run the protect-and-attack algorithm on Sp and S
+                if self.config.protection_kind in [ProtectionKind.ZERO_FP64, ProtectionKind.HEAD_TWO_FP64]:
+                    FF = attack_and_protect_bliasson(S, Sp, dim=-2, dtype=torch.float64) * -1
+                    assert FF.dtype == torch.float32
+                else:
+                    FF = attack_and_protect_bliasson(S, Sp, dim=-2) * -1
+
+                # if self.config.protection_kind == ProtectionKind.BIG_CONSTANT:
+                #     assert (FF == 0).all(), "FF should be 0"
+                # elif self.config.protection_kind == ProtectionKind.ZERO:
+                #     assert torch.allclose(FF, torch.cumsum(S, dim=-2)), "FF should be equal to the cumulative sum of S"
+            
+            # sanity checking section
+            # here, we assert that FF is very close to FF_64
+            # protection kind=None should be *pretty* close. like 1e-5 seems reasonable.
+
+            threshold = 0.01 if os.environ.get("IS_MINI_MODEL", None) == "true" else 0.0001
+            if os.environ.get("DEBUG_CUM_SUM", None) == "true" and random.random() < threshold and self.training:
+                with torch.no_grad():
+                    gt_FF_64 = torch.cumsum(S_64.cpu(), dim=-2)
+                    max_diff = (FF.cpu() - gt_FF_64).abs().max()
+                    print(f"Max diff between FF and gt_FF_64: {max_diff.item()}")
+                    import wandb
+                    try:
+                        wandb.log({"max_diff": max_diff.item()})
+                    except:
+                        pass
+
+                    # inputs_causing_instability.append((S_64.cpu().detach().numpy(), max_diff.item()))
+                    # let's actually just save it to a file
+                    # torch.save(inputs_causing_instability, "inputs_causing_instability.pt")
+
+            FF_shifted = torch.roll(FF, 1, -2)
+            FF_shifted[..., 0, :] = 0
+
+            if ff_cache is not None:
+                ff_cache.append(FF_shifted.detach().cpu().numpy())
+
+            # Use out-of-place subtraction to preserve computation graph integrity
+
+            n_masks = FF_shifted.shape[1]
+            if n_masks < self.n_head:
+                FF_shifted_even = FF_shifted.repeat_interleave(self.n_head // n_masks, dim=1)[:,:self.n_head,:,:]
+                if self.n_head % n_masks == 0:
+                    FF_shifted = FF_shifted_even
+                else:
+                    FF_shifted = torch.cat([FF_shifted_even, FF_shifted[:,:self.n_head % n_masks,:,:]], dim=1)
+
+            if self.config.mask_layernorm:
+                FF_shifted = self.mask_layernorm(FF_shifted.transpose(1, 2)).transpose(1, 2) / torch.arange(T,0,-1,device=FF_shifted.device)[None,None,None,:]
+
+            att = att - FF_shifted[:,:,:,:]
 
         att = F.softmax(att, dim=-1)
 
