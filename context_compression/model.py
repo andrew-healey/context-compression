@@ -236,7 +236,7 @@ class GPT(nn.Module):
         # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
         # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
         selection_head_params = [p for n, p in param_dict.items() if "selection_head" in n]
-        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2 and not "selection_head" in n and not "raw_att_head" in n]
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2 and not "selection_head" in n]
         nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2 and not "selection_head" in n and not "raw_att_head" in n]
         optim_groups = [
             {'params': decay_params, 'weight_decay': weight_decay},

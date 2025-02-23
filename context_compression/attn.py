@@ -94,7 +94,10 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             self.mask_layernorm = None
         
-        self.raw_att_head = nn.Linear(self.n_c_attn_heads, self.n_c_attn_heads) # transforming old raw attention heads to new ones
+        if self.config.residual_attention_masks:
+            self.raw_att_head = nn.Linear(self.n_c_attn_heads, self.n_c_attn_heads, bias=False) # transforming old raw attention heads to new ones
+        else:
+            self.raw_att_head = None
 
     def forward(self, x,ff_cache=None,old_raw_att=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
