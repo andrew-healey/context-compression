@@ -177,12 +177,13 @@ enc = tiktoken.get_encoding("gpt2")
 use_mini_model = os.environ.get("USE_MINI_MODEL", "false").lower() == "true" or args.use_mini_model
 
 if use_mini_model:
-    total_batch_size = 10240
+    total_batch_size = 20480
     B = 20 # micro batch size
     T = 512 # sequence length
 
     args.n_embd = 256
-    args.n_heads = 6
+    assert args.n_embd % 64 == 0
+    args.n_heads = args.n_embd // 64
 else:
     total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
     B = args.batch_size # micro batch size
@@ -257,9 +258,10 @@ raw_model = model # always contains the "raw" unwrapped model
 max_lr = 6e-4
 min_lr = max_lr * 0.1
 
-if use_mini_model and False:
-    warmup_steps = 100
-    max_steps = 1000
+if use_mini_model:
+    new_max_steps = 1000
+    warmup_steps = new_max_steps * 715 / args.max_steps
+    max_steps = new_max_steps
 else:
     warmup_steps = 715
     max_steps = args.max_steps
