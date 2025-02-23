@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from .attn import get_attention_cls, AttentionKind, ProtectionKind, SelectionHeadLinearComboKind
 import os
 import inspect
+from .attn import CausalSelectiveSelfAttention
+from mup import MuReadout
 
 class MLP(nn.Module):
     def __init__(self, config):
@@ -67,6 +69,8 @@ class GPTConfig:
     use_hf_style_inputs: bool = False
     mup: bool = False
     attn_mult: Optional[float] = None
+    readout_zero_init: bool = False
+    query_zero_init: bool = False
 
     def __post_init__(self):
         if self.attn_mult is None:
@@ -95,7 +99,9 @@ class GPT(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
+        if isinstance(module, MuReadout) and self.config.readout_zero_init:
+            module.weight.data.zero_()
+        elif isinstance(module, nn.Linear):
             if hasattr(module, 'ONE_HOT_INIT'):
                 torch.nn.init.zeros_(module.weight)
                 module.weight.data[:,module.ONE_HOT_INIT] = 1.0
@@ -108,7 +114,7 @@ class GPT(nn.Module):
                 std *= (2 * self.config.n_layer) ** -0.5
 
             # set by mup
-            if hasattr(module,'infhshape'):
+            if hasattr(module.weight,'infshape'):
                 from mup import normal_
                 normal_(module.weight,mean=0.0,std=std)
             else:
@@ -118,6 +124,11 @@ class GPT(nn.Module):
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        
+        if hasattr(module,'IS_CUSTOM_ATTENTION') and self.config.query_zero_init:
+            fanout, _ = module.c_attn.weight.shape
+            assert fanout % 3 == 0
+            module.c_attn.weight.data[:fanout//3, :] = 0
 
     def calculate_memory_loss(self, memory_reqs, T):
         """Calculate the memory regularization term"""
@@ -294,5 +305,11 @@ class GPT(nn.Module):
         use_fused = fused_available and device_type == "cuda"
         if master_process:
             print(f"using fused AdamW: {use_fused}")
-        optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)
+        
+        if self.config.mup:
+            from mup import MuAdamW
+            config_cls = MuAdamW
+        else:
+            config_cls = torch.optim.AdamW
+        optimizer = config_cls(optim_groups, lr=learning_rate, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)
         return optimizer

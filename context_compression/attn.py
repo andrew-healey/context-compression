@@ -40,6 +40,7 @@ class CausalSelectiveSelfAttention(nn.Module):
 
     def __init__(self, config):
         super().__init__()
+        self.IS_CUSTOM_ATTENTION = True
 
         # double the number of heads if we're using one mask per head
         # yes, this is very inefficient. but it's just for testing.
@@ -336,6 +337,7 @@ class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
         super().__init__()
+        self.IS_CUSTOM_ATTENTION = True
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_head * config.head_dim)
         # output projection
