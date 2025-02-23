@@ -178,10 +178,10 @@ use_mini_model = os.environ.get("USE_MINI_MODEL", "false").lower() == "true" or 
 
 if use_mini_model:
     total_batch_size = 20480
-    B = 20 # micro batch size
+    B = 10 # micro batch size
     T = 512 # sequence length
 
-    args.n_embd = 256
+    args.n_embd = 512
     assert args.n_embd % 64 == 0
     args.n_heads = args.n_embd // 64
 else:
