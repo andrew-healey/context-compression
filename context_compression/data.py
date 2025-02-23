@@ -14,12 +14,13 @@ def load_tokens(filename):
     return ptt
 
 class DataLoaderLite:
-    def __init__(self, B, T, process_rank, num_processes, split):
+    def __init__(self, B, T, process_rank, num_processes, split, use_hf_style_inputs=False):
         self.B = B
         self.T = T
         self.process_rank = process_rank
         self.num_processes = num_processes
         assert split in {'train', 'val'}
+        self.use_hf_style_inputs = use_hf_style_inputs
 
         # get the shard filenames
         data_root = os.environ.get("DATA_DIR", ".")+"/edu_fineweb10B"
@@ -52,7 +53,10 @@ class DataLoaderLite:
             self.current_shard = (self.current_shard + 1) % len(self.shards)
             self.tokens = load_tokens(self.shards[self.current_shard])
             self.current_position = B * T * self.process_rank
-        return x, y
+        if self.use_hf_style_inputs:
+            return {"idx": x, "targets": y}
+        else:
+            return x, y
 
     # --- ADDED METHODS FOR RESUMABILITY ---
 
