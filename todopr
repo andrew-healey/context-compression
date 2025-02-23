@@ -37,3 +37,7 @@
     - And I won't be doing any custom init
     - I *think* the mup coord checking code doesn't require me to have *any* mup things inside my network. Great.
     - OK so I'll actually do some very notebook-centric development here.
+
+- OK! so we have coord checking, and the coords explode.
+  - Now let's apply the diffs to my repo.
+  - Now let's coordcheck it!
