@@ -109,6 +109,14 @@ parser.set_defaults(mask_layernorm=False)
 parser.add_argument("--residual_attention_masks", action="store_true",
                     help="Use residual attention masks")
 parser.set_defaults(residual_attention_masks=False)
+parser.add_argument("--compute_base_shapes", action="store_true",
+                    help="Compute base shapes")
+parser.set_defaults(compute_base_shapes=False)
+parser.add_argument("--base_shapes_savefile", type=str, default=None,
+                    help="File to save base shapes to")
+parser.add_argument("--mup", action="store_true",
+                    help="Use Maximum update parametrization")
+parser.set_defaults(mup=False)
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -169,9 +177,12 @@ enc = tiktoken.get_encoding("gpt2")
 use_mini_model = os.environ.get("USE_MINI_MODEL", "false").lower() == "true" or args.use_mini_model
 
 if use_mini_model:
-    total_batch_size = 20480
-    B = 5 # micro batch size
-    T = args.seq_len # sequence length
+    total_batch_size = 10240
+    B = 20 # micro batch size
+    T = 512 # sequence length
+
+    args.n_embd = 256
+    args.n_heads = 6
 else:
     total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
     B = args.batch_size # micro batch size
@@ -188,29 +199,54 @@ val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_w
 torch.set_float32_matmul_precision('high')
 
 # create model
-config = GPTConfig(
-    n_head=args.n_heads,
-    n_layer=4 if use_mini_model else 12,
-    vocab_size=50304,
-    attention_kind=args.attention_kind,
-    for_inference=False,
-    protect_bos_token=args.protect_bos_token,
-    prevent_from_masking_myself=args.prevent_from_masking_myself,
-    epsilon=args.memory_penalty_epsilon,
-    selection_head_linear_combo=args.selection_head_linear_combo,
-    selection_head_linear_combo_scale=args.selection_head_linear_combo_scale,
-    protection_kind=args.protection_kind,
-    leaky_relu_alpha=args.leaky_relu_alpha,
-    leaky_relu_bias=args.leaky_relu_bias,
-    protection_head_scaling_factor=args.protection_head_scaling_factor,
-    protection_head_bias=args.protection_head_bias,
-    n_sliced_masks=args.n_sliced_masks,
-    n_latent_masks=args.n_latent_masks,
-    mask_layernorm=args.mask_layernorm,
-    residual_attention_masks=args.residual_attention_masks
-)
+def make_config(args):
+    return GPTConfig(
+        n_embd=args.n_embd,
+        n_head=args.n_heads,
+        n_layer=12,
+        vocab_size=50304,
+        attention_kind=args.attention_kind,
+        for_inference=False,
+        protect_bos_token=args.protect_bos_token,
+        prevent_from_masking_myself=args.prevent_from_masking_myself,
+        epsilon=args.memory_penalty_epsilon,
+        selection_head_linear_combo=args.selection_head_linear_combo,
+        selection_head_linear_combo_scale=args.selection_head_linear_combo_scale,
+        protection_kind=args.protection_kind,
+        leaky_relu_alpha=args.leaky_relu_alpha,
+        leaky_relu_bias=args.leaky_relu_bias,
+        protection_head_scaling_factor=args.protection_head_scaling_factor,
+        protection_head_bias=args.protection_head_bias,
+        n_sliced_masks=args.n_sliced_masks,
+        n_latent_masks=args.n_latent_masks,
+        mask_layernorm=args.mask_layernorm,
+        residual_attention_masks=args.residual_attention_masks,
+        mup=args.mup,
+    )
+
+config = make_config(args)
 
 model = GPT(config)
+
+if args.mup:
+    from mup import set_base_shapes
+    if args.compute_base_shapes or args.base_shapes_savefile is None:
+        def make_model_from_n_head(n_head):
+            base_args = vars(config)
+            base_args['n_head'] = n_head
+            base_args['n_embd'] = n_head*config.head_dim
+            base_config = GPTConfig(**base_args)
+            base_model = GPT(base_config)
+            return base_model
+        base_model = make_model_from_n_head(12)
+        delta_model = make_model_from_n_head(1)
+        set_base_shapes(model,base_model,delta=delta_model,rescale_params=False,savefile=args.base_shapes_savefile)
+        model.apply(model._init_weights)
+        del base_model, delta_model
+    else:
+        set_base_shapes(model,args.base_shapes_savefile,rescale_params=False)
+
+
 model.to(device)
 use_compile = args.use_compile
 non_compiled_model = model
@@ -221,7 +257,7 @@ raw_model = model # always contains the "raw" unwrapped model
 max_lr = 6e-4
 min_lr = max_lr * 0.1
 
-if use_mini_model:
+if use_mini_model and False:
     warmup_steps = 100
     max_steps = 1000
 else:
