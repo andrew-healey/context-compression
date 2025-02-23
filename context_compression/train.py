@@ -117,6 +117,10 @@ parser.add_argument("--base_shapes_savefile", type=str, default=None,
 parser.add_argument("--mup", action="store_true",
                     help="Use Maximum update parametrization")
 parser.set_defaults(mup=False)
+parser.add_argument("--disable_selection", action="store_true",
+                    help="Disable selection")
+parser.set_defaults(disable_selection=False)
+
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -181,13 +185,13 @@ if use_mini_model:
     B = 10 # micro batch size
     T = 512 # sequence length
 
-    args.n_embd = 512
-    assert args.n_embd % 64 == 0
-    args.n_heads = args.n_embd // 64
+    args.n_embd = args.n_heads * 64
 else:
     total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
     B = args.batch_size # micro batch size
     T = args.seq_len # sequence length
+
+    args.n_embd = None # just use GPTConfig's default
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 if master_process:

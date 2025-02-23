@@ -2732,3 +2732,28 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --log_dir residual_attention_masks \
   --residual_attention_masks
 ```
+
+
+## Getting mup to work
+
+Initial run (not shown) running with width=128, seqlen=256, small bs for 2500 steps.
+
+Then a run (not shown) with 2x bigger bs, for 1000 steps. This helped.
+
+Then a run (not shown) with 2x the width of that one. This made loss worse!! This should never happen under mup.
+
+OK, let's try the equivalent with non-selective attention.
+
+```
+python -m context_compression.train --group testing_mup   --log_dir unselective_big_bs_1x --disable_selection --n_heads 4
+```
+
+```
+python -m context_compression.train --group testing_mup   --log_dir unselective_big_bs_2x --disable_selection --n_heads 8
+```
+
+```
+python -m context_compression.train --group testing_mup   --log_dir unselective_big_bs_4x --disable_selection --n_heads 16 --batch_size 5
+```
+
+Damn, 4x is worse than 2x is worse than 1x. Clearly my mup implementation is buggy.
