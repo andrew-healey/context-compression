@@ -7,3 +7,6 @@
 [submodule "external/mutransformers"]
 	path = external/mutransformers
 	url = https://github.com/microsoft/mutransformers
+[submodule "external/nanogpt-mup"]
+	path = external/nanogpt-mup
+	url = https://github.com/andrew-healey/nanogpt-mup
