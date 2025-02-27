@@ -15,6 +15,7 @@ import shutil
 from huggingface_hub import hf_hub_download, HfApi
 import wandb
 from typing import Optional
+from functools import partial
 
 from .data import DataLoaderLite, get_most_likely_row
 from .model import GPT, GPTConfig
@@ -61,7 +62,7 @@ parser.add_argument("--prevent_from_masking_myself", action="store_true",
 parser.add_argument("--allow_masking_myself", dest="prevent_from_masking_myself", action="store_false",
                     help="Allow each token to mask itself from future tokens")
 parser.set_defaults(prevent_from_masking_myself=True)
-parser.add_argument("--max_steps", type=int, default=2500,
+parser.add_argument("--max_steps", type=int, default=None,
                     help="Maximum number of training steps")
 parser.add_argument("--group", type=str, default=None,
                     help="Group name for the run")
@@ -120,6 +121,12 @@ parser.set_defaults(mup=False)
 parser.add_argument("--disable_selection", action="store_true",
                     help="Disable selection")
 parser.set_defaults(disable_selection=False)
+parser.add_argument("--mup_enable_coord_check_logging", action="store_true",
+                    help="Enable coordinate check logging")
+parser.set_defaults(mup_enable_coord_check_logging=False)
+parser.add_argument("--no_decay_lr", action="store_false", dest="decay_lr",
+                    help="Do not decay the learning rate")
+parser.set_defaults(decay_lr=True)
 
 args = parser.parse_args()
 
@@ -263,12 +270,12 @@ max_lr = 6e-4
 min_lr = max_lr * 0.1
 
 if use_mini_model:
-    new_max_steps = 1000
+    new_max_steps = args.max_steps or 1000
     warmup_steps = new_max_steps * 715 / args.max_steps
     max_steps = new_max_steps
 else:
     warmup_steps = 715
-    max_steps = args.max_steps
+    max_steps = args.max_steps or 2500
 
 def get_lr(it):
     # 1 linear warmup for warmup_iters steps
@@ -408,6 +415,7 @@ if master_process:
         f.write(f'max_steps: {max_steps}\n')
 
 # Modify your training loop to start from start_step
+print("max_steps: ", max_steps)
 for step in range(start_step, max_steps):
     t0 = time.time()
     last_step = (step == max_steps - 1)
@@ -536,6 +544,33 @@ for step in range(start_step, max_steps):
     model.train()
     optimizer.zero_grad()
     loss_accum = 0.0
+
+    if args.mup_enable_coord_check_logging:
+        coord_check_dict = {
+            'token_embedding': [],
+            'attn': [],
+            'mlp': [],
+            'lm_head': [],
+        }
+
+        def hook(module, input, output, key):
+            with torch.no_grad():
+                if type(output) == tuple:
+                    output = output[0]
+                coord_check_dict[key].append(output.abs().mean().item())
+        coord_check_handles = []
+        for module_name, module in model.named_modules():
+            if module_name == 'transformer.wte':
+                coord_check_handles.append(module.register_forward_hook(partial(hook, key='token_embedding')))
+            elif module_name.endswith('.attn'):
+                coord_check_handles.append(module.register_forward_hook(partial(hook, key='attn')))
+            elif module_name.endswith('.mlp'):
+                coord_check_handles.append(module.register_forward_hook(partial(hook, key='mlp')))
+            elif module_name == 'lm_head':
+                coord_check_handles.append(module.register_forward_hook(partial(hook, key='lm_head')))
+    else:
+        coord_check_dict = None
+
     for micro_step in range(grad_accum_steps):
         x, y = train_loader.next_batch()
         x, y = x.to(device), y.to(device)
@@ -566,12 +601,22 @@ for step in range(start_step, max_steps):
 
     norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     # determine and set the learning rate for this iteration
-    lr = get_lr(step)
+    lr = get_lr(step) if args.decay_lr else max_lr
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
     optimizer.step()
     if device_type == "cuda":
         torch.cuda.synchronize()
+
+    if args.mup_enable_coord_check_logging:
+        for handle in coord_check_handles:
+            handle.remove()
+        
+        wandb.log({
+            "step": step,
+            **{f"coord_check_{k}": torch.tensor(v).mean().item() for k, v in coord_check_dict.items()}
+        }, step=step)
+
     t1 = time.time()
     dt = t1 - t0
     tokens_processed = train_loader.B * train_loader.T * grad_accum_steps * ddp_world_size

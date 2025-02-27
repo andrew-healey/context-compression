@@ -2757,3 +2757,11 @@ python -m context_compression.train --group testing_mup   --log_dir unselective_
 ```
 
 Damn, 4x is worse than 2x is worse than 1x. Clearly my mup implementation is buggy.
+
+### Testing out coord-checking
+
+Command to make it write coord scales to a CSV:
+
+```
+SKIP_WANDB=false python -m context_compression.train --log_dir /tmp/dummy --group making_mup_work --mup_enable_coord_check_logging --attention_kind selective --disable_selection --no_use_compile --mup --max_steps 10 --no_decay_lr
+```
