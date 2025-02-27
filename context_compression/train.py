@@ -92,6 +92,7 @@ parser.add_argument("--use_mini_model", action="store_true",
                     help="Make the model and batch size very small, for fast debugging")
 parser.add_argument("--upload_to_hf", action="store_true",
                     help="Upload the model to HuggingFace")
+parser.set_defaults(upload_to_hf=True)
 parser.add_argument("--seq_len", type=int, default=None,
                     help="Sequence length")
 parser.add_argument("--batch_size", type=int, default=None,
@@ -300,7 +301,7 @@ min_lr = max_lr * 0.1
 
 if use_mini_model:
     new_max_steps = args.max_steps or 1000
-    warmup_steps = new_max_steps * 715 / args.max_steps
+    warmup_steps = new_max_steps * 715 / 2500
     max_steps = new_max_steps
 else:
     warmup_steps = 715
