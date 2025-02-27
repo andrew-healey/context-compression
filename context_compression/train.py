@@ -92,10 +92,12 @@ parser.add_argument("--use_mini_model", action="store_true",
                     help="Make the model and batch size very small, for fast debugging")
 parser.add_argument("--upload_to_hf", action="store_true",
                     help="Upload the model to HuggingFace")
-parser.add_argument("--seq_len", type=int, default=1024,
+parser.add_argument("--seq_len", type=int, default=None,
                     help="Sequence length")
-parser.add_argument("--batch_size", type=int, default=8,
+parser.add_argument("--batch_size", type=int, default=None,
                     help="Batch size")
+parser.add_argument("--total_batch_size", type=int, default=None,
+                    help="Total batch size")
 parser.add_argument("--protection_head_scaling_factor", type=float, default=1.0,
                     help="Scaling factor for the protection head")
 parser.add_argument("--protection_head_bias", type=float, default=0.0,
@@ -124,6 +126,8 @@ parser.set_defaults(disable_selection=False)
 parser.add_argument("--mup_enable_coord_check_logging", action="store_true",
                     help="Enable coordinate check logging")
 parser.set_defaults(mup_enable_coord_check_logging=False)
+parser.add_argument("--max_lr", type=float, default=None,
+                    help="Maximum learning rate")
 parser.add_argument("--no_decay_lr", action="store_false", dest="decay_lr",
                     help="Do not decay the learning rate")
 parser.set_defaults(decay_lr=True)
@@ -206,15 +210,15 @@ enc = tiktoken.get_encoding("gpt2")
 use_mini_model = os.environ.get("USE_MINI_MODEL", "false").lower() == "true" or args.use_mini_model
 
 if use_mini_model:
-    total_batch_size = 20480
-    B = 10 # micro batch size
-    T = 512 # sequence length
+    total_batch_size = args.total_batch_size or 20480
+    B = args.batch_size or 10 # micro batch size
+    T = args.seq_len or 512 # sequence length
 
     args.n_embd = args.n_heads * 64
 else:
-    total_batch_size = 524288 # 2**19, ~0.5M, in number of tokens
-    B = args.batch_size # micro batch size
-    T = args.seq_len # sequence length
+    total_batch_size = args.total_batch_size or 524288 # 2**19, ~0.5M, in number of tokens
+    B = args.batch_size or 8 # micro batch size
+    T = args.seq_len or 1024 # sequence length
 
     args.n_embd = None # just use GPTConfig's default
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
@@ -234,7 +238,7 @@ def make_config(args):
         n_embd=args.n_embd,
         n_head=args.n_heads,
         n_layer=12,
-        vocab_size=50304,
+        block_size=T,
         attention_kind=args.attention_kind,
         for_inference=False,
         protect_bos_token=args.protect_bos_token,
@@ -274,6 +278,9 @@ if args.mup:
             return base_model
         base_model = make_model_from_n_head(12)
         delta_model = make_model_from_n_head(1)
+
+        model = make_model_from_n_head(args.n_heads)
+
         set_base_shapes(model,base_model,delta=delta_model,rescale_params=False,savefile=args.base_shapes_savefile)
         model.apply(model._init_weights)
         del base_model, delta_model
@@ -288,7 +295,7 @@ if use_compile:
     model = torch.compile(model)
 raw_model = model # always contains the "raw" unwrapped model
 
-max_lr = 6e-4
+max_lr = args.max_lr or 6e-4
 min_lr = max_lr * 0.1
 
 if use_mini_model:
@@ -313,7 +320,7 @@ def get_lr(it):
     return min_lr + coeff * (max_lr - min_lr)
 
 # optimize!
-optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type)
+optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=max_lr, device_type=device_type)
 
 # create the log directory we will write checkpoints to and log to
 assert args.log_dir is not None, "You have to pass in a log directory for this run"
