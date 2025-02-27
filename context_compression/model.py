@@ -71,6 +71,7 @@ class GPTConfig:
     attn_mult: Optional[float] = None
     readout_zero_init: bool = False
     query_zero_init: bool = False
+    l1_loss: bool = False
 
     def __post_init__(self):
         if self.attn_mult is None:
@@ -117,8 +118,10 @@ class GPT(nn.Module):
             if hasattr(module.weight,'infshape'):
                 from mup import normal_
                 normal_(module.weight,mean=0.0,std=std)
+                module.weight.latest_init = {'std': std,'kind': 'mup','infshape': module.weight.infshape}
             else:
                 torch.nn.init.normal_(module.weight, mean=0.0, std=std)
+                module.weight.latest_init = {'std': std,'kind': 'normal'}
 
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
@@ -129,6 +132,15 @@ class GPT(nn.Module):
             fanout, _ = module.c_attn.weight.shape
             assert fanout % 3 == 0
             module.c_attn.weight.data[:fanout//3, :] = 0
+    
+    def get_latest_inits(self):
+        latest_inits = []
+        def inner(module):
+            if hasattr(module,'weight') and hasattr(module.weight,'latest_init'):
+                latest_inits.append(module.weight.latest_init)
+        
+        self.apply(inner)
+        return latest_inits
 
     def calculate_memory_loss(self, memory_reqs, T):
         """Calculate the memory regularization term"""
@@ -194,6 +206,8 @@ class GPT(nn.Module):
                 losses["memory"] = memory_loss
             losses["total"] = loss
 
+            if self.config.l1_loss:
+                losses["l1"] = self.l1_loss()
             if loss.isnan().any():
                 raise Exception("Oh no! Loss is nan!")
 
@@ -201,6 +215,17 @@ class GPT(nn.Module):
             return {"logits": logits, "loss": loss, "losses": losses}
         else:
             return logits, loss, losses
+        
+    def l1_loss(self):
+        with torch.no_grad():
+            l1_loss = None
+            weights = list(self.state_dict().values())
+            for weight in weights:
+                if l1_loss is None:
+                    l1_loss = weight.abs().mean()
+                else:
+                    l1_loss = l1_loss + weight.abs().mean()
+            return l1_loss
 
     @classmethod
     def from_pretrained(cls, model_type):

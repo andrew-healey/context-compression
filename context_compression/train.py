@@ -127,6 +127,18 @@ parser.set_defaults(mup_enable_coord_check_logging=False)
 parser.add_argument("--no_decay_lr", action="store_false", dest="decay_lr",
                     help="Do not decay the learning rate")
 parser.set_defaults(decay_lr=True)
+parser.add_argument("--readout_zero_init", action="store_true",
+                    help="Zero initialize the readout")
+parser.set_defaults(readout_zero_init=False)
+parser.add_argument("--query_zero_init", action="store_true",
+                    help="Zero initialize the query")
+parser.set_defaults(query_zero_init=False)
+parser.add_argument("--l1_loss", action="store_true",
+                    help="Compute L1 loss for debugging purposes")
+parser.set_defaults(l1_loss=False)
+parser.add_argument("--debugpy", action="store_true",
+                    help="Enable debugpy")
+parser.set_defaults(debugpy=False)
 
 args = parser.parse_args()
 
@@ -141,6 +153,12 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
+
+if args.debugpy:
+    import debugpy
+    debugpy.listen(5678)
+    print("Debugpy listening on port 5678. Now is the time to attach!")
+    debugpy.wait_for_client()
 
 # set up DDP (distributed data parallel).
 # torchrun command sets the env variables RANK, LOCAL_RANK, and WORLD_SIZE
@@ -234,6 +252,9 @@ def make_config(args):
         mask_layernorm=args.mask_layernorm,
         residual_attention_masks=args.residual_attention_masks,
         mup=args.mup,
+        readout_zero_init=args.readout_zero_init,
+        query_zero_init=args.query_zero_init,
+        l1_loss=args.l1_loss,
     )
 
 config = make_config(args)
