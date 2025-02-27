@@ -251,6 +251,7 @@ def make_config(args):
         n_latent_masks=args.n_latent_masks,
         mask_layernorm=args.mask_layernorm,
         residual_attention_masks=args.residual_attention_masks,
+        disable_selection=args.disable_selection,
         mup=args.mup,
         readout_zero_init=args.readout_zero_init,
         query_zero_init=args.query_zero_init,
