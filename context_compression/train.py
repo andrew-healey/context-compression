@@ -306,18 +306,18 @@ else:
     warmup_steps = 715
     max_steps = args.max_steps or 2500
 
-def get_lr(it):
+def get_lr_scale(it):
     # 1 linear warmup for warmup_iters steps
     if it < warmup_steps:
-        return max_lr * (it+1) / warmup_steps
+        return (it+1) / warmup_steps
     # 2 if it > lr_decay_iters, return min learning rate
     if it > max_steps:
-        return min_lr
+        return min_lr / max_lr
     # 3 in between, use cosine decay down to min learning rate
     decay_ratio = (it - warmup_steps) / (max_steps - warmup_steps)
     assert 0 <= decay_ratio <= 1
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff starts at 1 and goes to 0
-    return min_lr + coeff * (max_lr - min_lr)
+    return (min_lr + coeff * (max_lr - min_lr)) / max_lr
 
 # optimize!
 optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=max_lr, device_type=device_type)
@@ -630,9 +630,9 @@ for step in range(start_step, max_steps):
 
     norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     # determine and set the learning rate for this iteration
-    lr = get_lr(step) if args.decay_lr else max_lr
+    lr_scale = get_lr_scale(step) if args.decay_lr else 1.0
     for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+        param_group['lr'] = lr_scale * param_group['max_lr']
     optimizer.step()
     if device_type == "cuda":
         torch.cuda.synchronize()
@@ -651,6 +651,7 @@ for step in range(start_step, max_steps):
     tokens_processed = train_loader.B * train_loader.T * grad_accum_steps * ddp_world_size
     tokens_per_sec = tokens_processed / dt
     if master_process:
+        lr = lr_scale*max_lr
         wandb.log({
             "step": step,
             "train_loss": loss_accum.item(),
