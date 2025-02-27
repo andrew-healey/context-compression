@@ -2742,6 +2742,7 @@ Then a run (not shown) with 2x bigger bs, for 1000 steps. This helped.
 
 Then a run (not shown) with 2x the width of that one. This made loss worse!! This should never happen under mup.
 
+
 OK, let's try the equivalent with non-selective attention.
 
 ```
@@ -2756,7 +2757,7 @@ python -m context_compression.train --group testing_mup   --log_dir unselective_
 python -m context_compression.train --group testing_mup   --log_dir unselective_big_bs_4x --disable_selection --n_heads 16 --batch_size 5
 ```
 
-Damn, 4x is worse than 2x is worse than 1x. Clearly my mup implementation is buggy.
+Damn, 4x is worse than 2x is worse than 1x (see [this view](https://wandb.ai/sesamestrong/context_compression?nw=8hz2r8dk1kd)). Clearly my mup implementation is buggy.
 
 ### Testing out coord-checking
 
@@ -2764,4 +2765,95 @@ Command to make it write coord scales to a CSV:
 
 ```
 SKIP_WANDB=false python -m context_compression.train --log_dir /tmp/dummy --group making_mup_work --mup_enable_coord_check_logging --attention_kind selective --disable_selection --no_use_compile --mup --max_steps 10 --no_decay_lr
+```
+
+After finding a bug (see details in [this report](https://wandb.ai/sesamestrong/context_compression/reports/Coord-checks---VmlldzoxMTU1Mjc0MQ)), let's re-run those commands:
+
+### Part two
+
+```
+python -m context_compression.train --group testing_mup_2   --log_dir unselective_big_bs_0.25x --disable_selection --n_heads 1 --mup
+```
+
+```
+python -m context_compression.train --group testing_mup_2   --log_dir unselective_big_bs_0.5x --disable_selection --n_heads 2 --mup
+```
+
+```
+python -m context_compression.train --group testing_mup_2   --log_dir unselective_big_bs_1x --disable_selection --n_heads 4 --mup
+```
+
+```
+python -m context_compression.train --group testing_mup_2   --log_dir unselective_big_bs_2x --disable_selection --n_heads 8 --mup
+```
+
+```
+python -m context_compression.train --group testing_mup_2   --log_dir unselective_big_bs_4x --disable_selection --n_heads 16 --batch_size 5 --mup
+```
+
+Result: yup, 4x beats 2x beats 1x! See [this view](https://wandb.ai/sesamestrong/context_compression?nw=ndftzni7u9).
+BUT it seems like the loss for all of them is slightly worse than the previous runs (see [this view](https://wandb.ai/sesamestrong/context_compression?nw=8hz2r8dk1kd)).
+Hrrm - let's compare 2x (old) to 2x (new). 2x (new) is worse. BUT 2x (old) descends FASTER than 2x (new)!! What's going on here?
+
+So they had lr warmup. ig we do too... I bet our HPs are just generally worse - it's prob not a bug?
+
+### Part three
+
+Let's try to optimize the HPs on the proxy model. For now, let's use 0.25x for speed. Ooh, should we try doing a HP search on this? Could just use a bash script for it... Would be possibly fun! OK let's try it actually.
+
+### Is the mini model usable with mup on?
+
+See [this report](https://wandb.ai/sesamestrong/context_compression/reports/Mini-model-to-simulate-big-model--VmlldzoxMTQ4Mjk5Ng).
+
+Mup was motivated by the ordering of loss curves for the flexible-selection-pattern experiment. So let's re-run that on the mini model! Hopefully we can a) get much lower loss than before, which would mean we're better-simulating the bigger model and b) recovering the big-model ordering.
+
+Let's run one_mask_per_head_4_latent_vectors:
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group flexible_selection_pattern_mini_model_2 \
+  --log_dir one_mask_per_head_4_latent_vectors \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 4 \
+  --batch_size 4 \
+  --mup
+```
+
+one_mask_shared_1_head (baseline):
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group flexible_selection_pattern_mini_model_2 \
+  --log_dir one_mask_shared_1_head \
+  --selection_head_linear_combo n_sliced_masks \
+  --n_heads 12 \
+  --n_sliced_masks 1 \
+  --batch_size 4 \
+  --mup
+```
+
+two_masks_12_heads (baseline):
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group flexible_selection_pattern_mini_model_2 \
+  --log_dir two_masks_12_heads \
+  --selection_head_linear_combo two_masks \
+  --n_heads 12 \
+  --batch_size 4 \
+  --mup
+```
+
+one_mask_per_head_2_latent_vectors:
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group flexible_selection_pattern_mini_model_2 \
+  --log_dir one_mask_per_head_2_latent_vectors \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 2 \
+  --batch_size 4 \
+  --mup
 ```
