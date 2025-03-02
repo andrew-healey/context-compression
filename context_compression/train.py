@@ -208,6 +208,8 @@ device_type = "cuda" if device.startswith("cuda") else "cpu"
 
 torch.manual_seed(args.random_seed)
 if torch.cuda.is_available():
+    import random
+    random.seed(args.random_seed)
     torch.cuda.manual_seed(args.random_seed)
 
 enc = tiktoken.get_encoding("gpt2")

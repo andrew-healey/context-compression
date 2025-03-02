@@ -2,6 +2,7 @@ import os
 import torch
 import numpy as np
 import torch.nn.functional as F
+from random import shuffle
 
 # -----------------------------------------------------------------------------
 import tiktoken
@@ -26,6 +27,7 @@ class DataLoaderLite:
         data_root = os.environ.get("DATA_DIR", ".")+"/edu_fineweb10B"
         shards = os.listdir(data_root)
         shards = [s for s in shards if split in s]
+        shuffle(shards)
         shards = sorted(shards)
         shards = [os.path.join(data_root, s) for s in shards]
         self.shards = shards
