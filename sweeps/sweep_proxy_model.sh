@@ -63,6 +63,7 @@ for lr in 1.5e-4 1.75e-4 2e-4; do
           --batch_size 20 \
           --mup \
           --n_heads $n_heads \
+          --key ${lr}_${total_batch_size}_${n_heads}_${seed} \
           --random_seed $seed
       done
     done
