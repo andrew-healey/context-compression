@@ -635,8 +635,8 @@ for step in range(start_step, max_steps):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr_scale * param_group['max_lr']
     optimizer.step()
-    if device_type == "cuda":
-        torch.cuda.synchronize()
+    # if device_type == "cuda":
+    #     torch.cuda.synchronize()
 
     if args.mup_enable_coord_check_logging:
         for handle in coord_check_handles:
