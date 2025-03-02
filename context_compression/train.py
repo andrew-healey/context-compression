@@ -453,6 +453,9 @@ if master_process:
 # Modify your training loop to start from start_step
 
 total_tokens_processed = 0
+total_flops = 0
+
+num_params = sum(p.numel() for p in model.parameters())
 
 print("max_steps: ", max_steps)
 for step in range(start_step, max_steps):
@@ -492,7 +495,8 @@ for step in range(start_step, max_steps):
                 "val_loss": val_loss_accum.item(),
                 **{"val_loss_" + k: v.item() for k, v in val_losses_accum.items()},
                 "val_perplexity": validation_perplexity.item(),
-                "total_tokens_processed": total_tokens_processed
+                "total_tokens_processed": total_tokens_processed,
+                "total_flops": total_flops
             }, step=step)
             if step > 0 and (step % save_period == 0 or last_step):
                 # optionally write model checkpoints
@@ -591,6 +595,7 @@ for step in range(start_step, max_steps):
     loss_accum = 0.0
 
     total_tokens_processed += total_batch_size
+    total_flops += total_batch_size * num_params * 2
 
     if args.mup_enable_coord_check_logging:
         coord_check_dict = {
