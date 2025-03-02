@@ -146,6 +146,8 @@ parser.set_defaults(l1_loss=False)
 parser.add_argument("--debugpy", action="store_true",
                     help="Enable debugpy")
 parser.set_defaults(debugpy=False)
+parser.add_argument("--key", type=str, default=None,
+                    help="Key for the run") # for grouping runs with diff seeds but the same hyperparams
 
 args = parser.parse_args()
 
