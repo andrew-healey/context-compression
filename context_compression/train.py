@@ -447,6 +447,9 @@ if master_process:
         f.write(f'max_steps: {max_steps}\n')
 
 # Modify your training loop to start from start_step
+
+total_tokens_processed = 0
+
 print("max_steps: ", max_steps)
 for step in range(start_step, max_steps):
     t0 = time.time()
@@ -456,6 +459,7 @@ for step in range(start_step, max_steps):
     if step % eval_period == 0 or last_step:
         model.eval()
         val_loader.reset()
+        val_losses_accum = {}
         with torch.no_grad():
             val_loss_accum = 0.0
             val_loss_steps = 20
@@ -466,8 +470,12 @@ for step in range(start_step, max_steps):
                     logits, loss, losses = model(x, y)
                 loss = loss / val_loss_steps
                 val_loss_accum += loss.detach()
+                for k, v in losses.items():
+                    val_losses_accum[k] = val_losses_accum.get(k, 0.0) + v.detach() / val_loss_steps
         if ddp:
             dist.all_reduce(val_loss_accum, op=dist.ReduceOp.AVG)
+            for k in val_losses_accum:
+                dist.all_reduce(val_losses_accum[k], op=dist.ReduceOp.AVG)
         if master_process:
             print(f"validation loss: {val_loss_accum.item():.4f}")
             validation_perplexity = torch.exp(torch.tensor(val_loss_accum.item()))
@@ -478,8 +486,9 @@ for step in range(start_step, max_steps):
             wandb.log({
                 "step": step,
                 "val_loss": val_loss_accum.item(),
-                **{"val_loss_" + k: v.item() for k, v in losses.items()},
-                "val_perplexity": validation_perplexity.item()
+                **{"val_loss_" + k: v.item() for k, v in val_losses_accum.items()},
+                "val_perplexity": validation_perplexity.item(),
+                "total_tokens_processed": total_tokens_processed
             }, step=step)
             if step > 0 and (step % save_period == 0 or last_step):
                 # optionally write model checkpoints
@@ -489,7 +498,7 @@ for step in range(start_step, max_steps):
                     'config': non_compiled_model.config,
                     'step': step,
                     'val_loss': val_loss_accum.item(),
-                    **{"val_loss_" + k: v.item() for k, v in losses.items()}
+                    **{"val_loss_" + k: v.item() for k, v in val_losses_accum.items()}
                 }
                 # you might also want to add optimizer.state_dict() and
                 # rng seeds etc., if you wanted to more exactly resume training
@@ -576,6 +585,8 @@ for step in range(start_step, max_steps):
     model.train()
     optimizer.zero_grad()
     loss_accum = 0.0
+
+    total_tokens_processed += total_batch_size
 
     if args.mup_enable_coord_check_logging:
         coord_check_dict = {
