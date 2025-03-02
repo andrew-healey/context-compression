@@ -69,3 +69,5 @@ for lr in 1.5e-4 1.75e-4 2e-4; do
     done
   done
 done
+
+echo 'done'
