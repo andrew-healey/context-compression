@@ -36,12 +36,11 @@
 # This was done on a 4070Ti, and we're moving up to a 4090, so the optimal bs will prob be slightly different.
 # So I won't tune the lr much more - I'll tune the bs first.
 
-# assert that the SCRIPT_RANK and SCRIPT_WORLD_SIZE env vars are defined
+# assert that the RANK and WORLD_SIZE env vars are defined
 if [ -z "$RANK" ] || [ -z "$WORLD_SIZE" ]; then
   echo "RANK and WORLD_SIZE must be defined"
   exit 1
 fi
-export CUDA_VISIBLE_DEVICES=$RANK # one worker per GPU
 
 i=0
 for lr in 1.5e-4 1.75e-4 2e-4; do
@@ -53,7 +52,8 @@ for lr in 1.5e-4 1.75e-4 2e-4; do
           continue
         fi
         out_dir="proxy_model_sweep_3/lr${lr}_total_batch_size${total_batch_size}_n_heads${n_heads}_seed${seed}"
-        python -m context_compression.train --group proxy_model_sweep_3 \
+        # Use CUDA_DEVICE=0 since after setting CUDA_VISIBLE_DEVICES, the only visible device is 0
+        CUDA_VISIBLE_DEVICES=$RANK WORLD_SIZE=1 LOCAL_RANK=0 RANK=0 python -m context_compression.train --group proxy_model_sweep_3 \
           --log_dir $out_dir \
           --max_lr $lr \
           --total_batch_size $total_batch_size \
