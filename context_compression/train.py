@@ -64,6 +64,8 @@ parser.add_argument("--allow_masking_myself", dest="prevent_from_masking_myself"
 parser.set_defaults(prevent_from_masking_myself=True)
 parser.add_argument("--max_steps", type=int, default=None,
                     help="Maximum number of training steps")
+parser.add_argument("--warmup_steps", type=int, default=None,
+                    help="Number of warmup steps")
 parser.add_argument("--group", type=str, default=None,
                     help="Group name for the run")
 parser.add_argument("--no_use_wandb", dest="use_wandb", action="store_false",
@@ -301,7 +303,7 @@ min_lr = max_lr * 0.1
 
 if use_mini_model:
     new_max_steps = args.max_steps or 1000
-    warmup_steps = new_max_steps * 715 / 2500
+    warmup_steps = args.warmup_steps or new_max_steps * 715 / 2500
     max_steps = new_max_steps
 else:
     warmup_steps = 715
