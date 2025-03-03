@@ -10,25 +10,25 @@ if [ -z "$RANK" ] || [ -z "$WORLD_SIZE" ]; then
 fi
 
 i=0
-for n_heads in 2 4; do
+for n_heads in 4; do
     for attention_kind in selective; do
-        for lr in 1.5e-5 2e-5 3e-5; do
-            for total_batch_size in 10240; do
+        for lr in 1e-5 3e-5; do
+            for total_batch_size in 30720; do
                 batch_size=$((total_batch_size / 256))
                 for seed in 1338 1339 1340 1341; do
                     i=$((i + 1))
                     if [ $((i % $WORLD_SIZE)) -ne $RANK ]; then
                         continue
                     fi
-                    out_dir="wider_is_better_7/attention_kind${attention_kind}_n_heads${n_heads}_seed${seed}"
+                    out_dir="wider_is_better_8/attention_kind${attention_kind}_n_heads${n_heads}_seed${seed}"
                     # Use CUDA_DEVICE=0 since after setting CUDA_VISIBLE_DEVICES, the only visible device is 0
                     HALF_RANK=$((RANK % 8))
-                    { CUDA_VISIBLE_DEVICES=$HALF_RANK WORLD_SIZE=1 LOCAL_RANK=0 RANK=0 python -m context_compression.train --group wider_is_better_7 \
+                    { CUDA_VISIBLE_DEVICES=$HALF_RANK WORLD_SIZE=1 LOCAL_RANK=0 RANK=0 python -m context_compression.train --group wider_is_better_8 \
                     --log_dir $out_dir \
                     --max_lr $lr \
                     --total_batch_size $total_batch_size \
                     --seq_len 256 \
-                    --max_steps 50000 \
+                    --max_steps 17500 \
                     --warmup_steps 200 \
                     --batch_size $batch_size \
                     --mup \
