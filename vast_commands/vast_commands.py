@@ -397,7 +397,7 @@ def writeback_file(fw, file_text: str, blocks: List[CommandBlock]) -> None:
     os.fsync(fw.fileno())
     return
 
-def provision_phase(blocks: List[CommandBlock]) -> List[Instance]:
+def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True) -> List[Instance]:
     pending_cmds = [block for block in blocks if block.state in {CommandState.EMPTY, CommandState.VERIFIED, CommandState.RUNNING, CommandState.FAIL}]
     pending_cmd_count = len(pending_cmds)
     all_pending_cmds_are_running = all(block.state == CommandState.RUNNING for block in pending_cmds)
@@ -416,7 +416,7 @@ def provision_phase(blocks: List[CommandBlock]) -> List[Instance]:
 
     # if all pending commands are running, then we don't need any slack anymore!
     # so we can deprovision any extra instances.
-    if all_pending_cmds_are_running:
+    if all_pending_cmds_are_running and should_deprovision:
         assigned_ids = {block.instance_id for block in blocks if block.instance_id}
         free_instances = [inst for inst in current_instances if inst.instance_id not in assigned_ids]
         logger.debug(f"All pending commands are running, so we can deprovision {len(free_instances)}/ {len(current_instances)} extra/total instances.")
@@ -438,6 +438,8 @@ def main():
     parser.add_argument("filename", help="Markdown file containing vast command blocks")
     parser.add_argument("--no_delete_finished_instances", action="store_false", help="Don't delete finished instances", dest="delete_finished_instances")
     parser.set_defaults(delete_finished_instances=True)
+    parser.add_argument("--no_deprovision", action="store_false", help="Don't deprovision extra instances", dest="deprovision")
+    parser.set_defaults(deprovision=True)
     args = parser.parse_args()
 
     try:
@@ -459,7 +461,7 @@ def main():
 
 
             # Phase 2: Provision/Delete Phase
-            instances = provision_phase(blocks)
+            instances = provision_phase(blocks, should_deprovision=args.deprovision)
             writeback_file(fw, file_text, blocks)
 
 

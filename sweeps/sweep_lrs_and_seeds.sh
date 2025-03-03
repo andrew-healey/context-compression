@@ -55,7 +55,7 @@ for lr in 5.5e-5 6e-5 6.5e-5; do
             --batch_size $batch_size \
             --mup \
             --n_heads 4 \
-            --key ${lr}_${total_batch_size}_${seed} \
+            --key ${lr}_${total_batch_size} \
             --random_seed $seed $FLAGS; }
         done
     done
