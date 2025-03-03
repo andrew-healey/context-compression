@@ -442,7 +442,7 @@ if ddp:
 
 torch.cuda.empty_cache()
 
-eval_period = 50
+eval_period = 100
 save_period = 2500
 hellaswag_period = 250
 
@@ -684,9 +684,13 @@ for step in range(start_step, max_steps):
             "dt_ms": dt * 1000,
             "tokens_per_sec": tokens_per_sec
         }, step=step)
-        print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
-        with open(log_file, "a") as f:
-            f.write(f"{step} train {loss_accum.item():.6f} (lr={lr:.4e}) (hash(x)={x.sum().item()})\n")
+        if step % 100 == 0:
+            print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
+            with open(log_file, "a") as f:
+                f.write(f"{step} train {loss_accum.item():.6f} (lr={lr:.4e}) (hash(x)={x.sum().item()})\n")
+
+if ddp:
+    destroy_process_group()
 
 if master_process and args.upload_to_hf:
     api = HfApi()
@@ -699,9 +703,7 @@ if master_process and args.upload_to_hf:
     )
     wandb.finish()
 
+
 if master_process and (args.kill_self_after_run or os.environ.get('KILL_SELF_AFTER_RUN', 'false').lower() == 'true'):
     print("Run succeeded, killing my own instance")
     os.system("vastai destroy instance $CONTAINER_ID;")
-
-if ddp:
-    destroy_process_group()
