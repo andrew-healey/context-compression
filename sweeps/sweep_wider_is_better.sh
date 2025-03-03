@@ -4,8 +4,8 @@
 # so we'll do that.
 # so the CUDA_VISIBLE_DEVICES=floor($RANK/2)
 
-if [ -z "$RANK" ] || [ -z "$WORLD_SIZE" ]; then
-  echo "RANK and WORLD_SIZE must be defined"
+if [ -z "$RANK" ] || [ -z "$WORLD_SIZE" ] || [ -z "$NNODES" ] || [ -z "$NODE_RANK" ]; then
+  echo "RANK and WORLD_SIZE and NNODES and NODE_RANK must be defined"
   exit 1
 fi
 
@@ -17,7 +17,13 @@ for n_heads in 4; do
                 batch_size=$((total_batch_size / 256))
                 for seed in 1338 1339 1340 1341 1342 1343 1344 1345; do
                     i=$((i + 1))
-                    if [ $((i % $WORLD_SIZE)) -ne $RANK ]; then
+                    # we gotta be on the right node
+                    if [ $((i % $NNODES)) -ne $NODE_RANK ]; then
+                        continue
+                    fi
+                    j=$((i / $NNODES))
+                    # we ALSO gotta be on the right gpu
+                    if [ $((j % WORLD_SIZE)) -ne $RANK ]; then
                         continue
                     fi
                     out_dir="wider_is_better_9/attention_kind${attention_kind}_n_heads${n_heads}_seed${seed}"
