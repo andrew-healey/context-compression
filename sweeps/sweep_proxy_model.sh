@@ -43,7 +43,7 @@ if [ -z "$RANK" ] || [ -z "$WORLD_SIZE" ]; then
 fi
 
 i=0
-for lr in 1.5e-4 1.75e-4 2e-4; do
+for lr in 2e-4; do
   for total_batch_size in 5120 10240; do
     for n_heads in 2 4; do
       for seed in 1338 1339 1340; do
@@ -71,3 +71,6 @@ for lr in 1.5e-4 1.75e-4 2e-4; do
 done
 
 echo 'done'
+
+# results: honestly super confused. n_heads seems to violate the law of wider-is-better.
+# I'm gonna check if that's because of selectivity or because my mup impl is buggy.
