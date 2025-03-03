@@ -443,7 +443,7 @@ if ddp:
 torch.cuda.empty_cache()
 
 eval_period = 100
-save_period = 2500
+save_period = 125000
 hellaswag_period = 250
 
 if master_process:
