@@ -27,8 +27,8 @@ class DataLoaderLite:
         data_root = os.environ.get("DATA_DIR", ".")+"/edu_fineweb10B"
         shards = os.listdir(data_root)
         shards = [s for s in shards if split in s]
-        shuffle(shards)
         shards = sorted(shards)
+        shuffle(shards)
         shards = [os.path.join(data_root, s) for s in shards]
         self.shards = shards
         assert len(shards) > 0, f"no shards found for split {split}"
