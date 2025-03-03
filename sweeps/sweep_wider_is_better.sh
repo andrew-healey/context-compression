@@ -12,7 +12,7 @@ fi
 i=0
 for n_heads in 4; do
     for attention_kind in selective; do
-        for lr in 3.75e-5 4e-5; do
+        for lr in 3.25e-5 3.5e-5 3.75e-5 4e-5; do
             for total_batch_size in 30720; do
                 batch_size=$((total_batch_size / 256))
                 for seed in 1338 1339 1340 1341 1342 1343 1344 1345; do
