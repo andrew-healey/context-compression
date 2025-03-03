@@ -38,5 +38,14 @@ cd /workspace/context-compression && git pull && NNODES=4 NODE_RANK=2 USE_MINI_M
 cd /workspace/context-compression && git pull && NNODES=4 NODE_RANK=3 USE_MINI_MODEL=true torchrun --nproc_per_node=4 sweeps/run_sweep.py sweeps/sweep_wider_is_better.sh
 ```
 
-```vast
+```vast:running/18413174
+cd /workspace/context-compression && git pull && NNODES=3 NODE_RANK=0 USE_MINI_MODEL=true torchrun --nproc_per_node=4 sweeps/run_sweep.py sweeps/sweep_wider_is_better.sh
+```
+
+```vast:running/18413177
+cd /workspace/context-compression && git pull && NNODES=3 NODE_RANK=1 USE_MINI_MODEL=true torchrun --nproc_per_node=4 sweeps/run_sweep.py sweeps/sweep_wider_is_better.sh
+```
+
+```vast:running/18413204
+cd /workspace/context-compression && git pull && NNODES=3 NODE_RANK=2 USE_MINI_MODEL=true torchrun --nproc_per_node=4 sweeps/run_sweep.py sweeps/sweep_wider_is_better.sh
 ```
