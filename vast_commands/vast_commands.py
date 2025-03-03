@@ -114,9 +114,9 @@ def get_tag_string(block: CommandBlock) -> str:
 # the command (after stripping whitespace) does not contain a double-quote.
 def verify_command_block(block: CommandBlock) -> bool:
     cmd = block.content.strip()
-    if '"' in cmd:
-        print(f"Command {cmd} contains a double-quote. That's not allowed.")
-        return False
+    # if '"' in cmd:
+    #     print(f"Command {cmd} contains a double-quote. That's not allowed.")
+    #     return False
     return True
 
 def verify_phase(blocks: List[CommandBlock]) -> None:
@@ -338,28 +338,34 @@ def check_phase(blocks: List[CommandBlock]) -> None:
     return
 
 # Finish phase: convert SUCCESS or FAIL blocks to FINISHED and simulate deleting their instance.
-def finish_phase(blocks: List[CommandBlock]) -> None:
+def finish_phase(blocks: List[CommandBlock], delete_finished_instances: bool = True) -> None:
     logger.info("=== Finish Phase ===")
     from vast_ai_api import VastAPIHelper
     api = VastAPIHelper()
     for block in blocks:
          if block.state == CommandState.SUCCESS and block.instance_id:
-              logger.debug(f"Finishing block {block.index} on instance {block.instance_id} and deleting the instance.")
-              delay = 10
-              max_delay = 60
-              while delay <= max_delay:
-                  try:
-                      api.delete_instance(block.instance_id)
-                      logger.debug(f"Deleted instance {block.instance_id} for block {block.index}.")
-                      break
-                  except Exception as e:
-                      logger.error(f"Error deleting instance {block.instance_id} for block {block.index}: {e}")
-                      logger.info(f"Retrying in {delay} seconds...")
-                      time.sleep(delay)
-                      delay *= 2
+              logger.debug(f"Finishing block {block.index} on instance {block.instance_id}.")
+              if delete_finished_instances:
+                  logger.debug(f"Deleting instance {block.instance_id} for block {block.index}.")
+                  delay = 10
+                  max_delay = 60
+                  while delay <= max_delay:
+                      try:
+                          api.delete_instance(block.instance_id)
+                          logger.debug(f"Deleted instance {block.instance_id} for block {block.index}.")
+                          break
+                      except Exception as e:
+                          logger.error(f"Error deleting instance {block.instance_id} for block {block.index}: {e}")
+                          logger.info(f"Retrying in {delay} seconds...")
+                          time.sleep(delay)
+                          delay *= 2
+                  else:
+                      logger.error(f"Failed to delete instance {block.instance_id} after all retries")
+                      continue
               else:
-                  logger.error(f"Failed to delete instance {block.instance_id} after all retries")
-                  continue
+                  logger.debug(f"Not deleting instance {block.instance_id} as delete_finished_instances is False")
+                  api.label_instance(block.instance_id, "") # wipe the label
+
               block.state = CommandState.FINISHED
               block.instance_id = None
          # Optionally, you might add similar deletion handling for FAIL blocks if desired.
@@ -430,6 +436,8 @@ def provision_phase(blocks: List[CommandBlock]) -> List[Instance]:
 def main():
     parser = argparse.ArgumentParser(description="Process vast command blocks from a markdown file.")
     parser.add_argument("filename", help="Markdown file containing vast command blocks")
+    parser.add_argument("--no_delete_finished_instances", action="store_false", help="Don't delete finished instances", dest="delete_finished_instances")
+    parser.set_defaults(delete_finished_instances=True)
     args = parser.parse_args()
 
     try:
@@ -466,7 +474,7 @@ def main():
 
 
             # Phase 5: Finish Phase (if needed)
-            finish_phase(blocks)
+            finish_phase(blocks, delete_finished_instances=args.delete_finished_instances)
             writeback_file(fw, file_text, blocks)
 
         finally:
