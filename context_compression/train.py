@@ -227,7 +227,7 @@ else:
     B = args.batch_size or 8 # micro batch size
     T = args.seq_len or 1024 # sequence length
 
-    args.n_embd = None # just use GPTConfig's default
+    args.n_embd = args.n_heads * 64 # just use GPTConfig's default
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 if master_process:
@@ -442,6 +442,7 @@ if ddp:
 
 torch.cuda.empty_cache()
 
+print_period = 10
 eval_period = 100
 save_period = 125000
 hellaswag_period = 250
@@ -684,7 +685,7 @@ for step in range(start_step, max_steps):
             "dt_ms": dt * 1000,
             "tokens_per_sec": tokens_per_sec
         }, step=step)
-        if step % 100 == 0:
+        if step % print_period == 0:
             print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
             with open(log_file, "a") as f:
                 f.write(f"{step} train {loss_accum.item():.6f} (lr={lr:.4e}) (hash(x)={x.sum().item()})\n")

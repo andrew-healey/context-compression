@@ -2857,3 +2857,35 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --batch_size 4 \
   --mup
 ```
+
+
+
+
+## Can I just train the same model with smaller bs and higher lr?
+
+Baseline:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train --group shrinking_big_runs --log_dir one_mask_per_head_4_latent_vectors --selection_head_linear_combo n_latent_masks --n_heads 12 --n_latent_masks 4 --total_batch_size 524288 --batch_size 8 --max_lr 6e-5
+```
+
+Half-total-bs, sqrt-lr:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train --group shrinking_big_runs --log_dir one_mask_per_head_4_latent_vectors --selection_head_linear_combo n_latent_masks --n_heads 12 --n_latent_masks 4 --total_batch_size 262144 --batch_size 8 --max_lr 4e-5
+```
+
+Same-total-bs, half-seq-len:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train --group shrinking_big_runs --log_dir one_mask_per_head_4_latent_vectors --selection_head_linear_combo n_latent_masks --n_heads 12 --n_latent_masks 4 --total_batch_size 524288 --batch_size 16 --max_lr 6e-5 --seq_len 512
+```
+
+4x-smaller-bs, half-lr, half-seq-len:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train --group shrinking_big_runs --log_dir one_mask_per_head_4_latent_vectors --selection_head_linear_combo n_latent_masks --n_heads 12 --n_latent_masks 4 --total_batch_size 131072 --batch_size 16 --max_lr 1.5e-5 --seq_len 512
+```
+
+
+
