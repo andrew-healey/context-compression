@@ -142,30 +142,48 @@ class Instance:
     ssh_port: int = 22   # Default SSH port
     label: Optional[str] = None
 
+def exponential_backoff_retry(func, initial_delay=10, max_delay=60, max_attempts=5):
+    """
+    Execute a function with exponential backoff retry logic.
+    
+    Args:
+        func: The function to execute
+        initial_delay: Initial delay between retries in seconds (default: 10)
+        max_delay: Maximum delay between retries in seconds (default: 60)
+        max_attempts: Maximum number of attempts before giving up (default: 5)
+    
+    Returns:
+        The result of the function if successful
+        
+    Raises:
+        Exception: If all retry attempts fail
+    """
+    delay = initial_delay
+    attempt = 0
+    
+    while True:
+        try:
+            return func()
+        except Exception as e:
+            attempt += 1
+            logger.error(f"Error (attempt {attempt}): {e}")
+            if attempt >= max_attempts:
+                logger.error("Max attempts reached. Giving up.")
+                raise
+            logger.info(f"Retrying in {delay} seconds...")
+            time.sleep(delay)
+            delay = min(delay * 2, max_delay)
+
 # A function to get instances that are "for autorunning" using the vast-ai-api.
 def get_autorunning_instances() -> List[Instance]:
     from vast_ai_api import VastAPIHelper
     import pandas as pd
-    api = VastAPIHelper()
-    backoff = 10  # initial sleep time: 10 seconds
-    max_backoff = 60  # maximum sleep time: 60 seconds
-    attempt = 0
-    max_attempts = 5  # try up to 5 times
-
-    while True:
-        try:
-            # List current instances (launched instances)
-            launched_df = api.list_current_instances()
-            break  # if successful, exit the loop
-        except Exception as e:
-            attempt += 1
-            logger.error("Error fetching current instances from Vast.ai (attempt %d): %s", attempt, e)
-            if attempt >= max_attempts:
-                logger.error("Max attempts reached. Returning empty list.")
-                return []
-            logger.info("Retrying in %d seconds...", backoff)
-            time.sleep(backoff)
-            backoff = min(backoff * 2, max_backoff)
+    
+    def _fetch_instances():
+        api = VastAPIHelper()
+        return api.list_current_instances()
+    
+    launched_df = exponential_backoff_retry(_fetch_instances)
 
     instances = []
     # Filter for those instances which have an extra_env entry for IS_FOR_AUTORUNNING=true.
@@ -192,28 +210,13 @@ import random
 
 # Launch a verified command block on a given instance.
 def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
-
-    # first, set the label to none
-    backoff = 10  # initial sleep time: 10 seconds
-    max_backoff = 60  # maximum sleep time: 60 seconds
-    attempt = 0
-    max_attempts = 5  # try up to 5 times
-
-    while True:
-        try:
-            from vast_ai_api import VastAPIHelper
-            api = VastAPIHelper()
-            api.label_instance(instance.instance_id, None)
-            break  # if successful, exit the loop
-        except Exception as e:
-            attempt += 1
-            logger.error(f"Error setting instance {instance.instance_id} label to None (attempt {attempt}): {e}")
-            if attempt >= max_attempts:
-                logger.error("Max attempts reached. Giving up on setting label.")
-                break
-            logger.info("Retrying in %d seconds...", backoff)
-            time.sleep(backoff)
-            backoff = min(backoff * 2, max_backoff)
+    from vast_ai_api import VastAPIHelper
+    
+    def _set_label():
+        api = VastAPIHelper()
+        api.label_instance(instance.instance_id, None)
+    
+    exponential_backoff_retry(_set_label)
 
     # Extract the inner command (strip starting and ending quotes).
     command = block.content
@@ -234,7 +237,6 @@ def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
     # Use shlex.quote() to safely wrap the entire command
     import shlex
     quoted_remote_command = shlex.quote(remote_command)
-
 
     ssh_command = [
         "ssh",
@@ -416,7 +418,7 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True)
 
     # if all pending commands are running, then we don't need any slack anymore!
     # so we can deprovision any extra instances.
-    if all_pending_cmds_are_running and should_deprovision:
+    if all_pending_cmds_are_running:
         assigned_ids = {block.instance_id for block in blocks if block.instance_id}
         free_instances = [inst for inst in current_instances if inst.instance_id not in assigned_ids]
         logger.debug(f"All pending commands are running, so we can deprovision {len(free_instances)}/ {len(current_instances)} extra/total instances.")
@@ -424,11 +426,19 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True)
             from vast_ai_api import VastAPIHelper
             api = VastAPIHelper()
             for inst in free_instances:
-                logger.debug(f"Deprovisioning extra instance {inst.instance_id}.")
-                try:
-                    api.delete_instance(inst.instance_id)
-                except Exception as e:
-                    logger.error(f"Error deprovisioning instance {inst.instance_id}: {e}")
+                if should_deprovision:
+                    logger.debug(f"Deprovisioning extra instance {inst.instance_id}.")
+                    try:
+                        api.delete_instance(inst.instance_id)
+                    except Exception as e:
+                        logger.error(f"Error deprovisioning instance {inst.instance_id}: {e}")
+                else:
+                    logger.debug(f"Setting label to empty for extra instance {inst.instance_id} (deprovision disabled).")
+                    try:
+                        api.set_instance_label(inst.instance_id, "")
+                        api.stop_instance(inst.instance_id)
+                    except Exception as e:
+                        logger.error(f"Error setting label for instance {inst.instance_id}: {e}")
         else:
             logger.debug("No extra instances to deprovision.")
     return get_autorunning_instances()
