@@ -70,7 +70,7 @@ class GPTConfig:
 
     def __post_init__(self):
         if self.attn_mult is None:
-            self.attn_mult = (self.n_embd / self.n_head)**0.5
+            self.attn_mult = (self.n_embd / self.n_head)**-0.5
 
 class GPT(nn.Module):
     def __init__(self, config):
