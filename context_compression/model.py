@@ -75,7 +75,10 @@ class GPTConfig:
 
     def __post_init__(self):
         if self.attn_mult is None:
-            self.attn_mult = (self.n_embd / self.n_head)**0.5
+            if self.mup:
+                self.attn_mult = (self.n_embd / self.n_head)**-1.0
+            else:
+                self.attn_mult = (self.n_embd / self.n_head)**-0.5
 
 class GPT(nn.Module):
     def __init__(self, config):
