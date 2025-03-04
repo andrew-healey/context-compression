@@ -2914,17 +2914,17 @@ cd /workspace/context-compression && git fetch && git checkout 056a8dc2408 && to
 cd /workspace/context-compression && git fetch && git checkout 1de663ff31 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  1de663ff31  --n_heads 12
 ```
 
-REGRESSED BEFORE OR AT THIS COMMIT ^^^
+REGRESSED AT OR BEFORE THIS COMMIT ^^^ - this is it! 1de663ff31
 
-```vast
+REGRESSED AFTER THIS COMMIT VVVV
+
+```vast:running/18424885
 cd /workspace/context-compression && git fetch && git checkout bbd19ad7267 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  bbd19ad7267  --n_heads 12
 ```
 
-```vast
+```vast:running/18413176
 cd /workspace/context-compression && git fetch && git checkout d03690efe30 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  d03690efe30  --n_heads 12
 ```
-
-REGRESSED AFTER THIS COMMIT VVVV
 
 ```vast:finished
 cd /workspace/context-compression && git pull && git checkout 7fb24853684d6efcd52c13cf39d4f && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  7fb24853684d6  --n_heads 12
