@@ -2918,11 +2918,11 @@ REGRESSED AT OR BEFORE THIS COMMIT ^^^ - this is it! 1de663ff31
 
 REGRESSED AFTER THIS COMMIT VVVV
 
-```vast:running/18424885
+```vast:finished
 cd /workspace/context-compression && git fetch && git checkout bbd19ad7267 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  bbd19ad7267  --n_heads 12
 ```
 
-```vast:verified
+```vast:finished
 cd /workspace/context-compression && git fetch && git checkout d03690efe30 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  d03690efe30  --n_heads 12
 ```
 
@@ -2937,6 +2937,6 @@ cd /workspace/context-compression && git pull && git checkout cb9f28c && torchru
 
 ## Hopefully fixing regressions
 
-```vast:verified
+```vast:running/18424880
 cd /workspace/context-compression && git fetch && git checkout 0471b8fde && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  0471b8fde  --n_heads 12
 ```
