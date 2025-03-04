@@ -2890,22 +2890,36 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 ## Comparing past commit performances - bisect major regression
 
-```vast:running/18413176
-cd /workspace/context-compression && git pull && git checkout 7fb24853684d6efcd52c13cf39d4f && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  7fb24853684d6  --n_heads 12
-````
-
-```vast:running/18424885
-cd /workspace/context-compression && git fetch && git checkout 55097b0f && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  2fcffe529  --n_heads 12
+```vast:running/18424880
+cd /workspace/context-compression && git fetch && git checkout 88638d4e0d93 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  88638d4e0d93  --n_heads 12
 ```
 
 ```vast:running/18425059
 cd /workspace/context-compression && git pull && git checkout 37758280b && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  ef11f972cd6  --n_heads 12
 ```
 
-```vast:running/18425068
-cd /workspace/context-compression && git pull && git checkout cb9f28c && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  cb9f28c  --n_heads 12
+```vast:running/18424885
+cd /workspace/context-compression && git fetch && git checkout 55097b0f && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  2fcffe529  --n_heads 12
 ```
 
-```vast:running/18424880
-cd /workspace/context-compression && git fetch && git checkout 88638d4e0d93 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  88638d4e0d93  --n_heads 12
+SOMETHING REGRESSED HERE
+
+```vast
+cd /workspace/context-compression && git pull && git checkout 5b9467b8 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  5b9467b8  --n_heads 12
+```
+
+```vast
+cd /workspace/context-compression && git pull && git checkout 056a8dc2408 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  056a8dc2408  --n_heads 12
+```
+
+```vast
+cd /workspace/context-compression && git pull && git checkout 1de663ff31 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  1de663ff31  --n_heads 12
+```
+
+```vast:running/18413176
+cd /workspace/context-compression && git pull && git checkout 7fb24853684d6efcd52c13cf39d4f && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  7fb24853684d6  --n_heads 12
+````
+
+```vast:running/18425068
+cd /workspace/context-compression && git pull && git checkout cb9f28c && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  cb9f28c  --n_heads 12
 ```
