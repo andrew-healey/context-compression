@@ -26,10 +26,10 @@ fi
 GPUS_PER_RUN=4
 
 i=0
-for lr in 4e-4 12e-4 8e-4; do
+for lr in 11e-4 13e-4; do
     for total_batch_size in 122880; do
         batch_size=$((total_batch_size / 256 / GPUS_PER_RUN))
-        for seed in 1338 1339; do
+        for seed in 1339; do   
             i=$((i + 1))
             # we gotta be on the right node
             if [ $((i % $NNODES)) -ne $NODE_RANK ]; then
@@ -52,8 +52,8 @@ for lr in 4e-4 12e-4 8e-4; do
             --max_lr $lr \
             --total_batch_size $total_batch_size \
             --seq_len 256 \
-            --max_steps 8750 \
-            --warmup_steps 500 \
+            --max_steps 4375 \
+            --warmup_steps 250 \
             --batch_size $batch_size \
             --mup \
             --n_heads 4 \

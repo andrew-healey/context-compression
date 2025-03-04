@@ -2939,10 +2939,22 @@ cd /workspace/context-compression && git pull && git checkout cb9f28c && torchru
 
 ### Hopefully fixing regressions
 
-```vast:running/18424880
+```vast:finished
 cd /workspace/context-compression && git fetch && git checkout 0471b8fde && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  0471b8fde  --n_heads 12
 ```
 
 See all runs [here](https://wandb.ai/sesamestrong/context_compression?nw=0iuwx2zct3i).
 
 The attention multiplier was inverted - no idea how I passed coord checks, crazy.
+
+## Testing my mup (seems pretty good!)
+
+```vast:finished
+cd /workspace/context-compression && git fetch && git checkout 24a09f5 && SUFFIX=baseline FLAGS=" " USE_MINI_MODEL=true torchrun --nproc_per_node=4 sweeps/run_sweep.py sweeps/n_heads_12_mini.sh
+```
+
+## 2xing bs again on small model
+
+```vast:finished
+cd /workspace/context-compression && git fetch && git checkout 649bd3e47a3 && SUFFIX=baseline FLAGS=" " USE_MINI_MODEL=true torchrun --nproc_per_node=2 sweeps/run_sweep.py sweeps/sweep_lrs_and_seeds.sh
+```
