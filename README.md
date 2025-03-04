@@ -2888,7 +2888,9 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 ```
 
 
-## Comparing past commit performances - bisect major regression
+## Comparing past commit performances - bisect major regression (see loss curves [here](https://wandb.ai/sesamestrong/context_compression?nw=0iuwx2zct3i))
+
+Summary: problem was that the attention multiplier was inverted!!
 
 ```vast:finished
 cd /workspace/context-compression && git fetch && git checkout 88638d4e0d93 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  88638d4e0d93  --n_heads 12
@@ -2935,8 +2937,12 @@ cd /workspace/context-compression && git pull && git checkout cb9f28c && torchru
 ```
 
 
-## Hopefully fixing regressions
+### Hopefully fixing regressions
 
 ```vast:running/18424880
 cd /workspace/context-compression && git fetch && git checkout 0471b8fde && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  0471b8fde  --n_heads 12
 ```
+
+See all runs [here](https://wandb.ai/sesamestrong/context_compression?nw=0iuwx2zct3i).
+
+The attention multiplier was inverted - no idea how I passed coord checks, crazy.

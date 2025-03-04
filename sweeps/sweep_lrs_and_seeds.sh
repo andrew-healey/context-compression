@@ -26,10 +26,10 @@ fi
 GPUS_PER_RUN=2
 
 i=0
-for lr in 5.5e-5 6e-5 6.5e-5; do
+for lr in 12e-4 16e-4 10e-4 9e-4; do
     for total_batch_size in 61440; do
         batch_size=$((total_batch_size / 256 / GPUS_PER_RUN))
-        for seed in 1338 1339 1340 1341; do
+        for seed in 1338 1339; do
             i=$((i + 1))
             # we gotta be on the right node
             if [ $((i % $NNODES)) -ne $NODE_RANK ]; then
@@ -40,12 +40,12 @@ for lr in 5.5e-5 6e-5 6.5e-5; do
             if [ $((j % WORLD_SIZE)) -ne $RANK ]; then
                 continue
             fi
-            out_dir="wider_is_better_10/lr${lr}_total_batch_size${total_batch_size}_${SUFFIX}_seed${seed}"
+            out_dir="wider_is_better_11/lr${lr}_total_batch_size${total_batch_size}_${SUFFIX}_seed${seed}"
             # Use CUDA_DEVICE=0 since after setting CUDA_VISIBLE_DEVICES, the only visible device is 0
             DOUBLE_RANK=$((RANK * GPUS_PER_RUN))
             DOUBLE_RANK_PLUS_ONE=$((DOUBLE_RANK + 1))
             TORCHRUN_PORT=$((13345 + RANK))
-            { CUDA_VISIBLE_DEVICES=$DOUBLE_RANK,$DOUBLE_RANK_PLUS_ONE torchrun --nproc_per_node=$GPUS_PER_RUN --master_port $TORCHRUN_PORT -m context_compression.train --group wider_is_better_10 \
+            { CUDA_VISIBLE_DEVICES=$DOUBLE_RANK,$DOUBLE_RANK_PLUS_ONE torchrun --nproc_per_node=$GPUS_PER_RUN --master_port $TORCHRUN_PORT -m context_compression.train --group wider_is_better_11 \
             --log_dir $out_dir \
             --max_lr $lr \
             --total_batch_size $total_batch_size \
