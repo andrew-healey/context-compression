@@ -191,7 +191,7 @@ else:
     B = args.batch_size # micro batch size
     T = args.seq_len # sequence length
 
-    args.n_embd = None # just use GPTConfig's default
+    args.n_embd = args.n_heads * 64 # just use GPTConfig's default
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 if master_process:
