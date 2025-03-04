@@ -142,7 +142,7 @@ class Instance:
     ssh_port: int = 22   # Default SSH port
     label: Optional[str] = None
 
-def exponential_backoff_retry(func, initial_delay=10, max_delay=60, max_attempts=5):
+def exponential_backoff_retry(func, initial_delay=5, max_delay=60, max_attempts=5):
     """
     Execute a function with exponential backoff retry logic.
     
@@ -349,24 +349,15 @@ def finish_phase(blocks: List[CommandBlock], delete_finished_instances: bool = T
               logger.debug(f"Finishing block {block.index} on instance {block.instance_id}.")
               if delete_finished_instances:
                   logger.debug(f"Deleting instance {block.instance_id} for block {block.index}.")
-                  delay = 10
-                  max_delay = 60
-                  while delay <= max_delay:
-                      try:
-                          api.delete_instance(block.instance_id)
-                          logger.debug(f"Deleted instance {block.instance_id} for block {block.index}.")
-                          break
-                      except Exception as e:
-                          logger.error(f"Error deleting instance {block.instance_id} for block {block.index}: {e}")
-                          logger.info(f"Retrying in {delay} seconds...")
-                          time.sleep(delay)
-                          delay *= 2
-                  else:
-                      logger.error(f"Failed to delete instance {block.instance_id} after all retries")
+                  try:
+                      exponential_backoff_retry(lambda: api.delete_instance(block.instance_id))
+                      logger.debug(f"Deleted instance {block.instance_id} for block {block.index}.")
+                  except Exception as e:
+                      logger.error(f"Failed to delete instance {block.instance_id} after all retries: {e}")
                       continue
               else:
                   logger.debug(f"Not deleting instance {block.instance_id} as delete_finished_instances is False")
-                  api.label_instance(block.instance_id, "") # wipe the label
+                  exponential_backoff_retry(lambda: api.label_instance(block.instance_id, "")) # wipe the label
 
               block.state = CommandState.FINISHED
               block.instance_id = None
@@ -429,16 +420,18 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True)
                 if should_deprovision:
                     logger.debug(f"Deprovisioning extra instance {inst.instance_id}.")
                     try:
-                        api.delete_instance(inst.instance_id)
+                        exponential_backoff_retry(lambda: api.delete_instance(inst.instance_id))
+                        logger.debug(f"Successfully deprovisioned instance {inst.instance_id}.")
                     except Exception as e:
-                        logger.error(f"Error deprovisioning instance {inst.instance_id}: {e}")
+                        logger.error(f"Error deprovisioning instance {inst.instance_id} after all retries: {e}")
                 else:
                     logger.debug(f"Setting label to empty for extra instance {inst.instance_id} (deprovision disabled).")
                     try:
-                        api.label_instance(inst.instance_id, "")
-                        api.stop_instance(inst.instance_id)
+                        exponential_backoff_retry(lambda: api.label_instance(inst.instance_id, ""))
+                        exponential_backoff_retry(lambda: api.stop_instance(inst.instance_id))
+                        logger.debug(f"Successfully set label and stopped instance {inst.instance_id}.")
                     except Exception as e:
-                        logger.error(f"Error setting label for instance {inst.instance_id}: {e}")
+                        logger.error(f"Error setting label or stopping instance {inst.instance_id} after all retries: {e}")
         else:
             logger.debug("No extra instances to deprovision.")
     return get_autorunning_instances()

@@ -2905,3 +2905,7 @@ cd /workspace/context-compression && git pull && git checkout 37758280b && torch
 ```vast:running/18425068
 cd /workspace/context-compression && git pull && git checkout cb9f28c && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  cb9f28c  --n_heads 12
 ```
+
+```vast:running/18424880
+cd /workspace/context-compression && git fetch && git checkout 88638d4e0d93 && torchrun --nproc_per_node=gpu -m context_compression.train   --group fix_regressions   --log_dir  88638d4e0d93  --n_heads 12
+```
