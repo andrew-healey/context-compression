@@ -435,7 +435,7 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True)
                 else:
                     logger.debug(f"Setting label to empty for extra instance {inst.instance_id} (deprovision disabled).")
                     try:
-                        api.set_instance_label(inst.instance_id, "")
+                        api.label_instance(inst.instance_id, "")
                         api.stop_instance(inst.instance_id)
                     except Exception as e:
                         logger.error(f"Error setting label for instance {inst.instance_id}: {e}")
