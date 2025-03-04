@@ -23,11 +23,11 @@ if [ -z "$FLAGS" ]; then
   exit 1
 fi
 
-GPUS_PER_RUN=2
+GPUS_PER_RUN=4
 
 i=0
-for lr in 12e-4 16e-4 10e-4 9e-4; do
-    for total_batch_size in 61440; do
+for lr in 4e-4 12e-4 8e-4; do
+    for total_batch_size in 122880; do
         batch_size=$((total_batch_size / 256 / GPUS_PER_RUN))
         for seed in 1338 1339; do
             i=$((i + 1))
@@ -44,8 +44,10 @@ for lr in 12e-4 16e-4 10e-4 9e-4; do
             # Use CUDA_DEVICE=0 since after setting CUDA_VISIBLE_DEVICES, the only visible device is 0
             DOUBLE_RANK=$((RANK * GPUS_PER_RUN))
             DOUBLE_RANK_PLUS_ONE=$((DOUBLE_RANK + 1))
+            DOUBLE_RANK_PLUS_TWO=$((DOUBLE_RANK + 2))
+            DOUBLE_RANK_PLUS_THREE=$((DOUBLE_RANK + 3))
             TORCHRUN_PORT=$((13345 + RANK))
-            { CUDA_VISIBLE_DEVICES=$DOUBLE_RANK,$DOUBLE_RANK_PLUS_ONE torchrun --nproc_per_node=$GPUS_PER_RUN --master_port $TORCHRUN_PORT -m context_compression.train --group wider_is_better_11 \
+            { CUDA_VISIBLE_DEVICES=$DOUBLE_RANK,$DOUBLE_RANK_PLUS_ONE,$DOUBLE_RANK_PLUS_TWO,$DOUBLE_RANK_PLUS_THREE torchrun --nproc_per_node=$GPUS_PER_RUN --master_port $TORCHRUN_PORT -m context_compression.train --group wider_is_better_11 \
             --log_dir $out_dir \
             --max_lr $lr \
             --total_batch_size $total_batch_size \
