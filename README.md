@@ -3030,3 +3030,41 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --random_seed 1339 \
 --selection_head_linear_combo two_masks
 ```
+
+Result of repro attempt: 2 masks is a bit better than baseline, but all the latent stuff is worse than baseline. (in the big-model graph, 2-mask and baseline are ~identical. That's a mismatch)
+Difference between latent runs is negligible. (in the big-model graph, 4-latent is much worse than 2-latent. That's a mismatch)
+
+So big important thing: latent masks are fundamentally bad somehow. But the micro details are wrong. Maybe let's try training a 12-head model with a smaller head dim? Hopefully that can be more faithful to the big-model results.
+
+## Allowing more selection patterns, pt. 3
+
+Let's use head_dim=22, n_heads=12 for this.
+
+Baseline run:
+
+```vast
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 11e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_11e-4 \
+--key 12_head_baseline_lr_11e-4 \
+--random_seed 1339
+```
+
+```vast
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 6e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_6e-4 \
+--key 12_head_baseline_lr_6e-4 \
+--random_seed 1339
+```
+
+```vast
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 16e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_16e-4 \
+--key 12_head_baseline_lr_16e-4 \
+--random_seed 1339
+```
