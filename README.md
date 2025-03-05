@@ -2982,7 +2982,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 One mask per head, but constructed from 4 latent masks:
 
-```vast:running/18470071
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 11e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --n_heads 4 \
 --group repro_selective_pattern_rankings \
@@ -2995,7 +2995,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 One mask per head, but constructed from 2 latent masks:
 
-```vast:running/18470073
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 11e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --n_heads 4 \
 --group repro_selective_pattern_rankings \
@@ -3008,7 +3008,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 One mask per head, but constructed from 1 latent mask:
 
-```vast:running/18470076
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 11e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --n_heads 4 \
 --group repro_selective_pattern_rankings \
@@ -3021,7 +3021,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Two masks, with 4 heads:
 
-```vast:running/18470081
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 11e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --n_heads 4 \
 --group repro_selective_pattern_rankings \
@@ -3042,7 +3042,7 @@ Let's use head_dim=22, n_heads=12 for this.
 
 Baseline run:
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 11e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
 --group repro_selective_pattern_rankings \
@@ -3051,7 +3051,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --random_seed 1339
 ```
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 6e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
 --group repro_selective_pattern_rankings \
@@ -3060,11 +3060,66 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --random_seed 1339
 ```
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 16e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
 --group repro_selective_pattern_rankings \
 --log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_16e-4 \
 --key 12_head_baseline_lr_16e-4 \
 --random_seed 1339
+```
+
+Result: Seems like the 16e-4 and 11e-4 runs are pretty good. Let's go with 16e-4.
+
+### Selection patterns for n_heads=12
+
+One mask per head, but constructed from 4 latent masks:
+
+```vast:running/18470073
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 16e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_one_mask_per_head_4_latent_masks \
+--key 12_head_one_mask_per_head_4_latent_masks \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 4
+```
+
+One mask per head, but constructed from 2 latent masks:
+
+```vast:running/18470076
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 16e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_one_mask_per_head_2_latent_masks \
+--key 12_head_one_mask_per_head_2_latent_masks \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 2
+```
+
+One mask per head, but constructed from 1 latent mask:
+
+```vast:running/18470081
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 16e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_one_mask_per_head_1_latent_mask \
+--key 12_head_one_mask_per_head_1_latent_mask \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1
+```
+
+Two masks, with 4 heads:
+
+```vast:running/18470082
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 16e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --n_embd 264 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_two_masks_4_heads \
+--key 12_head_two_masks_4_heads \
+--random_seed 1339 \
+--selection_head_linear_combo two_masks
 ```
