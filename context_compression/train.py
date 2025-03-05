@@ -283,17 +283,18 @@ model = GPT(config)
 if args.mup:
     from mup import set_base_shapes
     if args.compute_base_shapes or args.base_shapes_savefile is None:
-        def make_model_from_n_head(n_head):
+        def make_model_from_n_head(n_head,head_dim,n_embd):
             base_args = vars(config)
             base_args['n_head'] = n_head
-            base_args['n_embd'] = n_head*config.head_dim
+            base_args['head_dim'] = head_dim
+            base_args['n_embd'] = n_embd
             base_config = GPTConfig(**base_args)
             base_model = GPT(base_config)
             return base_model
-        base_model = make_model_from_n_head(12)
-        delta_model = make_model_from_n_head(1)
+        base_model = make_model_from_n_head(12,64,768)
+        delta_model = make_model_from_n_head(1,64,64)
 
-        model = make_model_from_n_head(args.n_heads)
+        model = make_model_from_n_head(args.n_heads,args.head_dim,args.n_embd)
 
         set_base_shapes(model,base_model,delta=delta_model,rescale_params=False,savefile=args.base_shapes_savefile)
         model.apply(model._init_weights)

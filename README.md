@@ -3075,29 +3075,96 @@ OOPS! I accidentally used 64-dim heads! So this was actually a super slow, big m
 
 Let's run it again with head_dim=22.
 
-```vast:verified
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
---max_lr 11e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--max_lr 14e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
 --group repro_selective_pattern_rankings \
---log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_11e-4_head_dim_22 \
---key 12_head_baseline_lr_11e-4 \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_14e-4_head_dim_22 \
+--key 12_head_baseline_lr_14e-4 \
 --random_seed 1339
 ```
 
-```vast:verified
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
---max_lr 6e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--max_lr 20e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
 --group repro_selective_pattern_rankings \
---log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_6e-4_head_dim_22 \
---key 12_head_baseline_lr_6e-4 \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_20e-4_head_dim_22 \
+--key 12_head_baseline_lr_20e-4 \
 --random_seed 1339
 ```
 
-```vast:verified
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 16e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
 --group repro_selective_pattern_rankings \
 --log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_16e-4_head_dim_22 \
 --key 12_head_baseline_lr_16e-4 \
+--random_seed 1339
+```
+
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_30e-4_head_dim_22 \
+--key 12_head_baseline_lr_30e-4 \
+--random_seed 1339
+```
+
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 45e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_45e-4_head_dim_22 \
+--key 12_head_baseline_lr_45e-4 \
+--random_seed 1339
+```
+
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 70e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_70e-4_head_dim_22 \
+--key 12_head_baseline_lr_70e-4 \
+--random_seed 1339
+```
+
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 100e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_100e-4_head_dim_22 \
+--key 12_head_baseline_lr_100e-4 \
+--random_seed 1339
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 40e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_40e-4_head_dim_22 \
+--key 12_head_baseline_lr_40e-4 \
+--random_seed 1339
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 35e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_35e-4_head_dim_22 \
+--key 12_head_baseline_lr_35e-4 \
+--random_seed 1339
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 50e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_50e-4_head_dim_22 \
+--key 12_head_baseline_lr_50e-4 \
 --random_seed 1339
 ```
