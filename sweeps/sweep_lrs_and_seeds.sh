@@ -23,10 +23,10 @@ if [ -z "$FLAGS" ]; then
   exit 1
 fi
 
-GPUS_PER_RUN=4
+GPUS_PER_RUN=8
 
 i=0
-for lr in 11e-4 13e-4; do
+for lr in 11e-4; do
     for total_batch_size in 122880; do
         batch_size=$((total_batch_size / 256 / GPUS_PER_RUN))
         for seed in 1339; do   
@@ -47,7 +47,7 @@ for lr in 11e-4 13e-4; do
             DOUBLE_RANK_PLUS_TWO=$((DOUBLE_RANK + 2))
             DOUBLE_RANK_PLUS_THREE=$((DOUBLE_RANK + 3))
             TORCHRUN_PORT=$((13345 + RANK))
-            { CUDA_VISIBLE_DEVICES=$DOUBLE_RANK,$DOUBLE_RANK_PLUS_ONE,$DOUBLE_RANK_PLUS_TWO,$DOUBLE_RANK_PLUS_THREE torchrun --nproc_per_node=$GPUS_PER_RUN --master_port $TORCHRUN_PORT -m context_compression.train --group wider_is_better_11 \
+            echo CUDA_VISIBLE_DEVICES=$DOUBLE_RANK,$DOUBLE_RANK_PLUS_ONE,$DOUBLE_RANK_PLUS_TWO,$DOUBLE_RANK_PLUS_THREE torchrun --nproc_per_node=$GPUS_PER_RUN --master_port $TORCHRUN_PORT -m context_compression.train --group wider_is_better_11 \
             --log_dir $out_dir \
             --max_lr $lr \
             --total_batch_size $total_batch_size \
@@ -58,7 +58,7 @@ for lr in 11e-4 13e-4; do
             --mup \
             --n_heads 4 \
             --key ${lr}_${total_batch_size} \
-            --random_seed $seed $FLAGS; }
+            --random_seed $seed $FLAGS; 
         done
     done
 done
