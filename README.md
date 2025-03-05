@@ -3168,3 +3168,79 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --key 12_head_baseline_lr_50e-4 \
 --random_seed 1339
 ```
+
+Oops - I had a mup bug with custom head_dim. Let's rerun with the fixed bug.
+
+```vast:running/18481490
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 8e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_8e-4_head_dim_22_fixed \
+--key 12_head_baseline_lr_8e-4_fixed \
+--random_seed 1339
+```
+
+```vast:running/18481492
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 10e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_10e-4_head_dim_22_fixed \
+--key 12_head_baseline_lr_10e-4_fixed \
+--random_seed 1339
+```
+
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 12e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_12e-4_head_dim_22_fixed \
+--key 12_head_baseline_lr_12e-4_fixed \
+--random_seed 1339
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 14e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_14e-4_head_dim_22_fixed \
+--key 12_head_baseline_lr_14e-4_fixed \
+--random_seed 1339
+```
+
+
+```vast:running/18481644
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 16e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_16e-4_head_dim_22_fixed \
+--key 12_head_baseline_lr_16e-4_fixed \
+--random_seed 1339
+```
+
+```vast:running/18481491
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 20e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_20e-4_head_dim_22_fixed \
+--key 12_head_baseline_lr_20e-4_fixed \
+--random_seed 1339
+```
+
+```vast:running/18481495
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 25e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_25e-4_head_dim_22_fixed \
+--key 12_head_baseline_lr_25e-4_fixed \
+--random_seed 1339
+```
+
+```vast:running/18481497
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group repro_selective_pattern_rankings \
+--log_dir logs/repro_selective_pattern_rankings/12_head_baseline_lr_30e-4_head_dim_22_fixed \
+--key 12_head_baseline_lr_30e-4_fixed \
+--random_seed 1339
+```
