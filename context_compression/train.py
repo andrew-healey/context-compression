@@ -54,6 +54,8 @@ parser.add_argument("--n_heads", type=int, default=13,
                     help="Number of heads")
 parser.add_argument("--n_embd", type=int, default=None,
                     help="Number of embeddings")
+parser.add_argument("--head_dim", type=int, default=None,
+                    help="Number of dimensions per head")
 parser.add_argument("--protect_bos_token", action="store_true",
                     help="Protect the BOS token")
 parser.set_defaults(protect_bos_token=True)
@@ -222,14 +224,16 @@ if use_mini_model:
     total_batch_size = args.total_batch_size or 20480
     B = args.batch_size or 10 # micro batch size
     T = args.seq_len or 512 # sequence length
+    head_dim = args.head_dim or 64
 
-    args.n_embd = args.n_embd or args.n_heads * 64
+    args.n_embd = args.n_embd or args.n_heads * head_dim
 else:
     total_batch_size = args.total_batch_size or 524288 # 2**19, ~0.5M, in number of tokens
     B = args.batch_size or 8 # micro batch size
     T = args.seq_len or 1024 # sequence length
+    head_dim = args.head_dim or 64
 
-    args.n_embd = args.n_embd or args.n_heads * 64 # just use GPTConfig's default
+    args.n_embd = args.n_embd or args.n_heads * head_dim # just use GPTConfig's default
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 if master_process:
@@ -246,6 +250,7 @@ def make_config(args):
     return GPTConfig(
         n_embd=args.n_embd,
         n_head=args.n_heads,
+        head_dim=args.head_dim,
         n_layer=12,
         block_size=T,
         attention_kind=args.attention_kind,
