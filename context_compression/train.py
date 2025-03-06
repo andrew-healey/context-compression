@@ -16,6 +16,7 @@ from huggingface_hub import hf_hub_download, HfApi
 import wandb
 from typing import Optional
 from functools import partial
+from pathlib import Path
 
 from .data import DataLoaderLite, get_most_likely_row
 from .model import GPT, GPTConfig
@@ -314,7 +315,7 @@ max_lr = args.max_lr or 6e-4
 min_lr = max_lr * 0.1
 
 if use_mini_model:
-    new_max_steps = args.max_steps or 1000
+    new_max_steps = args.max_steps if args.max_steps is not None else 1000
     warmup_steps = args.warmup_steps or new_max_steps * 715 / 2500
     max_steps = new_max_steps
 else:
@@ -704,10 +705,21 @@ if ddp:
 if master_process and args.upload_to_hf:
     api = HfApi()
     log_dir_basename = os.path.basename(log_dir)
+    log_dir_path = Path(log_dir).resolve()
+    cwd_path = Path.cwd()
+    if log_dir_path.is_relative_to(cwd_path):
+        repo_path = str(log_dir_path.relative_to(cwd_path))
+    else:
+        repo_path = log_dir_basename
+    
+    import debugpy
+    if args.debugpy:
+        debugpy.breakpoint()
+
     api.upload_folder(
         repo_id="andrew-healey/context-compression",
         folder_path=log_dir,
-        path_in_repo=log_dir_basename,
+        path_in_repo=repo_path,
         repo_type="model"
     )
     wandb.finish()
