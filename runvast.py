@@ -439,10 +439,10 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True)
 def main():
     parser = argparse.ArgumentParser(description="Process vast command blocks from a markdown file.")
     parser.add_argument("filename", help="Markdown file containing vast command blocks")
-    parser.add_argument("--no_delete_finished_instances", action="store_false", help="Don't delete finished instances", dest="delete_finished_instances")
-    parser.set_defaults(delete_finished_instances=True)
-    parser.add_argument("--no_deprovision", action="store_false", help="Don't deprovision extra instances", dest="deprovision")
-    parser.set_defaults(deprovision=True)
+    parser.add_argument("--delete_finished_instances", action="store_true", help="Delete finished instances", dest="delete_finished_instances")
+    parser.set_defaults(delete_finished_instances=False)
+    parser.add_argument("--deprovision", action="store_true", help="Deprovision extra instances", dest="deprovision")
+    parser.set_defaults(deprovision=False)
     args = parser.parse_args()
 
     try:
