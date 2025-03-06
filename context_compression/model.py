@@ -72,6 +72,7 @@ class GPTConfig:
     readout_zero_init: bool = False
     query_zero_init: bool = False
     l1_loss: bool = False
+    S_layernorm: bool = False
 
     def __post_init__(self):
         if self.attn_mult is None:

@@ -114,6 +114,9 @@ parser.add_argument("--n_sliced_masks", type=int, default=None,
                     help="Number of sliced masks per head")
 parser.add_argument("--n_latent_masks", type=int, default=None,
                     help="Number of latent masks per head")
+parser.add_argument("--S_layernorm", action="store_true",
+                    help="Use layernorm on the mask")
+parser.set_defaults(S_layernorm=False)
 parser.add_argument("--mask_layernorm", action="store_true",
                     help="Use layernorm on the mask")
 parser.set_defaults(mask_layernorm=False)
@@ -269,6 +272,7 @@ def make_config(args):
         n_sliced_masks=args.n_sliced_masks,
         n_latent_masks=args.n_latent_masks,
         mask_layernorm=args.mask_layernorm,
+        S_layernorm=args.S_layernorm,
         residual_attention_masks=args.residual_attention_masks,
         disable_selection=args.disable_selection,
         mup=args.mup,

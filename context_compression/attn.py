@@ -79,6 +79,8 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.selection_head = None
         elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
             self.selection_head = nn.Linear(config.n_latent_masks, config.n_head)
+            if self.config.S_layernorm:
+                self.S_layernorm = nn.LayerNorm(config.n_head)
         elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
             use_bias = self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]
             self.selection_head = nn.Linear(config.n_head, 1, bias=use_bias)
@@ -171,6 +173,8 @@ class CausalSelectiveSelfAttention(nn.Module):
                 S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
                 S_latent = S_latent.masked_fill(self.bias[0,:,:T,:T,None] == 1, 0) # shape: (B, T, T', n_latent_masks)
                 S = self.selection_head(S_latent) # shape: (B, T, T', nh)
+                if self.config.S_layernorm:
+                    S = self.S_layernorm(S)
 
                 # perform the crazy copy move into a fresh tensor
                 S_fresh = torch.zeros(S.shape, device=S.device)
