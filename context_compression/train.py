@@ -99,6 +99,8 @@ parser.add_argument("--use_mini_model", action="store_true",
                     help="Make the model and batch size very small, for fast debugging")
 parser.add_argument("--upload_to_hf", action="store_true",
                     help="Upload the model to HuggingFace")
+parser.add_argument("--no_upload_to_hf", action="store_false", dest="upload_to_hf",
+                    help="Do not upload the model to HuggingFace")
 parser.set_defaults(upload_to_hf=True)
 parser.add_argument("--seq_len", type=int, default=None,
                     help="Sequence length")
@@ -114,6 +116,9 @@ parser.add_argument("--n_sliced_masks", type=int, default=None,
                     help="Number of sliced masks per head")
 parser.add_argument("--n_latent_masks", type=int, default=None,
                     help="Number of latent masks per head")
+parser.add_argument("--init_latent_masks_to_identity", action="store_true",
+                    help="Initialize the latent masks to the identity matrix")
+parser.set_defaults(init_latent_masks_to_identity=False)
 parser.add_argument("--S_layernorm", action="store_true",
                     help="Use layernorm on the mask")
 parser.set_defaults(S_layernorm=False)
@@ -271,6 +276,7 @@ def make_config(args):
         protection_head_bias=args.protection_head_bias,
         n_sliced_masks=args.n_sliced_masks,
         n_latent_masks=args.n_latent_masks,
+        init_latent_masks_to_identity=args.init_latent_masks_to_identity,
         mask_layernorm=args.mask_layernorm,
         S_layernorm=args.S_layernorm,
         residual_attention_masks=args.residual_attention_masks,

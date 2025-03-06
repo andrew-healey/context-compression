@@ -3620,3 +3620,51 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --n_latent_masks 1 \
 --S_layernorm
 ```
+
+#### Coord-checking 12-head model
+
+Baseline vs. 1-latent-mask vs. 1-latent-mask-init-to-one vs. 2-masks vs. 2-sliced-masks.
+
+```
+python -m context_compression.train \
+--max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group latent_mask_coord_check \
+--mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
+--log_dir logs/latent_mask_coord_check/baseline \
+--key baseline \
+--selection_head_linear_combo none
+```
+
+```
+python -m context_compression.train \
+--max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group latent_mask_coord_check \
+--mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
+--log_dir logs/latent_mask_coord_check/1_latent_mask \
+--key 1_latent_mask \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1
+```
+
+```
+python -m context_compression.train \
+--max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group latent_mask_coord_check \
+--mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
+--log_dir logs/latent_mask_coord_check/1_latent_mask_init_to_one \
+--key 1_latent_mask_init_to_one \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
+
+```
+python -m context_compression.train \
+--max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group latent_mask_coord_check \
+--mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
+--log_dir logs/latent_mask_coord_check/2_sliced_masks \
+--key 2_sliced_masks \
+--selection_head_linear_combo n_sliced_masks \
+--n_sliced_masks 2
+```

@@ -63,6 +63,7 @@ class GPTConfig:
     protection_head_bias: float = 0.0
     n_sliced_masks: Optional[int] = None
     n_latent_masks: Optional[int] = None
+    init_latent_masks_to_identity: bool = False
     mask_layernorm: bool = False
     residual_attention_masks: bool = False
     disable_selection: bool = False
@@ -111,10 +112,12 @@ class GPT(nn.Module):
                 torch.nn.init.zeros_(module.weight)
                 module.weight.data[:,module.ONE_HOT_INIT] = 1.0
                 return
+            elif hasattr(module, 'NANOGPT_ONES_INIT'):
+                torch.nn.init.ones_(module.weight)
+                torch.nn.init.zeros_(module.bias)
+                return
             std = 0.02
 
-            # ANDREWTODO make sure nanogpt init is applied to all my new linear layers.
-            # it should be, right?
             if hasattr(module, 'NANOGPT_SCALE_INIT'):
                 std *= (2 * self.config.n_layer) ** -0.5
 
