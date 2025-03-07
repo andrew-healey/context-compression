@@ -89,6 +89,9 @@ parser.add_argument("--selection_head_linear_combo_scale", type=float, default=1
 parser.add_argument("--disable_selection_head_linear_combo_bias", action="store_true",
                     help="Disable the bias for the selection head linear combo")
 parser.set_defaults(disable_selection_head_linear_combo_bias=False)
+parser.add_argument("--assert_latent_matches_no_head", action="store_true",
+                    help="Assert that the n-latent-masks selection head matches the baseline behavior")
+parser.set_defaults(assert_latent_matches_no_head=False)
 parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.NONE,
                     help="Kind of protection to use")
 parser.add_argument("--leaky_relu_alpha", type=float, default=None,
@@ -278,6 +281,7 @@ def make_config(args):
         selection_head_linear_combo=args.selection_head_linear_combo,
         selection_head_linear_combo_scale=args.selection_head_linear_combo_scale,
         disable_selection_head_linear_combo_bias=args.disable_selection_head_linear_combo_bias,
+        assert_latent_matches_no_head=args.assert_latent_matches_no_head,
         protection_kind=args.protection_kind,
         leaky_relu_alpha=args.leaky_relu_alpha,
         leaky_relu_bias=args.leaky_relu_bias,

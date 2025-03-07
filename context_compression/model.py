@@ -57,6 +57,7 @@ class GPTConfig:
     selection_head_linear_combo: SelectionHeadLinearComboKind = SelectionHeadLinearComboKind.NONE
     selection_head_linear_combo_scale: float = 1.0
     disable_selection_head_linear_combo_bias: bool = False
+    assert_latent_matches_no_head: bool = False
     protection_kind: ProtectionKind = ProtectionKind.NONE
     leaky_relu_alpha: Optional[float] = None
     leaky_relu_bias: Optional[float] = None
