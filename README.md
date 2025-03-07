@@ -3774,10 +3774,152 @@ Layernorm:
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
 --group fix_1_latent_mask \
---log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_seed_1339 \
---key 1_latent_mask_lr_30e-4 \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_ln_seed_1339 \
+--key 1_latent_mask_lr_30e-4_ln \
 --random_seed 1339 \
 --selection_head_linear_combo n_latent_masks \
 --n_latent_masks 1 \
 --S_layernorm
+```
+
+Results:
+
+- Layernorm lr=30e-4 was good! It did a little worse than 15e-4, which was a little worse than the baseline, BUT it totally solved the divergence problem.
+  - Note: it *immediately* took longer to converge than the other guys.
+  - And 15e-4 *immediately* took longer to converge than the baseline.
+  - I think in general, layernorm might just be a bandaid. But a super useful bandaid!
+- Lower lr def helps, even without one-init. Maybe I just need a lower lr for this param group.
+- One-init doesn't rly seem to fix things?
+  - It still diverges. BUT. before then, one-init with lr=30e-4 has a v similar loss curve to the baseline.
+  - So we still need to solve the divergence problem. Hopefully w/ param groups etc.
+  - BUT seems like a good init, and not changing global lr, is important!
+
+- Let's try a special param group (or just dividing by a constant, tbh)
+
+#### Fixes to 1-latent-mask, pt. 2
+
+Divide by constant (1/2, 1/4, 1/8):
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_scale_0.5_seed_1339 \
+--key 1_latent_mask_lr_30e-4_scale_0.5 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--latent_mask_scale 0.5 \
+--init_latent_masks_to_identity
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_scale_0.25_seed_1339 \
+--key 1_latent_mask_lr_30e-4_scale_0.25 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--latent_mask_scale 0.25 \
+--init_latent_masks_to_identity
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_scale_0.125_seed_1339 \
+--key 1_latent_mask_lr_30e-4_scale_0.125 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--latent_mask_scale 0.125 \
+--init_latent_masks_to_identity
+```
+
+Multiply by sigmoid:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_sigmoid_seed_1339 \
+--key 1_latent_mask_lr_30e-4_sigmoid \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--latent_mask_sigmoid
+```
+
+Multiply by sigmoid / 2:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_half_sigmoid_seed_1339 \
+--key 1_latent_mask_lr_30e-4_half_sigmoid \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--latent_mask_sigmoid
+```
+
+Param group custom lr scale (1/10, 1/100, 1/1000), initted to one. We're looking for at least one of these to repro the baseline.
+
+It really really should!
+
+```vast:running/18589519
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_lr_scale_0.1_seed_1339 \
+--key 1_latent_mask_lr_30e-4_lr_scale_0.1 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--selection_head_linear_combo_scale 0.1 \
+--init_latent_masks_to_identity
+```
+
+```vast:running/18589520
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_lr_scale_0.01_seed_1339 \
+--key 1_latent_mask_lr_30e-4_lr_scale_0.01 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--selection_head_linear_combo_scale 0.01 \
+--init_latent_masks_to_identity
+```
+
+```vast:running/18589523
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_lr_scale_0.001_seed_1339 \
+--key 1_latent_mask_lr_30e-4_lr_scale_0.001 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--selection_head_linear_combo_scale 0.001 \
+--init_latent_masks_to_identity
+```
+
+```vast:running/18589526
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_lr_scale_0_seed_1339 \
+--key 1_latent_mask_lr_30e-4_lr_scale_0 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--selection_head_linear_combo_scale 0 \
+--init_latent_masks_to_identity \
+--disable_selection_head_linear_combo_bias
 ```
