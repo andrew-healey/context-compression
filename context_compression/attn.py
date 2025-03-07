@@ -182,7 +182,8 @@ class CausalSelectiveSelfAttention(nn.Module):
                 old_att = att
 
                 S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
-                S_latent = S_latent.masked_fill(self.bias[:,:T,:T] == 0, 0) # shape: (B, T, T', n_latent_masks)
+                T_seq = S_latent.shape[2]
+                S_latent = S_latent.masked_fill(self.bias[:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
                 S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
                 S = self.selection_head(S_latent) # shape: (B, T, T', nh)
                 if self.config.S_layernorm:
