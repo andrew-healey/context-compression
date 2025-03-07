@@ -86,6 +86,9 @@ parser.add_argument("--selection_head_linear_combo", type=lambda x: SelectionHea
                     help="Whether to use a linear combo of attention scores for the selection head")
 parser.add_argument("--selection_head_linear_combo_scale", type=float, default=1.0,
                     help="Constant scale (think of alpha in lora) for the selection head linear combo")
+parser.add_argument("--disable_selection_head_linear_combo_bias", action="store_true",
+                    help="Disable the bias for the selection head linear combo")
+parser.set_defaults(disable_selection_head_linear_combo_bias=False)
 parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.NONE,
                     help="Kind of protection to use")
 parser.add_argument("--leaky_relu_alpha", type=float, default=None,
@@ -274,6 +277,7 @@ def make_config(args):
         epsilon=args.memory_penalty_epsilon,
         selection_head_linear_combo=args.selection_head_linear_combo,
         selection_head_linear_combo_scale=args.selection_head_linear_combo_scale,
+        disable_selection_head_linear_combo_bias=args.disable_selection_head_linear_combo_bias,
         protection_kind=args.protection_kind,
         leaky_relu_alpha=args.leaky_relu_alpha,
         leaky_relu_bias=args.leaky_relu_bias,

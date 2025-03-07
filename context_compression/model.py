@@ -56,6 +56,7 @@ class GPTConfig:
     prevent_from_masking_myself: bool = True
     selection_head_linear_combo: SelectionHeadLinearComboKind = SelectionHeadLinearComboKind.NONE
     selection_head_linear_combo_scale: float = 1.0
+    disable_selection_head_linear_combo_bias: bool = False
     protection_kind: ProtectionKind = ProtectionKind.NONE
     leaky_relu_alpha: Optional[float] = None
     leaky_relu_bias: Optional[float] = None
@@ -118,7 +119,8 @@ class GPT(nn.Module):
                 torch.nn.init.ones_(module.weight)
                 if self.config.latent_mask_scale is not None:
                     module.weight.data.div_(self.config.latent_mask_scale)
-                torch.nn.init.zeros_(module.bias)
+                if not self.config.disable_selection_head_linear_combo_bias:
+                    torch.nn.init.zeros_(module.bias)
                 return
             std = 0.02
 

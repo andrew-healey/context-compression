@@ -78,7 +78,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD, SelectionHeadLinearComboKind.TWO_MASKS, SelectionHeadLinearComboKind.N_SLICED_MASKS]:
             self.selection_head = None
         elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
-            self.selection_head = nn.Linear(config.n_latent_masks, config.n_head)
+            self.selection_head = nn.Linear(config.n_latent_masks, config.n_head, bias=not self.config.disable_selection_head_linear_combo_bias)
             if self.config.init_latent_masks_to_identity:
                 self.selection_head.NANOGPT_ONES_INIT = True
             if self.config.S_layernorm:
