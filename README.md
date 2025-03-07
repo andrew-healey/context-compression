@@ -3585,7 +3585,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 #### One mask per head, with 1 latent mask, but with layernorm:
 
-```vast:running/18536961
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 15e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
 --group repro_selective_pattern_rankings \
@@ -3597,7 +3597,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --S_layernorm
 ```
 
-```vast:running/18536962
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 10e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
 --group repro_selective_pattern_rankings \
@@ -3609,7 +3609,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --S_layernorm
 ```
 
-```vast:running/18536964
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 8e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
 --group repro_selective_pattern_rankings \
@@ -3625,46 +3625,159 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Baseline vs. 1-latent-mask vs. 1-latent-mask-init-to-one vs. 2-masks vs. 2-sliced-masks.
 
+See view on [wandb](https://wandb.ai/sesamestrong/context_compression?nw=ebejdivq8ir).
+
+Gist is that 1-latent-mask with no special init seems to cause more coord check variation than the others.
+
+Maybe that means it's less stable or smth? I kinda doubt it honestly.
+
 ```
-python -m context_compression.train \
+export SEED=1342
+CUDA_VISIBLE_DEVICES=0 python -m context_compression.train \
 --max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group latent_mask_coord_check \
 --mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
---log_dir logs/latent_mask_coord_check/baseline \
+--log_dir logs/latent_mask_coord_check/baseline_seed_${SEED} \
 --key baseline \
+--selection_head_linear_combo none \
+--random_seed ${SEED} & \
+CUDA_VISIBLE_DEVICES=1 python -m context_compression.train \
+--max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group latent_mask_coord_check \
+--mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
+--log_dir logs/latent_mask_coord_check/1_latent_mask_seed_${SEED} \
+--key 1_latent_mask \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--random_seed ${SEED} & \
+CUDA_VISIBLE_DEVICES=2 python -m context_compression.train \
+--max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group latent_mask_coord_check \
+--mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
+--log_dir logs/latent_mask_coord_check/1_latent_mask_init_to_one_seed_${SEED} \
+--key 1_latent_mask_init_to_one \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity \
+--random_seed ${SEED} & \
+CUDA_VISIBLE_DEVICES=3 python -m context_compression.train \
+--max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group latent_mask_coord_check \
+--mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
+--log_dir logs/latent_mask_coord_check/2_sliced_masks_seed_${SEED} \
+--key 2_sliced_masks \
+--selection_head_linear_combo n_sliced_masks \
+--n_sliced_masks 2 \
+--random_seed ${SEED}
+```
+
+#### Testing fixes to 1-latent-mask
+
+
+Baseline, low lr (I'll use 10e-4), init to one, init to one + low-lr param group (with 3 diff lrs), layernorm
+
+Baseline:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/baseline_lr_30e-4_seed_1339 \
+--key baseline_lr_30e-4 \
+--random_seed 1339 \
 --selection_head_linear_combo none
 ```
 
-```
-python -m context_compression.train \
---max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
---group latent_mask_coord_check \
---mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
---log_dir logs/latent_mask_coord_check/1_latent_mask \
---key 1_latent_mask \
+1 latent mask:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_seed_1339 \
+--key 1_latent_mask_lr_30e-4 \
+--random_seed 1339 \
 --selection_head_linear_combo n_latent_masks \
 --n_latent_masks 1
 ```
 
+Low lr:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_10e-4_seed_1339 \
+--key 1_latent_mask_lr_10e-4 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1
 ```
-python -m context_compression.train \
---max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
---group latent_mask_coord_check \
---mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
---log_dir logs/latent_mask_coord_check/1_latent_mask_init_to_one \
---key 1_latent_mask_init_to_one \
+
+Init to one:
+
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_ones_lr_30e-4_seed_1339 \
+--key 1_latent_mask_ones_lr_30e-4 \
+--random_seed 1339 \
 --selection_head_linear_combo n_latent_masks \
 --n_latent_masks 1 \
 --init_latent_masks_to_identity
 ```
 
+Init to one + low-lr param group (lr=15e-4, lr=10e-4, lr=5e-4):
+
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 15e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_ones_lr_15e-4_seed_1339 \
+--key 1_latent_mask_ones_lr_15e-4 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
 ```
-python -m context_compression.train \
---max_lr 1e-3 --total_batch_size 32768 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
---group latent_mask_coord_check \
---mup_enable_coord_check_logging --no_decay_lr --max_steps 10 --no_use_compile --no_upload_to_hf \
---log_dir logs/latent_mask_coord_check/2_sliced_masks \
---key 2_sliced_masks \
---selection_head_linear_combo n_sliced_masks \
---n_sliced_masks 2
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 10e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_ones_lr_10e-4_seed_1339 \
+--key 1_latent_mask_ones_lr_10e-4 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 5e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_ones_lr_5e-4_seed_1339 \
+--key 1_latent_mask_ones_lr_5e-4 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
+
+Layernorm:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_30e-4_seed_1339 \
+--key 1_latent_mask_lr_30e-4 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--S_layernorm
 ```
