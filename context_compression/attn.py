@@ -177,6 +177,12 @@ class CausalSelectiveSelfAttention(nn.Module):
                 S = self.selection_head(S_latent) # shape: (B, T, T', nh)
                 if self.config.S_layernorm:
                     S = self.S_layernorm(S)
+                elif self.config.latent_mask_scale is not None:
+                    S = S * self.config.latent_mask_scale
+                elif self.config.latent_mask_sigmoid:
+                    # actually we're gonna multiply S = S_latent * sigmoid(weights) * 2 - so it inits to identity
+                    assert self.selection_head.weight.shape[1] == self.config.n_latent_masks
+                    S = S_latent @ torch.sigmoid(self.selection_head.weight.T) * 2
 
                 # perform the crazy copy move into a fresh tensor
                 S_fresh = torch.zeros(S.shape, device=S.device)

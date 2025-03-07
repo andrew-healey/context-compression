@@ -119,6 +119,11 @@ parser.add_argument("--n_latent_masks", type=int, default=None,
 parser.add_argument("--init_latent_masks_to_identity", action="store_true",
                     help="Initialize the latent masks to the identity matrix")
 parser.set_defaults(init_latent_masks_to_identity=False)
+parser.add_argument("--latent_mask_scale", type=float, default=None,
+                    help="Scale for the latent masks")
+parser.add_argument("--latent_mask_sigmoid", action="store_true",
+                    help="Use tanh on the latent masks")
+parser.set_defaults(latent_mask_sigmoid=False)
 parser.add_argument("--S_layernorm", action="store_true",
                     help="Use layernorm on the mask")
 parser.set_defaults(S_layernorm=False)
@@ -277,6 +282,8 @@ def make_config(args):
         n_sliced_masks=args.n_sliced_masks,
         n_latent_masks=args.n_latent_masks,
         init_latent_masks_to_identity=args.init_latent_masks_to_identity,
+        latent_mask_scale=args.latent_mask_scale,
+        latent_mask_sigmoid=args.latent_mask_sigmoid,
         mask_layernorm=args.mask_layernorm,
         S_layernorm=args.S_layernorm,
         residual_attention_masks=args.residual_attention_masks,

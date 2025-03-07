@@ -64,6 +64,8 @@ class GPTConfig:
     n_sliced_masks: Optional[int] = None
     n_latent_masks: Optional[int] = None
     init_latent_masks_to_identity: bool = False
+    latent_mask_scale: Optional[float] = None
+    latent_mask_sigmoid: bool = False
     mask_layernorm: bool = False
     residual_attention_masks: bool = False
     disable_selection: bool = False
@@ -114,6 +116,8 @@ class GPT(nn.Module):
                 return
             elif hasattr(module, 'NANOGPT_ONES_INIT'):
                 torch.nn.init.ones_(module.weight)
+                if self.config.latent_mask_scale is not None:
+                    module.weight.data.div_(self.config.latent_mask_scale)
                 torch.nn.init.zeros_(module.bias)
                 return
             std = 0.02
