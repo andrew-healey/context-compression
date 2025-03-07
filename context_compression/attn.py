@@ -32,6 +32,7 @@ class SelectionHeadLinearComboKind(StrEnum):
     TWO_MASKS = auto()
     N_SLICED_MASKS = auto()
     N_LATENT_MASKS = auto()
+    NONE_WITH_NO_HEAD = auto()
 
 # List[Tuple[fp64 torch.Tensor, magnitude of instability]]
 inputs_causing_instability = []
@@ -58,7 +59,8 @@ class CausalSelectiveSelfAttention(nn.Module):
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * self.n_c_attn_heads * config.head_dim)
         # output projection
-        self.c_proj = nn.Linear(config.n_head * config.head_dim, config.n_embd)
+        n_head_for_c_proj = config.n_head-1 if config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD else config.n_head
+        self.c_proj = nn.Linear(n_head_for_c_proj * config.head_dim, config.n_embd)
         # regularization
         self.n_head = config.n_head
         self.head_dim = config.head_dim
@@ -83,13 +85,16 @@ class CausalSelectiveSelfAttention(nn.Module):
                 self.selection_head.NANOGPT_ONES_INIT = True
             if self.config.S_layernorm:
                 self.S_layernorm = nn.LayerNorm(config.n_head)
-        elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
+        elif self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO, SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS, SelectionHeadLinearComboKind.TRUE]:
             use_bias = self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]
             self.selection_head = nn.Linear(config.n_head, 1, bias=use_bias)
             if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO, SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS]:
                 self.selection_head.ONE_HOT_INIT = 0
-        else:
+        elif self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD, SelectionHeadLinearComboKind.NONE]:
             self.selection_head = None
+        else:
+            raise ValueError(f"Invalid selection head linear combo: {self.config.selection_head_linear_combo}")
+        
         
         if self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
             self.protection_head = nn.Linear(config.n_head, 1)
@@ -149,6 +154,8 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         # Apply selective attention
 
+        n_head = self.n_head
+
         if not self.config.disable_selection:
 
             if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
@@ -194,6 +201,14 @@ class CausalSelectiveSelfAttention(nn.Module):
                 att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
                 v = v[:, 1:, :, :]
+            
+            elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD:
+                # import debugpy
+                # debugpy.breakpoint()
+                S =   att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
+                att = att[:,1:,:,:]
+
+                v =     v[:,1:,:,:]
 
             elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
                 S = att[:, :, :, :] # shape: (B, n_head, T, T')
@@ -326,22 +341,25 @@ class CausalSelectiveSelfAttention(nn.Module):
             # Use out-of-place subtraction to preserve computation graph integrity
 
             n_masks = FF_shifted.shape[1]
-            if n_masks < self.n_head:
-                FF_shifted_even = FF_shifted.repeat_interleave(self.n_head // n_masks, dim=1)[:,:self.n_head,:,:]
-                if self.n_head % n_masks == 0:
+            n_head = att.shape[1]
+            if n_masks < n_head:
+                FF_shifted_even = FF_shifted.repeat_interleave(n_head // n_masks, dim=1)[:,:n_head,:,:]
+                if n_head % n_masks == 0:
                     FF_shifted = FF_shifted_even
                 else:
-                    FF_shifted = torch.cat([FF_shifted_even, FF_shifted[:,:self.n_head % n_masks,:,:]], dim=1)
+                    FF_shifted = torch.cat([FF_shifted_even, FF_shifted[:,:n_head % n_masks,:,:]], dim=1)
 
             if self.config.mask_layernorm:
                 FF_shifted = self.mask_layernorm(FF_shifted.transpose(1, 2)).transpose(1, 2) / torch.arange(T,0,-1,device=FF_shifted.device)[None,None,None,:]
 
+            import debugpy
+            debugpy.breakpoint()
             att = att - FF_shifted[:,:,:,:]
 
         att = F.softmax(att, dim=-1)
 
         y = att @ v
-        y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim)
+        y = y.transpose(1, 2).contiguous().view(B, T, n_head * self.head_dim)
         y = self.c_proj(y)
         return y, None, raw_att
 
