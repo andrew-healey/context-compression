@@ -179,9 +179,6 @@ class CausalSelectiveSelfAttention(nn.Module):
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
 
-                og_att = att
-                og_v = v
-
                 S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
                 S_latent = S_latent.masked_fill(self.bias[:,:T,:T] == 0, 0) # shape: (B, T, T', n_latent_masks)
                 S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
@@ -205,10 +202,6 @@ class CausalSelectiveSelfAttention(nn.Module):
                 att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
                 v = v[:, 1:, :, :] # vs match. good.
-
-                # try to assert that the outputs match the NONE_WITH_NO_HEAD case
-                # og_S = og_att[:, 0:1,:,:].clone()
-                # torch.testing.assert_close(F.relu(og_S.float()), F.relu(S))
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD:
                 # import debugpy
