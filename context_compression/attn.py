@@ -204,8 +204,6 @@ class CausalSelectiveSelfAttention(nn.Module):
                 v = v[:, 1:, :, :] # vs match. good.
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD:
-                # import debugpy
-                # debugpy.breakpoint()
                 S =   att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
                 att = att[:,1:,:,:]
 
@@ -353,8 +351,6 @@ class CausalSelectiveSelfAttention(nn.Module):
             if self.config.mask_layernorm:
                 FF_shifted = self.mask_layernorm(FF_shifted.transpose(1, 2)).transpose(1, 2) / torch.arange(T,0,-1,device=FF_shifted.device)[None,None,None,:]
 
-            import debugpy
-            debugpy.breakpoint()
             att = att - FF_shifted[:,:,:,:]
 
         att = F.softmax(att, dim=-1)
