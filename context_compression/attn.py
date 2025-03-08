@@ -183,11 +183,7 @@ class CausalSelectiveSelfAttention(nn.Module):
 
                 S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
                 T_seq = S_latent.shape[2]
-                try:
-                    S_latent = S_latent.masked_fill(self.bias[:,:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
-                except:
-                    import debugpy
-                    debugpy.breakpoint()
+                S_latent = S_latent.masked_fill(self.bias[:,:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
                 S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
                 S = self.selection_head(S_latent) # shape: (B, T, T', nh)
                 if self.config.S_layernorm:
@@ -216,6 +212,8 @@ class CausalSelectiveSelfAttention(nn.Module):
 
                         lhs = F.relu(S).float()
                         rhs = F.relu(ref_S).float()
+                        different_idxes = (lhs != rhs).nonzero()
+                        # Looks like we have a torch.compile numeric instability bug here...
                         assert torch.allclose(lhs, rhs), "S and ref_S are not close"
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD:
@@ -350,7 +348,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             FF_shifted[..., 0, :] = 0
 
             if ff_cache is not None:
-                ff_cache.append(FF_shifted.detach().cpu().numpy())
+                ff_cache.append((FF_shifted.detach().cpu().numpy(),att.detach().cpu().numpy()))
 
             # Use out-of-place subtraction to preserve computation graph integrity
 
@@ -367,6 +365,9 @@ class CausalSelectiveSelfAttention(nn.Module):
                 FF_shifted = self.mask_layernorm(FF_shifted.transpose(1, 2)).transpose(1, 2) / torch.arange(T,0,-1,device=FF_shifted.device)[None,None,None,:]
 
             att = att - FF_shifted[:,:,:,:]
+        else:
+            if ff_cache is not None:
+                ff_cache.append((torch.zeros_like(att,dtype=torch.float32).detach().cpu().numpy(),att.float().detach().cpu().numpy()))
 
         att = F.softmax(att, dim=-1)
 
