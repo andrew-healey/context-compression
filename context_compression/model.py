@@ -68,6 +68,7 @@ class GPTConfig:
     init_latent_masks_to_identity: bool = False
     init_latent_masks_to_inverse: bool = False
     latent_mask_scale: Optional[float] = None
+    latent_mask_runtime_multiplier: Optional[float] = None
     latent_mask_sigmoid: bool = False
     latent_mask_precision: str = "bfloat16"
     mask_layernorm: bool = False

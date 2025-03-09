@@ -202,6 +202,9 @@ class CausalSelectiveSelfAttention(nn.Module):
 
                     S = self.n_latent_masks_linear(S_latent)
 
+                    if self.config.latent_mask_runtime_multiplier is not None:
+                        S = S * self.config.latent_mask_runtime_multiplier
+
                     att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
                     att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
 

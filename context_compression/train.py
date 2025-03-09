@@ -129,7 +129,9 @@ parser.add_argument("--init_latent_masks_to_inverse", action="store_true",
                     help="Initialize the latent masks to the 1/n, where n is the number of latent masks")
 parser.set_defaults(init_latent_masks_to_inverse=False)
 parser.add_argument("--latent_mask_scale", type=float, default=None,
-                    help="Scale for the latent masks")
+                    help="Initialization scale for the latent masks")
+parser.add_argument("--latent_mask_runtime_multiplier", type=float, default=None,
+                    help="Multiply latent masks by this constant at runtime")
 parser.add_argument("--latent_mask_sigmoid", action="store_true",
                     help="Use tanh on the latent masks")
 parser.set_defaults(latent_mask_sigmoid=False)
@@ -298,6 +300,7 @@ def make_config(args):
         init_latent_masks_to_identity=args.init_latent_masks_to_identity,
         init_latent_masks_to_inverse=args.init_latent_masks_to_inverse,
         latent_mask_scale=args.latent_mask_scale,
+        latent_mask_runtime_multiplier=args.latent_mask_runtime_multiplier,
         latent_mask_sigmoid=args.latent_mask_sigmoid,
         latent_mask_precision=args.latent_mask_precision,
         mask_layernorm=args.mask_layernorm,
