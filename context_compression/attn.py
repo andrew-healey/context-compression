@@ -114,6 +114,13 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.raw_att_head = nn.Linear(self.n_c_attn_heads, self.n_c_attn_heads, bias=False) # transforming old raw attention heads to new ones
         else:
             self.raw_att_head = None
+    
+    @torch._dynamo.disable
+    def n_latent_masks_linear(self,S_latent):
+        S = self.selection_head(S_latent) # shape: (B, T, T', nh)
+
+        S = S.transpose(1, 3) # shape: (B, nh, T, T')
+        return S
 
     def forward(self, x,ff_cache=None,old_raw_att=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -185,21 +192,8 @@ class CausalSelectiveSelfAttention(nn.Module):
                 T_seq = S_latent.shape[2]
                 S_latent = S_latent.masked_fill(self.bias[:,:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
                 S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
-                S = self.selection_head(S_latent) # shape: (B, T, T', nh)
-                if self.config.S_layernorm:
-                    S = self.S_layernorm(S)
-                elif self.config.latent_mask_scale is not None:
-                    S = S * self.config.latent_mask_scale
-                elif self.config.latent_mask_sigmoid:
-                    # actually we're gonna multiply S = S_latent * sigmoid(weights) * 2 - so it inits to identity
-                    assert self.selection_head.weight.shape[1] == self.config.n_latent_masks
-                    S = S_latent @ torch.sigmoid(self.selection_head.weight.T)
 
-                # perform the crazy copy move into a fresh tensor
-                S_fresh = torch.zeros(S.shape, device=S.device)
-                S_fresh[:,:,:,:] = S[:,:,:,:]
-                S = S_fresh
-                S = S.transpose(1, 3) # shape: (B, nh, T, T')
+                S = self.n_latent_masks_linear(S_latent)
 
                 att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
                 att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
