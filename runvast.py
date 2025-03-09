@@ -18,6 +18,8 @@ from typing import List, Optional
 import logging
 import coloredlogs
 import webbrowser
+from vast_ai_api import VastAPIHelper
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 # Remove any existing handlers to avoid duplicate logging
@@ -175,10 +177,7 @@ def exponential_backoff_retry(func, initial_delay=5, max_delay=60, max_attempts=
             delay = min(delay * 2, max_delay)
 
 # A function to get instances that are "for autorunning" using the vast-ai-api.
-def get_autorunning_instances() -> List[Instance]:
-    from vast_ai_api import VastAPIHelper
-    import pandas as pd
-    
+def get_autorunning_instances(gpus: Optional[int] = None) -> List[Instance]:
     def _fetch_instances():
         api = VastAPIHelper()
         return api.list_current_instances()
@@ -195,6 +194,8 @@ def get_autorunning_instances() -> List[Instance]:
         )
         if not is_autorunning:
             continue
+        if gpus is not None and row['num_gpus'] != gpus:
+            continue
         inst = Instance(
             instance_id=str(row["id"]),
             state=str(row.get("cur_state", "unknown")),
@@ -210,8 +211,6 @@ import random
 
 # Launch a verified command block on a given instance.
 def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
-    from vast_ai_api import VastAPIHelper
-    
     def _set_label():
         api = VastAPIHelper()
         api.label_instance(instance.instance_id, None)
@@ -262,7 +261,7 @@ def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
         block.instance_id = instance.instance_id
 
 # For all verified commands with no instance yet, assign free instances from the provided pool.
-def run_phase(blocks: List[CommandBlock], instances: List[Instance]) -> None:
+def run_phase(blocks: List[CommandBlock], instances: List[Instance], gpus: Optional[int] = None) -> None:
     logger.info("=== Run Phase ===")
     # Identify instance IDs already claimed by blocks.
     claimed_ids = {block.instance_id for block in blocks
@@ -288,7 +287,7 @@ def run_phase(blocks: List[CommandBlock], instances: List[Instance]) -> None:
     logger.debug("Sleeping for 20 seconds to allow instances to label themselves as running.")
     time.sleep(20)
 
-    updated_instances = get_autorunning_instances()
+    updated_instances = get_autorunning_instances(gpus=gpus)
     logger.debug(f"Found {len(updated_instances)} updated instances.")
     for block in running_blocks:
         matching_instances = [inst for inst in updated_instances if inst.instance_id == block.instance_id]
@@ -311,9 +310,9 @@ def run_phase(blocks: List[CommandBlock], instances: List[Instance]) -> None:
 
 # Check phase: In a real implementation, this would query instance labels (or logs) via vast-ai-api.
 # Here we simply print a message.
-def check_phase(blocks: List[CommandBlock]) -> None:
+def check_phase(blocks: List[CommandBlock], gpus: Optional[int] = None) -> None:
     logger.info("=== Check Phase ===")
-    instances = get_autorunning_instances()
+    instances = get_autorunning_instances(gpus=gpus)
     logger.debug(f"Found {len(instances)} instances in check phase.")
     
     for block in blocks:
@@ -342,7 +341,6 @@ def check_phase(blocks: List[CommandBlock]) -> None:
 # Finish phase: convert SUCCESS or FAIL blocks to FINISHED and simulate deleting their instance.
 def finish_phase(blocks: List[CommandBlock], delete_finished_instances: bool = True) -> None:
     logger.info("=== Finish Phase ===")
-    from vast_ai_api import VastAPIHelper
     api = VastAPIHelper()
     for block in blocks:
          if block.state == CommandState.SUCCESS and block.instance_id:
@@ -390,13 +388,13 @@ def writeback_file(fw, file_text: str, blocks: List[CommandBlock]) -> None:
     os.fsync(fw.fileno())
     return
 
-def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True) -> List[Instance]:
+def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True, gpus: Optional[int] = None) -> List[Instance]:
     pending_cmds = [block for block in blocks if block.state in {CommandState.EMPTY, CommandState.VERIFIED, CommandState.RUNNING, CommandState.FAIL}]
     pending_cmd_count = len(pending_cmds)
     all_pending_cmds_are_running = all(block.state == CommandState.RUNNING for block in pending_cmds)
     slack = 2 if pending_cmd_count > 3 else 1
     while True:
-        current_instances = get_autorunning_instances()
+        current_instances = get_autorunning_instances(gpus=gpus)
         instance_count = len(current_instances)
         if instance_count < pending_cmd_count:
             needed = (pending_cmd_count) - instance_count
@@ -414,7 +412,6 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True)
         free_instances = [inst for inst in current_instances if inst.instance_id not in assigned_ids]
         logger.debug(f"All pending commands are running, so we can deprovision {len(free_instances)}/ {len(current_instances)} extra/total instances.")
         if free_instances:
-            from vast_ai_api import VastAPIHelper
             api = VastAPIHelper()
             for inst in free_instances:
                 if should_deprovision:
@@ -434,15 +431,15 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True)
                         logger.error(f"Error setting label or stopping instance {inst.instance_id} after all retries: {e}")
         else:
             logger.debug("No extra instances to deprovision.")
-    return get_autorunning_instances()
+    return get_autorunning_instances(gpus=gpus)
 
 def main():
     parser = argparse.ArgumentParser(description="Process vast command blocks from a markdown file.")
     parser.add_argument("filename", help="Markdown file containing vast command blocks")
-    parser.add_argument("--delete_finished_instances", action="store_true", help="Delete finished instances", dest="delete_finished_instances")
-    parser.set_defaults(delete_finished_instances=False)
     parser.add_argument("--deprovision", action="store_true", help="Deprovision extra instances", dest="deprovision")
     parser.set_defaults(deprovision=False)
+    parser.add_argument("--gpus", type=int, help="Only operate on instances with this # of GPUs", dest="gpus")
+    parser.set_defaults(gpus=None)
     args = parser.parse_args()
 
     try:
@@ -464,22 +461,22 @@ def main():
 
 
             # Phase 2: Provision/Delete Phase
-            instances = provision_phase(blocks, should_deprovision=args.deprovision)
+            instances = provision_phase(blocks, should_deprovision=args.deprovision, gpus=args.gpus)
             writeback_file(fw, file_text, blocks)
 
 
             # Phase 3: Run Phase
-            run_phase(blocks, instances)
+            run_phase(blocks, instances, gpus=args.gpus)
             writeback_file(fw, file_text, blocks)
 
 
             # Phase 4: Check Phase
-            check_phase(blocks)
+            check_phase(blocks, gpus=args.gpus)
             writeback_file(fw, file_text, blocks)
 
 
             # Phase 5: Finish Phase (if needed)
-            finish_phase(blocks, delete_finished_instances=args.delete_finished_instances)
+            finish_phase(blocks, delete_finished_instances=args.deprovision)
             writeback_file(fw, file_text, blocks)
 
         finally:
