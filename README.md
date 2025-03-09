@@ -4119,7 +4119,7 @@ cd /workspace/context-compression && git fetch && git checkout andrew/high-preci
 --init_latent_masks_to_identity
 ```
 
-```vast:running/18656701
+```vast:finished
 cd /workspace/context-compression && git fetch && git checkout andrew/disable-dynamo && DISABLE_DYNAMO=1 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group fix_compile_bug \
@@ -4169,7 +4169,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --init_latent_masks_to_identity
 ```
 
-```vast:running/18636396
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 35e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group fix_1_latent_mask \
@@ -4181,7 +4181,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --init_latent_masks_to_identity
 ```
 
-```vast:running/18656702
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 35e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group fix_1_latent_mask \
@@ -4192,3 +4192,5 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --n_latent_masks 2 \
 --init_latent_masks_to_identity
 ```
+
+Result: 2 is better than 1 is better than 0, seems like! See [wandb](https://wandb.ai/sesamestrong/context_compression?nw=0zjsohr4exwe).
