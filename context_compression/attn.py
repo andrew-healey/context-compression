@@ -115,6 +115,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             self.raw_att_head = None
     
+    # to preserve precision. honestly not sure if this is necessary!
     @torch._dynamo.disable
     def n_latent_masks_linear(self,S_latent):
         S = self.selection_head(S_latent) # shape: (B, T, T', nh)
@@ -124,7 +125,6 @@ class CausalSelectiveSelfAttention(nn.Module):
     
     @torch._dynamo.disable
     def relu_graph_break(self,S):
-        assert "RELU_GRAPH_BREAK" in os.environ, "This branch needs a special flag to run"
         return F.relu(S)
 
     def forward(self, x,ff_cache=None,old_raw_att=None):
