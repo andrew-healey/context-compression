@@ -66,8 +66,10 @@ class GPTConfig:
     n_sliced_masks: Optional[int] = None
     n_latent_masks: Optional[int] = None
     init_latent_masks_to_identity: bool = False
+    init_latent_masks_to_inverse: bool = False
     latent_mask_scale: Optional[float] = None
     latent_mask_sigmoid: bool = False
+    latent_mask_precision: str = "bfloat16"
     mask_layernorm: bool = False
     residual_attention_masks: bool = False
     disable_selection: bool = False
@@ -118,6 +120,15 @@ class GPT(nn.Module):
                 return
             elif hasattr(module, 'NANOGPT_ONES_INIT'):
                 torch.nn.init.ones_(module.weight)
+                if self.config.latent_mask_scale is not None:
+                    module.weight.data.div_(self.config.latent_mask_scale)
+                if not self.config.disable_selection_head_linear_combo_bias:
+                    torch.nn.init.zeros_(module.bias)
+                return
+            elif hasattr(module, 'NANOGPT_INVERSE_INIT'):
+                print("running inverse _init_weights")
+                torch.nn.init.ones_(module.weight)
+                module.weight.data.div_(self.config.n_latent_masks)
                 if self.config.latent_mask_scale is not None:
                     module.weight.data.div_(self.config.latent_mask_scale)
                 if not self.config.disable_selection_head_linear_combo_bias:

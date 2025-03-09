@@ -125,6 +125,9 @@ parser.add_argument("--n_latent_masks", type=int, default=None,
 parser.add_argument("--init_latent_masks_to_identity", action="store_true",
                     help="Initialize the latent masks to the identity matrix")
 parser.set_defaults(init_latent_masks_to_identity=False)
+parser.add_argument("--init_latent_masks_to_inverse", action="store_true",
+                    help="Initialize the latent masks to the 1/n, where n is the number of latent masks")
+parser.set_defaults(init_latent_masks_to_inverse=False)
 parser.add_argument("--latent_mask_scale", type=float, default=None,
                     help="Scale for the latent masks")
 parser.add_argument("--latent_mask_sigmoid", action="store_true",
@@ -172,6 +175,8 @@ parser.add_argument("--debugpy", action="store_true",
 parser.set_defaults(debugpy=False)
 parser.add_argument("--key", type=str, default=None,
                     help="Key for the run") # for grouping runs with diff seeds but the same hyperparams
+parser.add_argument("--latent_mask_precision", type=str, default="bfloat16",
+                    help="Precision for the latent masks")
 
 args = parser.parse_args()
 
@@ -229,6 +234,7 @@ else:
     print(f"using device: {device}")
 
 device_type = "cuda" if device.startswith("cuda") else "cpu"
+autocast_precision = torch.bfloat16
 
 torch.manual_seed(args.random_seed)
 if torch.cuda.is_available():
@@ -290,8 +296,10 @@ def make_config(args):
         n_sliced_masks=args.n_sliced_masks,
         n_latent_masks=args.n_latent_masks,
         init_latent_masks_to_identity=args.init_latent_masks_to_identity,
+        init_latent_masks_to_inverse=args.init_latent_masks_to_inverse,
         latent_mask_scale=args.latent_mask_scale,
         latent_mask_sigmoid=args.latent_mask_sigmoid,
+        latent_mask_precision=args.latent_mask_precision,
         mask_layernorm=args.mask_layernorm,
         S_layernorm=args.S_layernorm,
         residual_attention_masks=args.residual_attention_masks,
@@ -508,7 +516,7 @@ for step in range(start_step, max_steps):
             for _ in range(val_loss_steps):
                 x, y = val_loader.next_batch()
                 x, y = x.to(device), y.to(device)
-                with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                with torch.autocast(device_type=device_type, dtype=autocast_precision):
                     logits, loss, losses = model(x, y)
                 loss = loss / val_loss_steps
                 val_loss_accum += loss.detach()
@@ -568,7 +576,7 @@ for step in range(start_step, max_steps):
             mask = mask.to(device)
             # get the logits
             with torch.no_grad():
-                with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                with torch.autocast(device_type=device_type, dtype=autocast_precision):
                     logits, loss, losses = non_compiled_model(tokens)
                 pred_norm = get_most_likely_row(tokens, mask, logits)
             num_total += 1
@@ -602,7 +610,7 @@ for step in range(start_step, max_steps):
         while xgen.size(1) < max_length:
             # forward the model to get the logits
             with torch.no_grad():
-                with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                with torch.autocast(device_type=device_type, dtype=autocast_precision):
                     logits, loss, losses = non_compiled_model(xgen) # (B, T, vocab_size)
                 # take the logits at the last position
                 logits = logits[:, -1, :] # (B, vocab_size)
@@ -664,7 +672,7 @@ for step in range(start_step, max_steps):
         # added after video, this field is also used by the forward pass.
         if ddp:
             model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
-        with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+        with torch.autocast(device_type=device_type, dtype=autocast_precision):
             logits, loss, losses = model(x, y)
         # we have to scale the loss to account for gradient accumulation,
         # because the gradients just add on each successive backward().

@@ -83,6 +83,8 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.selection_head = nn.Linear(config.n_latent_masks, config.n_head, bias=not self.config.disable_selection_head_linear_combo_bias)
             if self.config.init_latent_masks_to_identity:
                 self.selection_head.NANOGPT_ONES_INIT = True
+            elif self.config.init_latent_masks_to_inverse:
+                self.selection_head.NANOGPT_INVERSE_INIT = True
             if self.config.S_layernorm:
                 self.S_layernorm = nn.LayerNorm(config.n_head)
         elif self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.WITH_HEAD_ZERO, SelectionHeadLinearComboKind.WITH_HEAD_ZERO_AND_BIAS, SelectionHeadLinearComboKind.TRUE]:
@@ -95,6 +97,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             raise ValueError(f"Invalid selection head linear combo: {self.config.selection_head_linear_combo}")
         
+        self.latent_mask_precision = torch.float32 if self.config.latent_mask_precision == "float32" else torch.bfloat16
         
         if self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
             self.protection_head = nn.Linear(config.n_head, 1)
@@ -190,19 +193,20 @@ class CausalSelectiveSelfAttention(nn.Module):
                 v = v[:, 1:, :, :]
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
+                with torch.autocast(device_type=att.device.type,dtype=self.latent_mask_precision):
 
-                S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
-                T_seq = S_latent.shape[2]
-                S_latent = S_latent.masked_fill(self.bias[:,:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
-                S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
+                    S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
+                    T_seq = S_latent.shape[2]
+                    S_latent = S_latent.masked_fill(self.bias[:,:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
+                    S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
 
-                S = self.n_latent_masks_linear(S_latent)
+                    S = self.n_latent_masks_linear(S_latent)
 
-                att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
-                att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
+                    att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
+                    att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
-                v = v[:, 1:, :, :] # vs match. good.
-            
+                    v = v[:, 1:, :, :] # vs match. good.
+                
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD:
                 S =   att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
                 att = att[:,1:,:,:]
