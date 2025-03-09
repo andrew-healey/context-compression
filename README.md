@@ -4194,3 +4194,128 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 ```
 
 Result: 2 is better than 1 is better than 0, seems like! See [wandb](https://wandb.ai/sesamestrong/context_compression?nw=0zjsohr4exwe).
+
+Let's try to transfer this to the big model!! Fingers crossed.
+
+### Running new latent masks vs. baseline
+
+Baseline:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group trying_new_latent_masks \
+  --log_dir trying_new_latent_masks/baseline \
+  --key baseline \
+  --selection_head_linear_combo none \
+  --n_heads 12 \
+  --batch_size 4 \
+  --random_seed 1337
+```
+
+
+No head:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group trying_new_latent_masks \
+  --log_dir trying_new_latent_masks/baseline \
+  --key baseline_no_head \
+  --selection_head_linear_combo none_with_no_head \
+  --n_heads 12 \
+  --batch_size 4 \
+  --random_seed 1337
+```
+
+1 latent mask:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector \
+  --key one_mask_per_head_1_latent_vector \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 1 \
+  --batch_size 4 \
+  --random_seed 1337
+```
+
+
+2 latent masks:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_2_latent_vectors \
+  --key one_mask_per_head_2_latent_vectors \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 2 \
+  --batch_size 4 \
+  --random_seed 1337
+```
+
+
+4 latent masks:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_4_latent_vectors \
+  --key one_mask_per_head_4_latent_vectors \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 4 \
+  --batch_size 4 \
+  --random_seed 1337
+```
+
+1 latent mask, initted to identity:
+
+```vast:running/18659572
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_identity_seed_1337 \
+  --key one_mask_per_head_1_latent_vector_identity \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 1 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity
+```
+
+1 latent mask, initted to identity, with lr scaled to zero, no bias:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_degenerate_seed_1337 \
+  --key one_mask_per_head_1_latent_vector_degenerate \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 1 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity \
+  --selection_head_linear_combo_scale 0 \
+  --disable_selection_head_linear_combo_bias
+```
+
+1 latent mask, initted to identity, with lr scaled to zero, no bias, no compile:
+
+```vast:running/18659539
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_degenerate_no_compile_seed_1337 \
+  --key one_mask_per_head_1_latent_vector_degenerate_no_compile \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 1 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity \
+  --selection_head_linear_combo_scale 0 \
+  --disable_selection_head_linear_combo_bias \
+  --no_use_compile
+```
