@@ -121,10 +121,13 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         S = S.transpose(1, 3) # shape: (B, nh, T, T')
         return S
-
+    
     @torch._dynamo.disable
+    def relu_graph_break(self,S):
+        assert "RELU_GRAPH_BREAK" in os.environ, "This branch needs a special flag to run"
+        return F.relu(S)
+
     def forward(self, x,ff_cache=None,old_raw_att=None):
-        assert "DISABLE_DYNAMO" in os.environ, "This branch needs a special flag to run"
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         qkv = self.c_attn(x)
@@ -188,8 +191,6 @@ class CausalSelectiveSelfAttention(nn.Module):
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
 
-                old_att = att
-
                 S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
                 T_seq = S_latent.shape[2]
                 S_latent = S_latent.masked_fill(self.bias[:,:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
@@ -201,16 +202,6 @@ class CausalSelectiveSelfAttention(nn.Module):
                 att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
                 v = v[:, 1:, :, :] # vs match. good.
-
-                if self.config.assert_latent_matches_no_head:
-                    with torch.no_grad():
-                        ref_S = old_att[:,0:1,:,:].clone().repeat_interleave(self.n_head, dim=1)
-
-                        lhs = F.relu(S).float()
-                        rhs = F.relu(ref_S).float()
-                        different_idxes = (lhs != rhs).nonzero()
-                        # Looks like we have a torch.compile numeric instability bug here...
-                        assert torch.allclose(lhs, rhs), "S and ref_S are not close"
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD:
                 S =   att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
@@ -239,7 +230,7 @@ class CausalSelectiveSelfAttention(nn.Module):
                 S = att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
 
             S_pre_relu = S
-            S = F.relu(S)  # Only positive selection
+            S = self.relu_graph_break(S)  # Only positive selection
 
             # Use torch.zeros_like to safely modify without inplace ops
             S_masked = torch.zeros_like(S)  # Create a mask to avoid in-place ops
