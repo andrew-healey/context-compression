@@ -4319,3 +4319,48 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --disable_selection_head_linear_combo_bias \
   --no_use_compile
 ```
+
+2 latent masks, initted to identity:
+
+```vast:running/18663767
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_2_latent_vectors_identity_seed_1337 \
+  --key one_mask_per_head_2_latent_vectors_identity \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 2 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity
+```
+
+4 latent masks, initted to identity:
+
+```vast:running/18663768
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_4_latent_vectors_identity_seed_1337 \
+  --key one_mask_per_head_4_latent_vectors_identity \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 4 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity
+```
+
+8 latent masks, initted to identity:
+
+```vast:running/18663769
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_8_latent_vectors_identity_seed_1337 \
+  --key one_mask_per_head_8_latent_vectors_identity \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 8 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity
+```
