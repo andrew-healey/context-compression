@@ -186,29 +186,33 @@ class CausalSelectiveSelfAttention(nn.Module):
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
 
-                old_att = att
+                assert "HIGH_PRECISION_LATENT_MASKS" in os.environ,"This branch needs a special flag to run"
 
-                S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
-                T_seq = S_latent.shape[2]
-                S_latent = S_latent.masked_fill(self.bias[:,:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
-                S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
+                with torch.autocast(device_type=x.device.type, dtype=torch.float32):
 
-                S = self.n_latent_masks_linear(S_latent)
+                    old_att = att
 
-                att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
-                att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
+                    S_latent = att[:, :self.config.n_latent_masks, :, :] # shape: (B, n_latent_masks, T, T')
+                    T_seq = S_latent.shape[2]
+                    S_latent = S_latent.masked_fill(self.bias[:,:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
+                    S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
 
-                v = v[:, 1:, :, :] # vs match. good.
+                    S = self.n_latent_masks_linear(S_latent)
 
-                if self.config.assert_latent_matches_no_head:
-                    with torch.no_grad():
-                        ref_S = old_att[:,0:1,:,:].clone().repeat_interleave(self.n_head, dim=1)
+                    att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
+                    att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
-                        lhs = F.relu(S).float()
-                        rhs = F.relu(ref_S).float()
-                        different_idxes = (lhs != rhs).nonzero()
-                        # Looks like we have a torch.compile numeric instability bug here...
-                        assert torch.allclose(lhs, rhs), "S and ref_S are not close"
+                    v = v[:, 1:, :, :] # vs match. good.
+
+                    if self.config.assert_latent_matches_no_head:
+                        with torch.no_grad():
+                            ref_S = old_att[:,0:1,:,:].clone().repeat_interleave(self.n_head, dim=1)
+
+                            lhs = F.relu(S).float()
+                            rhs = F.relu(ref_S).float()
+                            different_idxes = (lhs != rhs).nonzero()
+                            # Looks like we have a torch.compile numeric instability bug here...
+                            assert torch.allclose(lhs, rhs), "S and ref_S are not close"
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD:
                 S =   att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
