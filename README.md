@@ -4052,7 +4052,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 n_latent_masks=1, lr=30e-4, seed=1340, compile:
 
-```vast:running/18636396
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group fix_1_latent_mask \
@@ -4067,7 +4067,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 n_latent_masks=2, lr={25e-4, 30e-4, 35e-4}, seed=1340:
 
-```vast:running/18636397
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 25e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group fix_1_latent_mask \
@@ -4080,7 +4080,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
-```vast:running/18636398
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group fix_1_latent_mask \
@@ -4093,7 +4093,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
-```vast:running/18636405
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 35e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group fix_1_latent_mask \
@@ -4130,7 +4130,7 @@ cd /workspace/context-compression && git fetch && git checkout andrew/disable-dy
 --init_latent_masks_to_identity
 ```
 
-```vast:running/18656702
+```vast:finished
 cd /workspace/context-compression && git fetch && git checkout andrew/relu-graph-break && RELU_GRAPH_BREAK=1 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group fix_compile_bug \
@@ -4138,5 +4138,57 @@ cd /workspace/context-compression && git fetch && git checkout andrew/relu-graph
 --key relu_graph_break \
 --selection_head_linear_combo n_latent_masks \
 --n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
+
+#### Improvements to 1-latent-mask, pt. 3
+
+Seems like compiling is ok now. Seems like lr=25e-4 helped n_latent_masks=2. Does it help n_latent_masks=1 also?
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 25e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_25e-4_n_latent_masks_1_relu_seed_1340 \
+--key 1_latent_mask_lr_25e-4_n_latent_masks_1_relu \
+--random_seed 1340 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 25e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_25e-4_n_latent_masks_2_relu_seed_1340 \
+--key 1_latent_mask_lr_25e-4_n_latent_masks_2_relu \
+--random_seed 1340 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 2 \
+--init_latent_masks_to_identity
+```
+
+```vast:running/18636396
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 35e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_35e-4_n_latent_masks_1_relu_seed_1340 \
+--key 1_latent_mask_lr_35e-4_n_latent_masks_1_relu \
+--random_seed 1340 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
+
+```vast:running/18656702
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 35e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_lr_35e-4_n_latent_masks_2_relu_seed_1340 \
+--key 1_latent_mask_lr_35e-4_n_latent_masks_2_relu \
+--random_seed 1340 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 2 \
 --init_latent_masks_to_identity
 ```
