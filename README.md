@@ -4105,3 +4105,38 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --init_latent_masks_to_identity \
 --no_use_compile
 ```
+
+#### Fixing torch.compile numeric instability bug
+
+```vast:finished
+cd /workspace/context-compression && git fetch && git checkout andrew/high-precision-latent-masks && HIGH_PRECISION_LATENT_MASKS=1 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_compile_bug \
+--log_dir logs/fix_compile_bug/autocast_float32 \
+--key autocast_float32 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
+
+```vast:running/18656701
+cd /workspace/context-compression && git fetch && git checkout andrew/disable-dynamo && DISABLE_DYNAMO=1 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_compile_bug \
+--log_dir logs/fix_compile_bug/disable_dynamo \
+--key disable_dynamo \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
+
+```vast:running/18656702
+cd /workspace/context-compression && git fetch && git checkout andrew/relu-graph-break && RELU_GRAPH_BREAK=1 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_compile_bug \
+--log_dir logs/fix_compile_bug/relu_graph_break \
+--key relu_graph_break \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
