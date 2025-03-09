@@ -348,7 +348,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             FF_shifted[..., 0, :] = 0
 
             if ff_cache is not None:
-                ff_cache.append((FF_shifted.detach().cpu().numpy(),att.detach().cpu().numpy()))
+                ff_cache.append((FF_shifted.float().detach().cpu().numpy(),att.float().detach().cpu().numpy()))
 
             # Use out-of-place subtraction to preserve computation graph integrity
 
