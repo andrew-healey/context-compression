@@ -4272,7 +4272,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 1 latent mask, initted to identity:
 
-```vast:running/18659572
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_identity_seed_1337 \
@@ -4304,7 +4304,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 1 latent mask, initted to identity, with lr scaled to zero, no bias, no compile:
 
-```vast:running/18659539
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_degenerate_no_compile_seed_1337 \
@@ -4322,7 +4322,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 2 latent masks, initted to identity:
 
-```vast:running/18663767
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir allowing_more_selection_patterns/one_mask_per_head_2_latent_vectors_identity_seed_1337 \
@@ -4337,7 +4337,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 4 latent masks, initted to identity:
 
-```vast:running/18663768
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir allowing_more_selection_patterns/one_mask_per_head_4_latent_vectors_identity_seed_1337 \
@@ -4352,7 +4352,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 8 latent masks, initted to identity:
 
-```vast:running/18663769
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir allowing_more_selection_patterns/one_mask_per_head_8_latent_vectors_identity_seed_1337 \
@@ -4363,4 +4363,83 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --batch_size 4 \
   --random_seed 1337 \
   --init_latent_masks_to_identity
+```
+
+Results (with "<" means "worse than"): baseline < n latent masks < degenerate (compiled and uncompiled) < 2, latent masks w/ identity init < no head < 1 latent mask w/ identity init.
+
+Suggests that identity init is important.
+
+Maybe I should do 1/n init for 2,4,8 latent masks.
+
+Maybe I should run another seed of no head vs. degenerate. If degenerate is asymptotically worse, then I need higher precision or smth.
+
+Also, I should run fp32-autocast version of 1 latent mask.
+
+Then all of these will yield results in an hour or two. And hopefully I can learn more on the small model.
+
+### Investigating discrepancies on the big model
+
+No head, seed 1338:
+
+```vast:running/18659572
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group trying_new_latent_masks \
+  --log_dir trying_new_latent_masks/baseline_no_head_seed_1338 \
+  --key baseline_no_head \
+  --selection_head_linear_combo none_with_no_head \
+  --n_heads 12 \
+  --batch_size 4 \
+  --random_seed 1338
+```
+
+
+Degenerate with torch compile, seed 1338:
+
+```vast:running/18663768
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_degenerate_seed_1338 \
+  --key one_mask_per_head_1_latent_vector_degenerate \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 1 \
+  --batch_size 4 \
+  --random_seed 1338 \
+  --init_latent_masks_to_identity \
+  --selection_head_linear_combo_scale 0 \
+  --disable_selection_head_linear_combo_bias
+```
+
+
+High-precision latent masks for degenerate, seed 1337:
+
+```vast:running/18681497
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_degenerate_float32_seed_1337 \
+  --key one_mask_per_head_1_latent_vector_degenerate_float32 \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 1 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity \
+  --selection_head_linear_combo_scale 0 \
+  --disable_selection_head_linear_combo_bias \
+  --latent_mask_precision float32
+```
+
+2 latent masks, 1/n init, seed 1337:
+
+```vast:running/18681499
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_2_latent_vectors_inverse_seed_1337 \
+  --key one_mask_per_head_2_latent_vectors_inverse \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 2 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_inverse
 ```
