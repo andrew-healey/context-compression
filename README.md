@@ -4381,7 +4381,7 @@ Then all of these will yield results in an hour or two. And hopefully I can lear
 
 No head, seed 1338:
 
-```vast:running/18659572
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group trying_new_latent_masks \
   --log_dir trying_new_latent_masks/baseline_no_head_seed_1338 \
@@ -4395,7 +4395,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Degenerate with torch compile, seed 1338:
 
-```vast:running/18663768
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_degenerate_seed_1338 \
@@ -4413,7 +4413,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 High-precision latent masks for degenerate, seed 1337:
 
-```vast:running/18681497
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_degenerate_float32_seed_1337 \
@@ -4431,7 +4431,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 2 latent masks, 1/n init, seed 1337:
 
-```vast:running/18681499
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --group allowing_more_selection_patterns \
   --log_dir allowing_more_selection_patterns/one_mask_per_head_2_latent_vectors_inverse_seed_1337 \
