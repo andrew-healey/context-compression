@@ -52,7 +52,10 @@ class CausalSelectiveSelfAttention(nn.Module):
         elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.TWO_MASKS:
             self.n_c_attn_heads = config.n_head + 2
         elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
-            self.n_c_attn_heads = config.n_head + 1
+            if config.one_head_per_latent_mask:
+                self.n_c_attn_heads = config.n_head + config.n_sliced_masks
+            else:
+                self.n_c_attn_heads = config.n_head + 1
         elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
             if config.one_head_per_latent_mask:
                 self.n_c_attn_heads = config.n_head + config.n_latent_masks
@@ -204,7 +207,10 @@ class CausalSelectiveSelfAttention(nn.Module):
                 att = att[:, self.config.n_sliced_masks:, :, :] # shape: (B, nh*(n_sliced_masks-1), T, T')
                 att = att.view(B, self.n_head, self.head_split_factor, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
-                v = v[:, 1:, :, :]
+                if self.config.one_head_per_latent_mask:
+                    v = v[:, self.config.n_sliced_masks:, :, :]
+                else:
+                    v = v[:, 1:, :, :]
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
                 with torch.autocast(device_type=att.device.type,dtype=self.latent_mask_precision):
