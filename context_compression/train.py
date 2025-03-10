@@ -82,6 +82,8 @@ parser.add_argument("--random_seed", type=int, default=1337,
                     help="Random seed for the run")
 parser.add_argument("--memory_penalty_epsilon", type=float, default=0.1,
                     help="Epsilon for the memory penalty")
+
+
 parser.add_argument("--selection_head_linear_combo", type=lambda x: SelectionHeadLinearComboKind(x.lower()), default=SelectionHeadLinearComboKind.NONE,
                     help="Whether to use a linear combo of attention scores for the selection head")
 parser.add_argument("--selection_head_linear_combo_scale", type=float, default=1.0,
@@ -92,6 +94,28 @@ parser.set_defaults(disable_selection_head_linear_combo_bias=False)
 parser.add_argument("--assert_latent_matches_no_head", action="store_true",
                     help="Assert that the n-latent-masks selection head matches the baseline behavior")
 parser.set_defaults(assert_latent_matches_no_head=False)
+
+### LATENT MASKS HERE
+
+parser.add_argument("--n_latent_masks", type=int, default=None,
+                    help="Number of latent masks per head")
+parser.add_argument("--init_latent_masks_to_identity", action="store_true",
+                    help="Initialize the latent masks to the identity matrix")
+parser.set_defaults(init_latent_masks_to_identity=False)
+parser.add_argument("--init_latent_masks_to_inverse", action="store_true",
+                    help="Initialize the latent masks to the 1/n, where n is the number of latent masks")
+parser.set_defaults(init_latent_masks_to_inverse=False)
+parser.add_argument("--latent_mask_scale", type=float, default=None,
+                    help="Initialization scale for the latent masks")
+parser.add_argument("--latent_mask_runtime_multiplier", type=float, default=None,
+                    help="Multiply latent masks by this constant at runtime")
+parser.add_argument("--latent_mask_sigmoid", action="store_true",
+                    help="Use tanh on the latent masks")
+parser.set_defaults(latent_mask_sigmoid=False)
+parser.add_argument("--S_layernorm", action="store_true",
+                    help="Use layernorm on the mask")
+parser.set_defaults(S_layernorm=False)
+
 parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.NONE,
                     help="Kind of protection to use")
 parser.add_argument("--leaky_relu_alpha", type=float, default=None,
@@ -120,24 +144,6 @@ parser.add_argument("--protection_head_bias", type=float, default=0.0,
                     help="Bias for the protection head")
 parser.add_argument("--n_sliced_masks", type=int, default=None,
                     help="Number of sliced masks per head")
-parser.add_argument("--n_latent_masks", type=int, default=None,
-                    help="Number of latent masks per head")
-parser.add_argument("--init_latent_masks_to_identity", action="store_true",
-                    help="Initialize the latent masks to the identity matrix")
-parser.set_defaults(init_latent_masks_to_identity=False)
-parser.add_argument("--init_latent_masks_to_inverse", action="store_true",
-                    help="Initialize the latent masks to the 1/n, where n is the number of latent masks")
-parser.set_defaults(init_latent_masks_to_inverse=False)
-parser.add_argument("--latent_mask_scale", type=float, default=None,
-                    help="Initialization scale for the latent masks")
-parser.add_argument("--latent_mask_runtime_multiplier", type=float, default=None,
-                    help="Multiply latent masks by this constant at runtime")
-parser.add_argument("--latent_mask_sigmoid", action="store_true",
-                    help="Use tanh on the latent masks")
-parser.set_defaults(latent_mask_sigmoid=False)
-parser.add_argument("--S_layernorm", action="store_true",
-                    help="Use layernorm on the mask")
-parser.set_defaults(S_layernorm=False)
 parser.add_argument("--mask_layernorm", action="store_true",
                     help="Use layernorm on the mask")
 parser.set_defaults(mask_layernorm=False)

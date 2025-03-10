@@ -54,15 +54,12 @@ class GPTConfig:
     hard_pruning_constant: Optional[float] = None # to fix the pruning during inference
     protect_bos_token: bool = True
     prevent_from_masking_myself: bool = True
+
+
     selection_head_linear_combo: SelectionHeadLinearComboKind = SelectionHeadLinearComboKind.NONE
     selection_head_linear_combo_scale: float = 1.0
     disable_selection_head_linear_combo_bias: bool = False
     assert_latent_matches_no_head: bool = False
-    protection_kind: ProtectionKind = ProtectionKind.NONE
-    leaky_relu_alpha: Optional[float] = None
-    leaky_relu_bias: Optional[float] = None
-    protection_head_scaling_factor: float = 1.0
-    protection_head_bias: float = 0.0
     n_sliced_masks: Optional[int] = None
     n_latent_masks: Optional[int] = None
     init_latent_masks_to_identity: bool = False
@@ -71,6 +68,13 @@ class GPTConfig:
     latent_mask_runtime_multiplier: Optional[float] = None
     latent_mask_sigmoid: bool = False
     latent_mask_precision: str = "bfloat16"
+
+
+    protection_kind: ProtectionKind = ProtectionKind.NONE
+    leaky_relu_alpha: Optional[float] = None
+    leaky_relu_bias: Optional[float] = None
+    protection_head_scaling_factor: float = 1.0
+    protection_head_bias: float = 0.0
     mask_layernorm: bool = False
     residual_attention_masks: bool = False
     disable_selection: bool = False
