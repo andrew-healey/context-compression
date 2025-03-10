@@ -228,9 +228,9 @@ def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
     remote_command = (
         "true && vastai label instance $CONTAINER_ID running && "
         f"{command} && "
-        "vastai label instance $CONTAINER_ID succeed || "
-        "vastai label instance $CONTAINER_ID fail && "
-        "vastai stop instance $CONTAINER_ID"
+        "vastai label instance $CONTAINER_ID succeed && "
+        "vastai stop instance $CONTAINER_ID || "
+        "vastai label instance $CONTAINER_ID fail"
     )
     
     # Use shlex.quote() to safely wrap the entire command
