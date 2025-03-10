@@ -14,6 +14,7 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
+import random
 
 import logging
 import coloredlogs
@@ -225,8 +226,9 @@ def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
 
     # Construct the full remote command you want to run.
     # Note: We're keeping the dollar-sign escapes (\\$CONTAINER_ID) as is.
+    rand_id = random.randint(0, 1000000)
     remote_command = (
-        "true && vastai label instance $CONTAINER_ID running && "
+        f"true && echo rand_id={rand_id} && vastai label instance $CONTAINER_ID running && "
         f"{command} && "
         "vastai label instance $CONTAINER_ID succeed && "
         "vastai stop instance $CONTAINER_ID || "
