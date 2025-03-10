@@ -151,14 +151,17 @@ class CausalSelectiveSelfAttention(nn.Module):
         if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.N_SLICED_MASKS, SelectionHeadLinearComboKind.N_LATENT_MASKS]:
             if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
                 if self.config.one_head_per_latent_mask:
-                    head_split_factor = 1
+                    self.head_split_factor = 1
                 else:
-                    head_split_factor = self.config.n_latent_masks
+                    self.head_split_factor = self.config.n_latent_masks
             else:
-                head_split_factor = self.config.n_sliced_masks
-            assert self.head_dim % head_split_factor == 0, "head_dim must be divisible by n_sliced_masks or n_latent_masks"
-            k = k.view(B, T, self.n_c_attn_heads * head_split_factor, self.head_dim // head_split_factor).transpose(1, 2) # (B, nh, T, hs)
-            q = q.view(B, T, self.n_c_attn_heads * head_split_factor, self.head_dim // head_split_factor).transpose(1, 2) # (B, nh, T, hs)
+                if self.config.one_head_per_latent_mask:
+                    self.head_split_factor = 1
+                else:
+                    self.head_split_factor = self.config.n_sliced_masks
+            assert self.head_dim % self.head_split_factor == 0, "head_dim must be divisible by n_sliced_masks or n_latent_masks"
+            k = k.view(B, T, self.n_c_attn_heads * self.head_split_factor, self.head_dim // self.head_split_factor).transpose(1, 2) # (B, nh, T, hs)
+            q = q.view(B, T, self.n_c_attn_heads * self.head_split_factor, self.head_dim // self.head_split_factor).transpose(1, 2) # (B, nh, T, hs)
         else:
             k = k.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
             q = q.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
@@ -199,7 +202,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
                 S = att[:, :self.config.n_sliced_masks, :, :] # shape: (B, n_sliced_masks, T, T')
                 att = att[:, self.config.n_sliced_masks:, :, :] # shape: (B, nh*(n_sliced_masks-1), T, T')
-                att = att.view(B, self.n_head, self.config.n_sliced_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
+                att = att.view(B, self.n_head, self.head_split_factor, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
                 v = v[:, 1:, :, :]
             
@@ -217,7 +220,7 @@ class CausalSelectiveSelfAttention(nn.Module):
                         S = S * self.config.latent_mask_runtime_multiplier
 
                     att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
-                    att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
+                    att = att.view(B, self.n_head, self.head_split_factor, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
                     if self.config.one_head_per_latent_mask:
                         v = v[:, self.config.n_latent_masks:, :, :] # vs match. good.

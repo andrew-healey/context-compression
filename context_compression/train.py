@@ -307,6 +307,7 @@ def make_config(args):
         protection_head_bias=args.protection_head_bias,
         n_sliced_masks=args.n_sliced_masks,
         n_latent_masks=args.n_latent_masks,
+        one_head_per_latent_mask=args.one_head_per_latent_mask,
         init_latent_masks_to_identity=args.init_latent_masks_to_identity,
         init_latent_masks_to_inverse=args.init_latent_masks_to_inverse,
         latent_mask_scale=args.latent_mask_scale,
