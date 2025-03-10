@@ -4443,3 +4443,161 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1337 \
   --init_latent_masks_to_inverse
 ```
+
+
+Results:
+
+- float32 degenerate (with compile!!!) matches the baseline no head baseline!! Amazing news! Let's use that from now on.
+- inverse makes 2 latent masks worse. Honestly no idea why. I feel like I've gotta learn more! Maybe I should be dividing the result by n_latent_masks rather than changing the init from identity?
+
+OK so what to do.
+- Rerun 2 latent heads identity with float32.
+- Rerun 1 latent head identity with float32.
+- Run 2 latent heads identity with float32, divided by n_latent_masks.
+
+2 latent heads, initted to identity, float32:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_2_latent_vectors_identity_float32_seed_1337 \
+  --key one_mask_per_head_2_latent_vectors_identity_float32 \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 2 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32
+```
+
+1 latent head, initted to identity, float32:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_1_latent_vector_identity_float32_seed_1337 \
+  --key one_mask_per_head_1_latent_vector_identity_float32 \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 1 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32
+```
+
+2 latent heads, initted to identity, float32, divided by n_latent_masks:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --group allowing_more_selection_patterns \
+  --log_dir allowing_more_selection_patterns/one_mask_per_head_2_latent_vectors_identity_float32_seed_1337_div \
+  --key one_mask_per_head_2_latent_vectors_identity_float32 \
+  --selection_head_linear_combo n_latent_masks \
+  --n_heads 12 \
+  --n_latent_masks 2 \
+  --batch_size 4 \
+  --random_seed 1337 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --latent_mask_runtime_multiplier 0.5
+```
+
+Results (see [wandb](https://wandb.ai/sesamestrong/context_compression?nw=q6xs31xlsho)):
+- float32 identity beats non-float32 identity.
+- Divided by n_latent_masks is still worse (even w/ float32)! Mysterious. IDT I can do many more iters on the big model - it's soo slow. Hrrm, maybe I can use some H200s? Let's leave that for later.
+- Let's check the little model - does div perform worse than identity for n_heads=2?
+- Do we get the same float32 perf boost on the small model?
+- If none of these hold up - maybe try scaling up to head_dim=64 and 8 4090s? Or maybe head_dim=32?
+
+### Investigating big-model discrepancies on the little model
+
+1 latent head, initted to identity:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_seed_1339 \
+--key 1_latent_mask \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity
+```
+
+1 latent head, initted to identity, float32:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/1_latent_mask_float32_seed_1339 \
+--key 1_latent_mask_float32 \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity \
+--latent_mask_precision float32
+```
+
+
+2 latent heads, initted to identity, float32:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/2_latent_mask_seed_1339 \
+--key 2_latent_mask \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 2 \
+--init_latent_masks_to_identity \
+--latent_mask_precision float32
+```
+
+
+2 latent heads, initted to identity, float32, divided by n_latent_masks:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/2_latent_mask_seed_1339_div \
+--key 2_latent_mask_div \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 2 \
+--init_latent_masks_to_identity \
+--latent_mask_precision float32 \
+--latent_mask_runtime_multiplier 0.5
+```
+
+2 latent heads, initted to identity, float32, with inverse init for latent heads:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group fix_1_latent_mask \
+--log_dir logs/fix_1_latent_mask/2_latent_mask_seed_1339_inverse \
+--key 2_latent_mask_inverse \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 2 \
+--init_latent_masks_to_inverse \
+--latent_mask_precision float32
+```
+
+Results: hrrm, looks like float32 makes no difference on the little model. Dividing seems to hurt.
+
+Hrrm, what can I interpolate with? Maybe we should try with one full head per latent mask? That should also be better on the little model.
+
+We can also try scaling up to head_dim=64 and 8 4090s. But that will halve our throughput.
+
+OK let's do both, both on the little model.
+
+I expect two heads for two latent masks -> the best performance yet.
+
+I expect two latent masks will still beat one latent mask on a 64-head-dim model.
