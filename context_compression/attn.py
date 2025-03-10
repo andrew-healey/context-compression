@@ -47,6 +47,8 @@ class CausalSelectiveSelfAttention(nn.Module):
         # yes, this is very inefficient. but it's just for testing.
         if config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
             self.n_c_attn_heads = config.n_head*2
+        elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD:
+            self.n_c_attn_heads = config.n_head + 1
         elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.TWO_MASKS:
             self.n_c_attn_heads = config.n_head + 2
         elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
@@ -59,7 +61,7 @@ class CausalSelectiveSelfAttention(nn.Module):
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * self.n_c_attn_heads * config.head_dim)
         # output projection
-        n_head_for_c_proj = config.n_head-1 if config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD else config.n_head
+        n_head_for_c_proj = config.n_head
         self.c_proj = nn.Linear(n_head_for_c_proj * config.head_dim, config.n_embd)
         # regularization
         self.n_head = config.n_head
