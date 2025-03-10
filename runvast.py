@@ -200,8 +200,8 @@ def get_autorunning_instances(gpus: Optional[int] = None) -> List[Instance]:
             instance_id=str(row["id"]),
             state=str(row.get("cur_state", "unknown")),
             actual_status=str(row.get("actual_status", "unknown")),
-            ssh_host=row.get("ssh_host", ""),
-            ssh_port=int(row.get("ssh_port", 22)),
+            ssh_host=row.get("public_ipaddr", ""),
+            ssh_port=int(row.get("direct_port_start", "")),
             label=str(row.get("label", None)),
         )
         instances.append(inst)
