@@ -54,7 +54,10 @@ class CausalSelectiveSelfAttention(nn.Module):
         elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
             self.n_c_attn_heads = config.n_head + 1
         elif config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
-            self.n_c_attn_heads = config.n_head + 1
+            if config.one_head_per_latent_mask:
+                self.n_c_attn_heads = config.n_head + config.n_latent_masks
+            else:
+                self.n_c_attn_heads = config.n_head + 1
         else:
             self.n_c_attn_heads = config.n_head
 
@@ -146,10 +149,16 @@ class CausalSelectiveSelfAttention(nn.Module):
         v = v.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
 
         if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.N_SLICED_MASKS, SelectionHeadLinearComboKind.N_LATENT_MASKS]:
-            n_masks = self.config.n_sliced_masks if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS else self.config.n_latent_masks
-            assert self.head_dim % n_masks == 0, "head_dim must be divisible by n_sliced_masks or n_latent_masks"
-            k = k.view(B, T, self.n_c_attn_heads * n_masks, self.head_dim // n_masks).transpose(1, 2) # (B, nh, T, hs)
-            q = q.view(B, T, self.n_c_attn_heads * n_masks, self.head_dim // n_masks).transpose(1, 2) # (B, nh, T, hs)
+            if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
+                if self.config.one_head_per_latent_mask:
+                    head_split_factor = 1
+                else:
+                    head_split_factor = self.config.n_latent_masks
+            else:
+                head_split_factor = self.config.n_sliced_masks
+            assert self.head_dim % head_split_factor == 0, "head_dim must be divisible by n_sliced_masks or n_latent_masks"
+            k = k.view(B, T, self.n_c_attn_heads * head_split_factor, self.head_dim // head_split_factor).transpose(1, 2) # (B, nh, T, hs)
+            q = q.view(B, T, self.n_c_attn_heads * head_split_factor, self.head_dim // head_split_factor).transpose(1, 2) # (B, nh, T, hs)
         else:
             k = k.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
             q = q.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
@@ -210,13 +219,18 @@ class CausalSelectiveSelfAttention(nn.Module):
                     att = att[:, self.config.n_latent_masks:, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
                     att = att.view(B, self.n_head, self.config.n_latent_masks, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
-                    v = v[:, 1:, :, :] # vs match. good.
+                    if self.config.one_head_per_latent_mask:
+                        v = v[:, self.config.n_latent_masks:, :, :] # vs match. good.
+                    else:
+                        v = v[:, 1:, :, :] # vs match. good.
                 
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.NONE_WITH_NO_HEAD:
-                S =   att[:, 0:1,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
-                att = att[:,1:,:,:]
+                num_heads_to_remove = self.config.n_latent_masks if self.config.one_head_per_latent_mask else 1
 
-                v =     v[:,1:,:,:]
+                S =   att[:, 0:num_heads_to_remove,:,:].clone()  # Select head 0 logits (clone to avoid in-place modification issues)
+                att = att[:,num_heads_to_remove:,:,:]
+
+                v = v[:, num_heads_to_remove:, :, :]
 
             elif self.config.selection_head_linear_combo != SelectionHeadLinearComboKind.NONE:
                 S = att[:, :, :, :] # shape: (B, n_head, T, T')
@@ -348,14 +362,14 @@ class CausalSelectiveSelfAttention(nn.Module):
 
             # Use out-of-place subtraction to preserve computation graph integrity
 
-            n_masks = FF_shifted.shape[1]
+            head_split_factor = FF_shifted.shape[1]
             n_head = att.shape[1]
-            if n_masks < n_head:
-                FF_shifted_even = FF_shifted.repeat_interleave(n_head // n_masks, dim=1)[:,:n_head,:,:]
-                if n_head % n_masks == 0:
+            if head_split_factor < n_head:
+                FF_shifted_even = FF_shifted.repeat_interleave(n_head // head_split_factor, dim=1)[:,:n_head,:,:]
+                if n_head % head_split_factor == 0:
                     FF_shifted = FF_shifted_even
                 else:
-                    FF_shifted = torch.cat([FF_shifted_even, FF_shifted[:,:n_head % n_masks,:,:]], dim=1)
+                    FF_shifted = torch.cat([FF_shifted_even, FF_shifted[:,:n_head % head_split_factor,:,:]], dim=1)
 
             if self.config.mask_layernorm:
                 FF_shifted = self.mask_layernorm(FF_shifted.transpose(1, 2)).transpose(1, 2) / torch.arange(T,0,-1,device=FF_shifted.device)[None,None,None,:]

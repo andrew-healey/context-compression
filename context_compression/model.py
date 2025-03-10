@@ -68,6 +68,7 @@ class GPTConfig:
     latent_mask_runtime_multiplier: Optional[float] = None
     latent_mask_sigmoid: bool = False
     latent_mask_precision: str = "bfloat16"
+    one_head_per_latent_mask: bool = False
 
 
     protection_kind: ProtectionKind = ProtectionKind.NONE

@@ -116,6 +116,10 @@ parser.add_argument("--S_layernorm", action="store_true",
                     help="Use layernorm on the mask")
 parser.set_defaults(S_layernorm=False)
 
+parser.add_argument("--one_head_per_latent_mask", action="store_true",
+                    help="Use one head per latent mask")
+parser.set_defaults(one_head_per_latent_mask=False)
+
 parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.NONE,
                     help="Kind of protection to use")
 parser.add_argument("--leaky_relu_alpha", type=float, default=None,
