@@ -34,6 +34,15 @@ class SelectionHeadLinearComboKind(StrEnum):
     N_LATENT_MASKS = auto()
     NONE_WITH_NO_HEAD = auto()
 
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class FFCacheEntry:
+    selection_masks: torch.Tensor
+    attn_masks: torch.Tensor
+    latent_masks: Optional[torch.Tensor] = None
+
 # List[Tuple[fp64 torch.Tensor, magnitude of instability]]
 inputs_causing_instability = []
 
@@ -190,6 +199,8 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         if not self.config.disable_selection:
 
+            S_latent = None
+
             if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD:
                 # ok let's split att into two halves: the S and the real att
                 S = att[:, :self.n_head, :, :].clone()
@@ -199,6 +210,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.TWO_MASKS:
                 # ok let's split att into two halves: the S and the real att
                 S = att[:, :2, :, :].clone()
+                S_latent = S.transpose(1,3)
                 att = att[:, 2:, :, :]
                 v = v[:, 2:, :, :]
             
@@ -372,7 +384,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             FF_shifted[..., 0, :] = 0
 
             if ff_cache is not None:
-                ff_cache.append((FF_shifted.float().detach().cpu().numpy(),att.float().detach().cpu().numpy()))
+                ff_cache.append(FFCacheEntry(selection_masks=FF_shifted.float().detach().cpu().numpy(), attn_masks=att.detach().cpu().numpy(), latent_masks=S_latent.transpose(1,3).detach().cpu().numpy() if S_latent is not None else None))
 
             # Use out-of-place subtraction to preserve computation graph integrity
 
@@ -391,7 +403,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             att = att - FF_shifted[:,:,:,:]
         else:
             if ff_cache is not None:
-                ff_cache.append((torch.zeros_like(att,dtype=torch.float32).detach().cpu().numpy(),att.float().detach().cpu().numpy()))
+                ff_cache.append(FFCacheEntry(selection_masks=torch.zeros_like(att,dtype=torch.float32).detach().cpu().numpy(), attn_masks=att.float().detach().cpu().numpy(), latent_masks=None))
 
         att = F.softmax(att, dim=-1)
 
