@@ -11,5 +11,5 @@ COPY download_hellaswag.py ./
 RUN python download_hellaswag.py
 RUN mkdir $DATA_DIR/edu_fineweb10B
 COPY ["*.npy", "$DATA_DIR/edu_fineweb10B"]
-RUN pip install wandb pytest
-RUN apt-get update && apt-get install -y build-essential
+RUN apt-get update && apt-get install -y build-essential nvtop
+RUN pip install wandb pytest mup ipykernel ipywidgets coloredlogs git+https://github.com/andrew-healey/vast-ai-api
