@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import random
 import os
 
-from .protection.protect_and_attack import protect_and_attack_triton, cumsum_triton, cumsum_bliasson, attack_and_protect_bliasson
+#from .protection.protect_and_attack import cumsum_triton, cumsum_bliasson, attack_and_protect_bliasson
 from enum import StrEnum, auto
 class ProtectionKind(StrEnum):
     HEAD_TWO = auto()
@@ -282,18 +282,23 @@ class CausalSelectiveSelfAttention(nn.Module):
             if self.config.protection_kind == ProtectionKind.NONE:
                 FF = torch.cumsum(S, dim=-2)
             elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM:
+                from .protection.protect_and_attack import cumsum_triton
                 FF = cumsum_triton(S, dim=-2)
             elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_PARALLEL:
+                from .protection.protect_and_attack import cumsum_triton
                 FF_64 = cumsum_triton(S, dim=-2, parallel_scan=True)
                 FF = FF_64.to(torch.float32)
             elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON:
+                from .protection.protect_and_attack import cumsum_bliasson
                 FF = cumsum_bliasson(S, dim=-2)
             elif self.config.protection_kind == ProtectionKind.NONE_CUSTOM_CUMSUM_BLIASSON_FP64:
+                from .protection.protect_and_attack import cumsum_bliasson
                 FF = cumsum_bliasson(S.to(torch.float64),dim=-2,dtype=torch.float64).to(torch.float32)
             elif self.config.protection_kind == ProtectionKind.NONE_TORCH_CUMSUM_FP64:
                 FF = torch.cumsum(S.to(torch.float64), dim=-2).to(torch.float32)
             else:
                 # First, compute Sp
+                from .protection.protect_and_attack import attack_and_protect_bliasson
 
                 if self.config.protection_kind in [ProtectionKind.HEAD_TWO, ProtectionKind.HEAD_TWO_FP64]:
                     Sp = att[:, 1].clone()
