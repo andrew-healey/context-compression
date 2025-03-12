@@ -5183,7 +5183,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 2 latent masks, lr={1339,1340}: 
 
-```vast:running/18714976
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
   --group two_latent_masks \
@@ -5197,7 +5197,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --no_use_compile
 ```
 
-```vast:running/18724341
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
   --group two_latent_masks \
