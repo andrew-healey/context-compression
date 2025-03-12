@@ -4875,6 +4875,8 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --n_sliced_masks 2
 ```
 
+### Ablation on head-dim 22 model
+
 #### Investigating a suspicious result from previous experiment
 
 (see seed=1339, after March 7th, in groups `fix_1_latent_mask` and `two_heads_comparison`)
@@ -5209,7 +5211,9 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --no_use_compile
 ```
 
-#### One vs. two latent masks on a 64-head-dim model (8-GPU run)
+### One vs. two latent masks on a 64-head-dim model (8-GPU run)
+
+#### First set of runs: no float32, with compile
 
 ```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
@@ -5260,19 +5264,64 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --init_latent_masks_to_identity
 ```
 
-Result: 2 latent masks are better than 1. See [wandb](https://wandb.ai/sesamestrong/context_compression/panel/zrk0hi0fm?nw=jlbra05nth).
+Partial result: 2 latent masks are better than 1. See [wandb](https://wandb.ai/sesamestrong/context_compression/panel/zrk0hi0fm?nw=jlbra05nth).
 
-#### FP8 matmuls (or whatever other perf optimization I do)
+But I notice I didn't use float32 precision or turn off torch.compile. Let's do another set of runs with no compile and float32 precision.
 
-```
+#### Second set of runs: float32, no compile
+
+```vast:verified
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
---max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
---group fix_1_latent_mask \
---log_dir logs/fix_1_latent_mask/fp8_1_latent_mask_seed_1339 \
---key fp8_1_latent_mask \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --n_heads 12 --head_dim 64 \
+--group 64_head_dim_two_latent_masks \
+--log_dir logs/64_head_dim_two_latent_masks/1_latent_mask_seed_1339 \
+--key 1_latent_mask \
 --random_seed 1339 \
 --selection_head_linear_combo n_latent_masks \
 --n_latent_masks 1 \
 --init_latent_masks_to_identity \
---fp8
+--latent_mask_precision float32 \
+--no_use_compile
+```
+
+```vast:verified
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --n_heads 12 --head_dim 64 \
+--group 64_head_dim_two_latent_masks \
+--log_dir logs/64_head_dim_two_latent_masks/2_latent_mask_seed_1339 \
+--key 2_latent_mask \
+--random_seed 1339 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 2 \
+--init_latent_masks_to_identity \
+--latent_mask_precision float32 \
+--no_use_compile
+```
+
+```vast:verified
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --n_heads 12 --head_dim 64 \
+--group 64_head_dim_two_latent_masks \
+--log_dir logs/64_head_dim_two_latent_masks/1_latent_mask_seed_1340 \
+--key 1_latent_mask \
+--random_seed 1340 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 1 \
+--init_latent_masks_to_identity \
+--latent_mask_precision float32 \
+--no_use_compile
+```
+
+```vast:verified
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --n_heads 12 --head_dim 64 \
+--group 64_head_dim_two_latent_masks \
+--log_dir logs/64_head_dim_two_latent_masks/2_latent_mask_seed_1340 \
+--key 2_latent_mask \
+--random_seed 1340 \
+--selection_head_linear_combo n_latent_masks \
+--n_latent_masks 2 \
+--init_latent_masks_to_identity \
+--latent_mask_precision float32 \
+--no_use_compile
 ```
