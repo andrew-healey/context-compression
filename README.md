@@ -5183,7 +5183,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 2 latent masks, lr={1339,1340}: 
 
-```vast:running/18714976
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
   --group two_latent_masks \
@@ -5197,7 +5197,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --no_use_compile
 ```
 
-```vast:running/18724341
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
   --group two_latent_masks \
@@ -5270,7 +5270,7 @@ But I notice I didn't use float32 precision or turn off torch.compile. Let's do 
 
 #### Second set of runs: float32, no compile
 
-```vast:verified
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --n_heads 12 --head_dim 64 \
 --group 64_head_dim_two_latent_masks \
@@ -5284,7 +5284,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
-```vast:verified
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --n_heads 12 --head_dim 64 \
 --group 64_head_dim_two_latent_masks \
@@ -5298,7 +5298,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
-```vast:verified
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --n_heads 12 --head_dim 64 \
 --group 64_head_dim_two_latent_masks \
@@ -5312,7 +5312,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
-```vast:verified
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --n_heads 12 --head_dim 64 \
 --group 64_head_dim_two_latent_masks \
@@ -5324,4 +5324,88 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --init_latent_masks_to_identity \
 --latent_mask_precision float32 \
 --no_use_compile
+```
+
+### Investigating two-masks vs. two-latent-masks
+
+In the many-1339-seed group, I noticed that 12 total heads with two dedicated to masking was better than 13 total heads with one dedicated to masking.
+
+I also noticed that 13 total heads with two dedicated to masking was worse than both of those, which is surprising. Maybe it's smth with the 2 masks not wrapping nicely around the 11 remaining heads?
+
+The ablation tells me the benefit from adding one extra head is about 0.008 - not big, but not tiny. I attribute this up to the bitter lesson.
+
+For reference, the jump from frozen -> learnable latent masks is about 0.002. This is surprisingly small, but I guess I trust it. I have no good intuition for it though - wouldn't this be nearly as good as having two latent masks? Do attn maps frozen -> learned look more similar than attn maps 1 head -> 2 heads?
+
+Actually, let's first look at a bunch of attn maps. Let's put them in a folder and analyze them before running any more experiments.
+
+Also, let's remember to check how 2-masks performed vs. baseline selective attention on the big model. IIRC it made ~no difference, despite adding compute.
+
+Oh, very confusing - "two heads for two sliced masks" scores 0.005 worse than "two masks" in the 1339-mask-scaleup graph. I think this is a super tiny diff, actually.
+
+The two models are identical, i.e. for the same weights, they'll give the same prob distro. The only diff is numerics, I think. So I'm guessing improving numerics (by removing the .sum(), maybe?) will close the gap by a ton.
+
+Let's try a re-run of the two-head comparisons, with float32 and yes/no compile, for two seeds. The gap between sliced and two-masks should drop to a tiny amount. Arguably, 0.005 might already be a tiny difference.
+
+I want to try a variable-scale two-mask run also - I think it'll be better than two latent masks with two heads behind them. Not sure abt this though, since learnable weights didn't help the one-latent-head case much. Honestly, very very confusing.
+
+#### Re-running two-head vs. two-sliced-head comparison with high-precision and yes/no-compile
+
+Two masks, float32, no compile, seed={1339,1340}:
+
+```vast
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group two_heads_sliced_vs_unsliced \
+--log_dir logs/two_heads_sliced_vs_unsliced/unsliced_no_compile_seed_1339 \
+--key unsliced_no_compile \
+--random_seed 1339 \
+--selection_head_linear_combo two_masks \
+--latent_mask_precision float32 \
+--no_use_compile
+```
+
+Two heads for two sliced masks, float32, no compile, seed={1339,1340}:
+
+```vast
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group two_heads_sliced_vs_unsliced \
+--log_dir logs/two_heads_sliced_vs_unsliced/sliced_no_compile_seed_1339 \
+--key sliced_no_compile \
+--random_seed 1339 \
+--selection_head_linear_combo n_sliced_masks \
+--n_sliced_masks 2 \
+--one_head_per_latent_mask \
+--latent_mask_precision float32 \
+--no_use_compile
+```
+
+
+Two masks, float32, yes compile, seed={1339,1340}:
+
+```vast
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group two_heads_sliced_vs_unsliced \
+--log_dir logs/two_heads_sliced_vs_unsliced/unsliced_compile_seed_1339 \
+--key unsliced_compile \
+--random_seed 1339 \
+--selection_head_linear_combo two_masks \
+--latent_mask_precision float32
+```
+
+
+Two heads for two sliced masks, float32, yes compile, seed={1339,1340}:
+
+```vast
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
+--group two_heads_sliced_vs_unsliced \
+--log_dir logs/two_heads_sliced_vs_unsliced/sliced_compile_seed_1339 \
+--key sliced_compile \
+--random_seed 1339 \
+--selection_head_linear_combo n_sliced_masks \
+--n_sliced_masks 2 \
+--one_head_per_latent_mask \
+--latent_mask_precision float32
 ```
