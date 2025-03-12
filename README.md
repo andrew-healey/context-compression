@@ -5326,6 +5326,8 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
+Results: Delta this time is about 0.007. That's bigger. Not clear if this generalizes at all, it's scary that numerics makes such a big difference. [wandb link](https://wandb.ai/sesamestrong/context_compression/panel/ieugzanro?nw=mlefcj092pp).
+
 ### Investigating two-masks vs. two-latent-masks
 
 In the many-1339-seed group, I noticed that 12 total heads with two dedicated to masking was better than 13 total heads with one dedicated to masking.
@@ -5352,7 +5354,7 @@ I want to try a variable-scale two-mask run also - I think it'll be better than 
 
 Two masks, float32, no compile, seed={1339,1340}:
 
-```vast
+```vast:running/18776118
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group two_heads_sliced_vs_unsliced \
@@ -5366,7 +5368,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Two heads for two sliced masks, float32, no compile, seed={1339,1340}:
 
-```vast
+```vast:running/18776121
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group two_heads_sliced_vs_unsliced \
@@ -5383,7 +5385,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Two masks, float32, yes compile, seed={1339,1340}:
 
-```vast
+```vast:running/18776115
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group two_heads_sliced_vs_unsliced \
@@ -5397,7 +5399,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Two heads for two sliced masks, float32, yes compile, seed={1339,1340}:
 
-```vast
+```vast:running/18776131
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group two_heads_sliced_vs_unsliced \
