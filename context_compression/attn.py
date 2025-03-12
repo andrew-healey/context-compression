@@ -209,20 +209,22 @@ class CausalSelectiveSelfAttention(nn.Module):
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.TWO_MASKS:
                 # ok let's split att into two halves: the S and the real att
-                S = att[:, :2, :, :].clone()
-                S_latent = S.transpose(1,3)
-                att = att[:, 2:, :, :]
-                v = v[:, 2:, :, :]
+                with torch.autocast(device_type=att.device.type,dtype=self.latent_mask_precision):
+                    S = att[:, :2, :, :].clone()
+                    S_latent = S.transpose(1,3)
+                    att = att[:, 2:, :, :]
+                    v = v[:, 2:, :, :]
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
-                S = att[:, :self.config.n_sliced_masks, :, :] # shape: (B, n_sliced_masks, T, T')
-                att = att[:, self.config.n_sliced_masks:, :, :] # shape: (B, nh*(n_sliced_masks-1), T, T')
-                att = att.view(B, self.n_head, self.head_split_factor, T, T).sum(dim=2) # shape: (B, nh, T, T')
+                with torch.autocast(device_type=att.device.type,dtype=self.latent_mask_precision):
+                    S = att[:, :self.config.n_sliced_masks, :, :] # shape: (B, n_sliced_masks, T, T')
+                    att = att[:, self.config.n_sliced_masks:, :, :] # shape: (B, nh*(n_sliced_masks-1), T, T')
+                    att = att.view(B, self.n_head, self.head_split_factor, T, T).sum(dim=2) # shape: (B, nh, T, T')
 
-                if self.config.one_head_per_latent_mask:
-                    v = v[:, self.config.n_sliced_masks:, :, :]
-                else:
-                    v = v[:, 1:, :, :]
+                    if self.config.one_head_per_latent_mask:
+                        v = v[:, self.config.n_sliced_masks:, :, :]
+                    else:
+                        v = v[:, 1:, :, :]
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
                 with torch.autocast(device_type=att.device.type,dtype=self.latent_mask_precision):
