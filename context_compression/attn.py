@@ -134,6 +134,12 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.raw_att_head = nn.Linear(self.n_c_attn_heads, self.n_c_attn_heads, bias=False) # transforming old raw attention heads to new ones
         else:
             self.raw_att_head = None
+        
+        if self.config.att_conv:
+            # make a linear from n_c_attn_heads to n_c_attn_heads
+            self.att_conv = nn.Linear(self.n_c_attn_heads, self.n_c_attn_heads, bias=False)
+        else:
+            self.att_conv = None
     
     # to preserve precision. honestly not sure if this is necessary!
     @torch._dynamo.disable
@@ -182,6 +188,12 @@ class CausalSelectiveSelfAttention(nn.Module):
         # Standard attention computation
         att = (q @ k.transpose(-2, -1)) * self.attn_mult
         att = self.attn_score(att)
+
+        if self.att_conv is not None:
+            att = att.transpose(1,3) # shape: (B, T, T', nh)
+            att = self.att_conv(att) # shape: (B, T, T', nh)
+            att = att.transpose(1,3) # shape: (B, nh, T, T')
+
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
 
         if self.config.residual_attention_masks:
