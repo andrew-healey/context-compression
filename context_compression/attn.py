@@ -134,10 +134,22 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.raw_att_head = nn.Linear(self.n_c_attn_heads, self.n_c_attn_heads, bias=False) # transforming old raw attention heads to new ones
         else:
             self.raw_att_head = None
-        
+
+        if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
+            if self.config.one_head_per_latent_mask:
+                self.head_split_factor = 1
+            else:
+                self.head_split_factor = self.config.n_latent_masks
+        else:
+            if self.config.one_head_per_latent_mask:
+                self.head_split_factor = 1
+            else:
+                self.head_split_factor = self.config.n_sliced_masks
+        assert self.head_dim % self.head_split_factor == 0, "head_dim must be divisible by n_sliced_masks or n_latent_masks"
+    
         if self.config.att_conv:
             # make a linear from n_c_attn_heads to n_c_attn_heads
-            self.att_conv = nn.Linear(self.n_c_attn_heads, self.n_c_attn_heads, bias=False)
+            self.att_conv = nn.Linear(self.n_c_attn_heads * self.head_split_factor, self.n_c_attn_heads * self.head_split_factor, bias=False)
         else:
             self.att_conv = None
     
@@ -167,17 +179,6 @@ class CausalSelectiveSelfAttention(nn.Module):
         v = v.view(B, T, self.n_c_attn_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
 
         if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.N_SLICED_MASKS, SelectionHeadLinearComboKind.N_LATENT_MASKS]:
-            if self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
-                if self.config.one_head_per_latent_mask:
-                    self.head_split_factor = 1
-                else:
-                    self.head_split_factor = self.config.n_latent_masks
-            else:
-                if self.config.one_head_per_latent_mask:
-                    self.head_split_factor = 1
-                else:
-                    self.head_split_factor = self.config.n_sliced_masks
-            assert self.head_dim % self.head_split_factor == 0, "head_dim must be divisible by n_sliced_masks or n_latent_masks"
             k = k.view(B, T, self.n_c_attn_heads * self.head_split_factor, self.head_dim // self.head_split_factor).transpose(1, 2) # (B, nh, T, hs)
             q = q.view(B, T, self.n_c_attn_heads * self.head_split_factor, self.head_dim // self.head_split_factor).transpose(1, 2) # (B, nh, T, hs)
         else:

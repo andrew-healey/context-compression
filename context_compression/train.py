@@ -120,6 +120,10 @@ parser.add_argument("--one_head_per_latent_mask", action="store_true",
                     help="Use one head per latent mask")
 parser.set_defaults(one_head_per_latent_mask=False)
 
+parser.add_argument("--att_conv", action="store_true",
+                    help="Use an attention conv")
+parser.set_defaults(att_conv=False)
+
 parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.NONE,
                     help="Kind of protection to use")
 parser.add_argument("--leaky_relu_alpha", type=float, default=None,
@@ -316,6 +320,7 @@ def make_config(args):
         latent_mask_precision=args.latent_mask_precision,
         mask_layernorm=args.mask_layernorm,
         S_layernorm=args.S_layernorm,
+        att_conv=args.att_conv,
         residual_attention_masks=args.residual_attention_masks,
         disable_selection=args.disable_selection,
         mup=args.mup,
