@@ -5354,7 +5354,7 @@ I want to try a variable-scale two-mask run also - I think it'll be better than 
 
 Two masks, float32, no compile, seed={1339,1340}:
 
-```vast:fail/18776118
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group two_heads_sliced_vs_unsliced \
@@ -5712,3 +5712,243 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 ```
 
 Result: delta is about 0.003 or 0.004. Small. See [wandb](https://wandb.ai/sesamestrong/context_compression?nw=xgnobbbkhbp).
+
+### Trying an attention conv
+
+#### Checking if I can use torch.compile
+
+Let's check if our pretty-strong baseline (2 latent masks) can be trained with compile without compromising quality.
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group two_latent_masks_compile_comparison \
+  --log_dir two_latent_masks_compile_comparison/compile_seed_1339 \
+  --key compile \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group two_latent_masks_compile_comparison \
+  --log_dir two_latent_masks_compile_comparison/compile_seed_1340 \
+  --key compile \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1340 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32
+```
+
+#### Trying attention conv
+
+Seed=1339:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/a_original_seed_1339 \
+  --key a_original \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv
+```
+
+Result: worse than baseline.
+
+Init to eye matrix:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/b_eye_init_seed_1339 \
+  --key b_eye_init \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye
+```
+
+Result: worse even than the first try.
+
+Init to eye matrix, frozen (should match baseline):
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/c_degen_seed_1339 \
+  --key b_eye_init \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye \
+  --att_conv_scale 0
+```
+
+Result: seems to diverge?
+
+Init to eye matrix, frozen, no-compile, float32 (should match baseline):
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/c_degen_seed_1339 \
+  --key b_eye_init \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye \
+  --att_conv_scale 0 \
+  --no_use_compile \
+  --att_conv_precision float32
+```
+
+Oops! Looks like I wasn't acc eye-initting them. Let's fix that.
+
+Degen, compile:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/d_degen_seed_1339 \
+  --key d_degen \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye \
+  --att_conv_scale 0
+```
+
+Degen, no-compile, float32:
+
+```vast:running/18811836
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/d_degen_no_compile_seed_1339 \
+  --key d_degen_no_compile \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye \
+  --att_conv_scale 0 \
+  --no_use_compile \
+  --att_conv_precision float32
+```
+
+Learnable, compile, no weight decay:
+
+```vast:running/18811843
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/e_learnable_compile_no_weight_decay_seed_1339 \
+  --key e_learnable_compile_no_weight_decay \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye
+```
+
+Learnable, compile, yes weight decay:
+
+```vast:running/18811844
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/f_learnable_compile_yes_weight_decay_seed_1339 \
+  --key f_learnable_compile_yes_weight_decay \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye \
+  --att_conv_weight_decay
+```
+
+Learnable, compile, yes weight decay, 1 latent mask (should ~match 2 latent masks):
+
+```vast:running/18811840
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/g_1_latent_mask_seed_1339 \
+  --key g_1_latent_mask \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye \
+  --att_conv_weight_decay
+```
+
+
+More, smaller heads, no weight decay:
+
+```vast:running/18811841
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 25 --head_dim 11 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/g_small_heads_no_wd_seed_1339 \
+  --key g_small_heads_no_wd \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye
+```
+
+More, smaller heads, yes weight decay:
+
+```vast:running/18811835
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 25 --head_dim 11 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/h_small_heads_wd_seed_1339 \
+  --key h_small_heads_wd \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye \
+  --att_conv_weight_decay
+```
