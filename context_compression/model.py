@@ -88,6 +88,7 @@ class GPTConfig:
     S_layernorm: bool = False
     att_conv: bool = False
     att_conv_init: AttConvInit = AttConvInit.NONE
+    att_conv_scale: float = 1.0
 
     def __post_init__(self):
         if self.attn_mult is None:
@@ -346,12 +347,14 @@ class GPT(nn.Module):
         # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
         # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
         selection_head_params = [p for n, p in param_dict.items() if "selection_head" in n]
-        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2 and not "selection_head" in n]
-        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2 and not "selection_head" in n and not "raw_att_head" in n]
+        att_conv_params = [p for n, p in param_dict.items() if "att_conv" in n]
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2 and not "selection_head" in n and not "att_conv" in n]
+        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2 and not "selection_head" in n and not "att_conv" in n and not "raw_att_head" in n]
         optim_groups = [
             {'params': decay_params, 'weight_decay': weight_decay},
             {'params': nodecay_params, 'weight_decay': 0.0},
-            {'params': selection_head_params, 'weight_decay': 0.0, 'lr': learning_rate * self.config.selection_head_linear_combo_scale}
+            {'params': selection_head_params, 'weight_decay': 0.0, 'lr': learning_rate * self.config.selection_head_linear_combo_scale},
+            {'params': att_conv_params, 'weight_decay': weight_decay, 'lr': learning_rate * self.config.att_conv_scale}
         ]
         num_decay_params = sum(p.numel() for p in decay_params)
         num_nodecay_params = sum(p.numel() for p in nodecay_params)

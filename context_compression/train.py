@@ -123,9 +123,10 @@ parser.set_defaults(one_head_per_latent_mask=False)
 parser.add_argument("--att_conv", action="store_true",
                     help="Use an attention conv")
 parser.set_defaults(att_conv=False)
-
 parser.add_argument("--att_conv_init", type=lambda x: AttConvInit(x.lower()), default=AttConvInit.NONE,
                     help="Initialization for the attention conv")
+parser.add_argument("--att_conv_scale", type=float, default=1.0,
+                    help="Lr scale for the attention conv")
 
 parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.NONE,
                     help="Kind of protection to use")
@@ -323,8 +324,11 @@ def make_config(args):
         latent_mask_precision=args.latent_mask_precision,
         mask_layernorm=args.mask_layernorm,
         S_layernorm=args.S_layernorm,
+
         att_conv=args.att_conv,
         att_conv_init=args.att_conv_init,
+        att_conv_scale=args.att_conv_scale,
+
         residual_attention_masks=args.residual_attention_masks,
         disable_selection=args.disable_selection,
         mup=args.mup,
