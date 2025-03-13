@@ -55,7 +55,6 @@ class GPTConfig:
     protect_bos_token: bool = True
     prevent_from_masking_myself: bool = True
 
-
     selection_head_linear_combo: SelectionHeadLinearComboKind = SelectionHeadLinearComboKind.NONE
     selection_head_linear_combo_scale: float = 1.0
     disable_selection_head_linear_combo_bias: bool = False
@@ -90,6 +89,7 @@ class GPTConfig:
     att_conv_init: AttConvInit = AttConvInit.NONE
     att_conv_scale: float = 1.0
     att_conv_precision: str = "bfloat16"
+    att_conv_weight_decay: bool = True  # Whether to apply weight decay to attention convolution parameters
 
     def __post_init__(self):
         if self.attn_mult is None:
@@ -355,8 +355,9 @@ class GPT(nn.Module):
             {'params': decay_params, 'weight_decay': weight_decay},
             {'params': nodecay_params, 'weight_decay': 0.0},
             {'params': selection_head_params, 'weight_decay': 0.0, 'lr': learning_rate * self.config.selection_head_linear_combo_scale},
-            {'params': att_conv_params, 'weight_decay': weight_decay, 'lr': learning_rate * self.config.att_conv_scale}
+            {'params': att_conv_params, 'weight_decay': weight_decay if self.config.att_conv_weight_decay else 0.0, 'lr': learning_rate * self.config.att_conv_scale}
         ]
+        print("weight decay for the attention conv: ", weight_decay if self.config.att_conv_weight_decay else 0.0)
         num_decay_params = sum(p.numel() for p in decay_params)
         num_nodecay_params = sum(p.numel() for p in nodecay_params)
         num_low_lr_selection_head_params = sum(p.numel() for p in selection_head_params)

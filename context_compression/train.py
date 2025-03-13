@@ -127,6 +127,9 @@ parser.add_argument("--att_conv_init", type=lambda x: AttConvInit(x.lower()), de
                     help="Initialization for the attention conv")
 parser.add_argument("--att_conv_scale", type=float, default=1.0,
                     help="Lr scale for the attention conv")
+parser.add_argument("--att_conv_weight_decay", action="store_true",
+                    help="Apply weight decay to the attention conv")
+parser.set_defaults(att_conv_weight_decay=False)
 
 parser.add_argument("--protection_kind", type=lambda x: ProtectionKind(x.lower()), default=ProtectionKind.NONE,
                     help="Kind of protection to use")
@@ -331,6 +334,7 @@ def make_config(args):
         att_conv_init=args.att_conv_init,
         att_conv_scale=args.att_conv_scale,
         att_conv_precision=args.att_conv_precision,
+        att_conv_weight_decay=args.att_conv_weight_decay,
 
         residual_attention_masks=args.residual_attention_masks,
         disable_selection=args.disable_selection,
