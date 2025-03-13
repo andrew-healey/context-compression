@@ -89,6 +89,7 @@ class GPTConfig:
     att_conv: bool = False
     att_conv_init: AttConvInit = AttConvInit.NONE
     att_conv_scale: float = 1.0
+    att_conv_precision: str = "bfloat16"
 
     def __post_init__(self):
         if self.attn_mult is None:

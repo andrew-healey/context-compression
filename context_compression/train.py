@@ -197,6 +197,8 @@ parser.add_argument("--key", type=str, default=None,
                     help="Key for the run") # for grouping runs with diff seeds but the same hyperparams
 parser.add_argument("--latent_mask_precision", type=str, default="bfloat16",
                     help="Precision for the latent masks")
+parser.add_argument("--att_conv_precision", type=str, default="bfloat16",
+                    help="Precision for the attention conv")
 
 args = parser.parse_args()
 
@@ -328,6 +330,7 @@ def make_config(args):
         att_conv=args.att_conv,
         att_conv_init=args.att_conv_init,
         att_conv_scale=args.att_conv_scale,
+        att_conv_precision=args.att_conv_precision,
 
         residual_attention_masks=args.residual_attention_masks,
         disable_selection=args.disable_selection,

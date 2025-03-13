@@ -119,6 +119,7 @@ class CausalSelectiveSelfAttention(nn.Module):
             raise ValueError(f"Invalid selection head linear combo: {self.config.selection_head_linear_combo}")
         
         self.latent_mask_precision = torch.float32 if self.config.latent_mask_precision == "float32" else torch.bfloat16
+        self.att_conv_precision = torch.float32 if self.config.att_conv_precision == "float32" else torch.bfloat16
         
         if self.config.protection_kind in [ProtectionKind.LINEAR_COMBO, ProtectionKind.LINEAR_COMBO_HEAD_TWO]:
             self.protection_head = nn.Linear(config.n_head, 1)
@@ -197,9 +198,10 @@ class CausalSelectiveSelfAttention(nn.Module):
         att = self.attn_score(att)
 
         if self.att_conv is not None:
-            att = att.transpose(1,3) # shape: (B, T, T', nh)
-            att = self.att_conv(att) # shape: (B, T, T', nh)
-            att = att.transpose(1,3) # shape: (B, nh, T, T')
+            with torch.autocast(device_type=att.device.type,dtype=self.att_conv_precision):
+                att = att.transpose(1,3) # shape: (B, T, T', nh)
+                att = self.att_conv(att) # shape: (B, T, T', nh)
+                att = att.transpose(1,3) # shape: (B, nh, T, T')
 
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
 
