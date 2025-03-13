@@ -34,6 +34,10 @@ class SelectionHeadLinearComboKind(StrEnum):
     N_LATENT_MASKS = auto()
     NONE_WITH_NO_HEAD = auto()
 
+class AttConvInit(StrEnum):
+    NONE = auto()
+    EYE = auto()
+
 from dataclasses import dataclass
 from typing import Optional
 
@@ -150,6 +154,8 @@ class CausalSelectiveSelfAttention(nn.Module):
         if self.config.att_conv:
             # make a linear from n_c_attn_heads to n_c_attn_heads
             self.att_conv = nn.Linear(self.n_c_attn_heads * self.head_split_factor, self.n_c_attn_heads * self.head_split_factor, bias=False)
+            if self.config.att_conv_init == AttConvInit.EYE:
+                self.att_conv.weight.EYE_INIT = 1
         else:
             self.att_conv = None
     

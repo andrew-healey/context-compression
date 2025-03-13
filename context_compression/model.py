@@ -3,7 +3,7 @@ import torch
 import math
 import torch.nn.functional as F
 from dataclasses import dataclass
-from .attn import get_attention_cls, AttentionKind, ProtectionKind, SelectionHeadLinearComboKind
+from .attn import get_attention_cls, AttentionKind, ProtectionKind, SelectionHeadLinearComboKind, AttConvInit
 import os
 import inspect
 from .attn import CausalSelectiveSelfAttention
@@ -87,6 +87,7 @@ class GPTConfig:
     l1_loss: bool = False
     S_layernorm: bool = False
     att_conv: bool = False
+    att_conv_init: AttConvInit = AttConvInit.NONE
 
     def __post_init__(self):
         if self.attn_mult is None:
@@ -140,6 +141,9 @@ class GPT(nn.Module):
                     module.weight.data.div_(self.config.latent_mask_scale)
                 if not self.config.disable_selection_head_linear_combo_bias:
                     torch.nn.init.zeros_(module.bias)
+                return
+            elif hasattr(module, 'EYE_INIT'):
+                torch.nn.init.eye_(module.weight)
                 return
             std = 0.02
 
