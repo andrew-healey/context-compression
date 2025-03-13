@@ -390,7 +390,7 @@ def writeback_file(fw, file_text: str, blocks: List[CommandBlock]) -> None:
     os.fsync(fw.fileno())
     return
 
-def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True, gpus: Optional[int] = None) -> List[Instance]:
+def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True, should_provision: bool = True, gpus: Optional[int] = None) -> List[Instance]:
     pending_cmds = [block for block in blocks if block.state in {CommandState.EMPTY, CommandState.VERIFIED, CommandState.RUNNING, CommandState.FAIL}]
     pending_cmd_count = len(pending_cmds)
     all_pending_cmds_are_running = all(block.state == CommandState.RUNNING for block in pending_cmds)
@@ -398,7 +398,7 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True,
     while True:
         current_instances = get_autorunning_instances(gpus=gpus)
         instance_count = len(current_instances)
-        if instance_count < pending_cmd_count:
+        if instance_count < pending_cmd_count and should_provision:
             needed = (pending_cmd_count) - instance_count
             print(f"Provisioning Notice: Need {needed} (plus {slack} slack instances) more instance(s).")
             print("Please provision the required instances manually Now. Attempting to open vast.ai in browser...")
@@ -440,6 +440,8 @@ def main():
     parser.add_argument("filename", help="Markdown file containing vast command blocks")
     parser.add_argument("--deprovision", action="store_true", help="Deprovision extra instances", dest="deprovision")
     parser.set_defaults(deprovision=False)
+    parser.add_argument("--no_provision", action="store_false", help="Do not provision extra instances, just roll with what you have", dest="provision")
+    parser.set_defaults(provision=True)
     parser.add_argument("--gpus", type=int, help="Only operate on instances with this # of GPUs", dest="gpus")
     parser.set_defaults(gpus=None)
     args = parser.parse_args()
@@ -463,7 +465,7 @@ def main():
 
 
             # Phase 2: Provision/Delete Phase
-            instances = provision_phase(blocks, should_deprovision=args.deprovision, gpus=args.gpus)
+            instances = provision_phase(blocks, should_deprovision=args.deprovision, should_provision=args.provision, gpus=args.gpus)
             writeback_file(fw, file_text, blocks)
 
 
