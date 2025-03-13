@@ -5412,6 +5412,19 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --latent_mask_precision float32
 ```
 
+Result: seems like they basically match! The hypothesis was basically correct - the two models do work the same and train the same, basically.
+Maybe compile is a little better than no compile, but I'm really not sure either way. See [wandb](https://wandb.ai/sesamestrong/context_compression?nw=oi6tx1xo8v).
+
+For reference, here's the graph where they initially mismatched: [wandb](https://wandb.ai/sesamestrong/context_compression?nw=2sidl700lb6).
+
+I don't quite remember if torch.compile helps or hurts the final n-latent-mask case... Hrrm, for selective, I think it might hurt? Ah yes, remember step #1 of the tiny-model ablation. I wonder what the comparison is for the 64-dim, 1024-seq-len case.
+
+I also wonder how we can stabilize training so it's always safe to use no-compile with selectivity.
+
+Ideally, I'd like to try my next experiments with float32 and compile, which seems like a reasonable compromise. Well, do I think there's actually a future here? Is it worth optimizing this multi-mask stuff?
+
+TODO think more about this on typehere.
+
 ### Ablation on a head_dim-64, seq_len=1024 model
 
 #### Yes-compile vs. no-compile
