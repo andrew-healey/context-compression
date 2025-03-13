@@ -5354,7 +5354,7 @@ I want to try a variable-scale two-mask run also - I think it'll be better than 
 
 Two masks, float32, no compile, seed={1339,1340}:
 
-```vast:running/18776118
+```vast:fail/18776118
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group two_heads_sliced_vs_unsliced \
@@ -5427,11 +5427,13 @@ TODO think more about this on typehere.
 
 ### Ablation on a head_dim-64, seq_len=1024 model
 
+Results: [wandb report](https://wandb.ai/sesamestrong/context_compression/reports/Same-ablation-on-64-1024--VmlldzoxMTc4MzI1OA/).
+
 #### Yes-compile vs. no-compile
 
 Baseline with no compile, seed={1339,1340}:
 
-```vast:running/18724341
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 \
 --group 64_baseline_compile_comparison \
@@ -5442,7 +5444,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
-```vast:running/18776116
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 \
 --group 64_baseline_compile_comparison \
@@ -5475,13 +5477,15 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --selection_head_linear_combo none
 ```
 
+Result: delta is about -0.005 - nocompile makes it worse! See [wandb](https://wandb.ai/sesamestrong/context_compression?nw=1d9rhfrhhhg).
+
 #### Incrementing the # of selective heads
 
 Heads=12, seed={1339,1340}: (see previous section)
 
 Heads=13, compile=false, seed={1339,1340}:
 
-```vast:running/18781253
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 13 --head_dim 64 --n_embd 768 \
 --group 64_heads_bump_comparison \
@@ -5492,7 +5496,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
-```vast:running/18781254
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 13 --head_dim 64 --n_embd 768 \
 --group 64_heads_bump_comparison \
@@ -5503,7 +5507,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
-Partial results: looks like 13 heads are better than 12 heads.
+Delta: seems like 0.005. See [wandb](https://wandb.ai/sesamestrong/context_compression?nw=1d9rhfrhhhg).
 
 #### Switching from baseline no-compile to "no heads" mode (i.e. throwing away the value head)
 
@@ -5511,7 +5515,7 @@ Selection kind = default: (see previous section)
 
 Selection kind = no_head, compile=false, seed={1339,1340}:
 
-```vast:running/18781255
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
 --group 64_no_heads_comparison \
@@ -5522,7 +5526,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
-```vast:running/18781268
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
 --group 64_no_heads_comparison \
@@ -5533,13 +5537,15 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --no_use_compile
 ```
 
+Result: delta of about 0.000. See [wandb](https://wandb.ai/sesamestrong/context_compression?nw=68saecckrhw).
+
 #### Switching from "no heads" mode to "no latent masks degenerate" mode
 
 No heads: (see previous section)
 
 Latent masks degenerate (with torch.compile), with lr={1339,1340}:
 
-```vast:running/18781270
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_latent_masks_degenerate \
@@ -5554,7 +5560,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
   --latent_mask_precision float32
 ```
 
-```vast:running/18781278
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_latent_masks_degenerate \
@@ -5571,7 +5577,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Latent masks degenerate (without torch.compile), with lr={1339,1340}:
 
-```vast:running/18776115
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_latent_masks_degenerate \
@@ -5587,7 +5593,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
   --no_use_compile
 ```
 
-```vast:running/18776131
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_latent_masks_degenerate \
@@ -5603,6 +5609,8 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
   --no_use_compile
 ```
 
+Result: huge delta of 0.015. Very strange, actually. I would expect 0, so there's some super weird numerical instability thing going on, maybe? Or did I mess up the config? See [wandb](https://wandb.ai/sesamestrong/context_compression?nw=aaqmhq8dj9u).
+
 #### Switching from degenerate to learnable latent masks
 
 Degenerate (with no torch.compile), lr={1339,1340}: (see previous section)
@@ -5611,7 +5619,7 @@ Degenerate (without torch.compile), lr={1339,1340}: (see previous section)
 
 Learnable (with torch.compile), lr={1339,1340}:
 
-```vast:running/18776117
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_latent_masks_learnable \
@@ -5624,7 +5632,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
   --latent_mask_precision float32
 ```
 
-```vast:running/18776121
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_latent_masks_learnable \
@@ -5639,7 +5647,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Learnable (without torch.compile), lr={1339,1340}:
 
-```vast:running/18781260
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_latent_masks_learnable \
@@ -5653,7 +5661,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
   --no_use_compile
 ```
 
-```vast:running/18783272
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_latent_masks_learnable \
@@ -5667,13 +5675,15 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
   --no_use_compile
 ```
 
+Result: moderately big delta! 0.010. [wandb](https://wandb.ai/sesamestrong/context_compression?nw=aaqmhq8dj9u).
+
 #### Switching from 1 latent mask to 2 latent masks
 
 1 latent mask: (see previous section)
 
 2 latent masks, lr={1339,1340}: 
 
-```vast:running/18783281
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_two_latent_masks \
@@ -5687,7 +5697,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
   --no_use_compile
 ```
 
-```vast:running/18783353
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
   --group 64_two_latent_masks \
@@ -5700,3 +5710,5 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
   --latent_mask_precision float32 \
   --no_use_compile
 ```
+
+Result: delta is about 0.003 or 0.004. Small. See [wandb](https://wandb.ai/sesamestrong/context_compression?nw=xgnobbbkhbp).
