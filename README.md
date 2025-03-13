@@ -5368,7 +5368,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Two heads for two sliced masks, float32, no compile, seed={1339,1340}:
 
-```vast:running/18776121
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group two_heads_sliced_vs_unsliced \
@@ -5385,7 +5385,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Two masks, float32, yes compile, seed={1339,1340}:
 
-```vast:running/18776115
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group two_heads_sliced_vs_unsliced \
@@ -5399,7 +5399,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 
 Two heads for two sliced masks, float32, yes compile, seed={1339,1340}:
 
-```vast:running/18776131
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
 --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 \
 --group two_heads_sliced_vs_unsliced \
@@ -5410,4 +5410,280 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 to
 --n_sliced_masks 2 \
 --one_head_per_latent_mask \
 --latent_mask_precision float32
+```
+
+### Ablation on a head_dim-64, seq_len=1024 model
+
+#### Yes-compile vs. no-compile
+
+Baseline with no compile, seed={1339,1340}:
+
+```vast:running/18724341
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 \
+--group 64_baseline_compile_comparison \
+--log_dir logs/64_baseline_compile_comparison/baseline_lr_30e-4_seed_1339_no_compile \
+--key baseline_lr_30e-4_no_compile \
+--random_seed 1339 \
+--selection_head_linear_combo none \
+--no_use_compile
+```
+
+```vast:running/18776116
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 \
+--group 64_baseline_compile_comparison \
+--log_dir logs/64_baseline_compile_comparison/baseline_lr_30e-4_seed_1340_no_compile \
+--key baseline_lr_30e-4_no_compile \
+--random_seed 1340 \
+--selection_head_linear_combo none \
+--no_use_compile
+```
+
+Baseline with yes compile, seed={1339,1340}:
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 \
+--group 64_baseline_compile_comparison \
+--log_dir logs/64_baseline_compile_comparison/baseline_lr_30e-4_seed_1339_retry \
+--key baseline_lr_30e-4_retry \
+--random_seed 1339 \
+--selection_head_linear_combo none
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 \
+--group 64_baseline_compile_comparison \
+--log_dir logs/64_baseline_compile_comparison/baseline_lr_30e-4_seed_1340_retry \
+--key baseline_lr_30e-4_retry \
+--random_seed 1340 \
+--selection_head_linear_combo none
+```
+
+#### Incrementing the # of selective heads
+
+Heads=12, seed={1339,1340}: (see previous section)
+
+Heads=13, compile=false, seed={1339,1340}:
+
+```vast:running/18781253
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 13 --head_dim 64 --n_embd 768 \
+--group 64_heads_bump_comparison \
+--log_dir logs/64_heads_bump_comparison/13_heads_no_compile_seed_1339 \
+--key 13_heads_no_compile \
+--random_seed 1339 \
+--selection_head_linear_combo none \
+--no_use_compile
+```
+
+```vast:running/18781254
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 13 --head_dim 64 --n_embd 768 \
+--group 64_heads_bump_comparison \
+--log_dir logs/64_heads_bump_comparison/13_heads_no_compile_seed_1340 \
+--key 13_heads_no_compile \
+--random_seed 1340 \
+--selection_head_linear_combo none \
+--no_use_compile
+```
+
+Partial results: looks like 13 heads are better than 12 heads.
+
+#### Switching from baseline no-compile to "no heads" mode (i.e. throwing away the value head)
+
+Selection kind = default: (see previous section)
+
+Selection kind = no_head, compile=false, seed={1339,1340}:
+
+```vast:running/18781255
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+--group 64_no_heads_comparison \
+--log_dir logs/64_no_heads_comparison/no_heads_fixed_seed_1339 \
+--key no_heads_fixed \
+--random_seed 1339 \
+--selection_head_linear_combo none_with_no_head \
+--no_use_compile
+```
+
+```vast:running/18781268
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+--max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 8 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+--group 64_no_heads_comparison \
+--log_dir logs/64_no_heads_comparison/no_heads_fixed_seed_1340 \
+--key no_heads_fixed \
+--random_seed 1340 \
+--selection_head_linear_combo none_with_no_head \
+--no_use_compile
+```
+
+#### Switching from "no heads" mode to "no latent masks degenerate" mode
+
+No heads: (see previous section)
+
+Latent masks degenerate (with torch.compile), with lr={1339,1340}:
+
+```vast:running/18781270
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_latent_masks_degenerate \
+  --log_dir logs/64_latent_masks_degenerate/degen_compile_seed_1339 \
+  --key degen_compile_seed_1339 \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --selection_head_linear_combo_scale 0 \
+  --disable_selection_head_linear_combo_bias \
+  --latent_mask_precision float32
+```
+
+```vast:running/18781278
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_latent_masks_degenerate \
+  --log_dir logs/64_latent_masks_degenerate/degen_compile_seed_1340 \
+  --key degen_compile_seed_1340 \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1340 \
+  --init_latent_masks_to_identity \
+  --selection_head_linear_combo_scale 0 \
+  --disable_selection_head_linear_combo_bias \
+  --latent_mask_precision float32
+```
+
+Latent masks degenerate (without torch.compile), with lr={1339,1340}:
+
+```vast:running/18776115
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_latent_masks_degenerate \
+  --log_dir logs/64_latent_masks_degenerate/degen_no_compile_seed_1339 \
+  --key degen_no_compile_seed_1339 \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --selection_head_linear_combo_scale 0 \
+  --disable_selection_head_linear_combo_bias \
+  --latent_mask_precision float32 \
+  --no_use_compile
+```
+
+```vast:running/18776131
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_latent_masks_degenerate \
+  --log_dir logs/64_latent_masks_degenerate/degen_no_compile_seed_1340 \
+  --key degen_no_compile_seed_1340 \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1340 \
+  --init_latent_masks_to_identity \
+  --selection_head_linear_combo_scale 0 \
+  --disable_selection_head_linear_combo_bias \
+  --latent_mask_precision float32 \
+  --no_use_compile
+```
+
+#### Switching from degenerate to learnable latent masks
+
+Degenerate (with no torch.compile), lr={1339,1340}: (see previous section)
+
+Degenerate (without torch.compile), lr={1339,1340}: (see previous section)
+
+Learnable (with torch.compile), lr={1339,1340}:
+
+```vast:running/18776117
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_latent_masks_learnable \
+  --log_dir logs/64_latent_masks_learnable/learnable_compile_seed_1339 \
+  --key learnable_compile \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32
+```
+
+```vast:running/18776121
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_latent_masks_learnable \
+  --log_dir logs/64_latent_masks_learnable/learnable_compile_seed_1340 \
+  --key learnable_compile \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1340 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32
+```
+
+Learnable (without torch.compile), lr={1339,1340}:
+
+```vast:running/18781260
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_latent_masks_learnable \
+  --log_dir logs/64_latent_masks_learnable/learnable_no_compile_seed_1339 \
+  --key learnable_no_compile \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --no_use_compile
+```
+
+```vast:running/18783272
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_latent_masks_learnable \
+  --log_dir logs/64_latent_masks_learnable/learnable_no_compile_seed_1340 \
+  --key learnable_no_compile \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1340 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --no_use_compile
+```
+
+#### Switching from 1 latent mask to 2 latent masks
+
+1 latent mask: (see previous section)
+
+2 latent masks, lr={1339,1340}: 
+
+```vast:running/18783281
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_two_latent_masks \
+  --log_dir logs/64_two_latent_masks/two_latent_masks_seed_1339 \
+  --key two_latent_masks \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --no_use_compile
+```
+
+```vast:running/18783353
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 1024 --max_steps 4375 --warmup_steps 250 --batch_size 4 --mup --n_heads 12 --head_dim 64 --n_embd 768 \
+  --group 64_two_latent_masks \
+  --log_dir logs/64_two_latent_masks/two_latent_masks_seed_1340 \
+  --key two_latent_masks \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1340 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --no_use_compile
 ```
