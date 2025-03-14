@@ -5846,7 +5846,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Degen, no-compile, float32:
 
-```vast:running/18811836
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
   --group att_conv_playground \
@@ -5864,9 +5864,11 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --att_conv_precision float32
 ```
 
+Result: degen is a big improvement over baseline. Like delta=0.010. No idea why.
+
 Learnable, compile, no weight decay:
 
-```vast:running/18811843
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
   --group att_conv_playground \
@@ -5883,7 +5885,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Learnable, compile, yes weight decay:
 
-```vast:running/18811844
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
   --group att_conv_playground \
@@ -5899,9 +5901,13 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --att_conv_weight_decay
 ```
 
+Result: big improvement over degen. Like delta=0.013.
+
+WD seems similar to no WD. Delta = 0.000.
+
 Learnable, compile, yes weight decay, 1 latent mask (should ~match 2 latent masks):
 
-```vast:running/18811840
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 12 --head_dim 22 --n_embd 264 \
   --group att_conv_playground \
@@ -5917,10 +5923,11 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --att_conv_weight_decay
 ```
 
+Result: big downgrade from 2 latent masks. Delta=0.009.
 
 More, smaller heads, no weight decay:
 
-```vast:running/18811841
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 25 --head_dim 11 --n_embd 264 \
   --group att_conv_playground \
@@ -5937,7 +5944,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 More, smaller heads, yes weight decay:
 
-```vast:running/18811835
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 25 --head_dim 11 --n_embd 264 \
   --group att_conv_playground \
@@ -5952,3 +5959,93 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --att_conv_init eye \
   --att_conv_weight_decay
 ```
+
+Result: when compared with the 1-latent-mask case, these are a good improvement. WD is better than no WD, though.
+
+Delta from smaller-but-more-heads: 0.006.
+Delta from disabling WD: -0.003.
+
+The with-WD delta vs. 2-latent-mask, big-few-heads setting is -0.003.
+Hopefully we can just add the "delta from smaller-but-more-heads" to our 2-latent-mask, big-few-heads baseline score. That would be nice!
+
+
+More, smaller heads, yes weight decay, initted to match big-few-heads:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 25 --head_dim 11 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/i_small_heads_wd_double_eye_seed_1339 \
+  --key i_small_heads_wd_double_eye \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 1 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init double_eye \
+  --att_conv_weight_decay
+```
+Result: basically matched the eye-init case.
+
+More, smaller heads, yes weight decay, 2 latent masks again:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 24 --head_dim 11 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/i_small_heads_wd_2_latent_masks_seed_1339 \
+  --key i_small_heads_wd_2_latent_masks \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 2 \
+  --one_head_per_latent_mask \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye \
+  --att_conv_weight_decay
+```
+Result: small delta=0.002 w.r.t. the 2-latent-mask, big-few-heads setting. I'm still suspicious of this, though. I think I haven't mimicked the model correctly. We're gonna re-run this with more sane inits.
+
+AHA! I was right to be suspicious! These models are not so different after all! Maybe this explains part of the diff between baseline and degen.
+
+Specifically, let's compare this model vs. the 2-latent-mask, big-few-heads model:
+
+This model has "one-head-per-latent-mask" set to True, while the other does not.
+This model has 24 heads + 2 heads for 2 latent masks = 26 heads. The other has (12 heads + 1 head) * 2 = 26 heads.
+
+So this is *not* more dense! It just has more diversity of selection.
+
+This model has 24 different selection masks, while the other has 12.
+There are also differences in the lr and init, AFAIK, which I should think carefully about.
+
+Now, let's try comparing the degen model vs. the baseline model:
+
+Also, should I be using all the value and attention heads? I think maybe I should.
+i.e. if I'm using n latent masks, those should only exist in the inner dimension (i.e. the output of the att_conv). Then all the normal heads should be untouched.
+
+Once we reset that, we can scale up the density much more cleanly (since we don't have any ugly 22*11 math to deal with).
+
+<hr>
+
+More, smaller heads, yes weight decay, 4 latent masks (cannibalized from the existing heads):
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 22 --head_dim 11 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/i_small_heads_wd_2_latent_masks_seed_1339 \
+  --key i_small_heads_wd_2_latent_masks \
+  --selection_head_linear_combo n_latent_masks \
+  --n_latent_masks 4 \
+  --one_head_per_latent_mask \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye \
+  --att_conv_weight_decay
+```
+
+Result: pretty bad. Not sure what this was, I think I'll just ignore it entirely.
