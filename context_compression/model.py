@@ -147,6 +147,13 @@ class GPT(nn.Module):
             elif hasattr(module, 'EYE_INIT'):
                 torch.nn.init.eye_(module.weight)
                 return
+            elif hasattr(module, 'DOUBLE_EYE_INIT'):
+                # blockwise diagonal matrix with 2x2 blocks
+                n = module.weight.shape[0]
+                for i in range(n//2):
+                    right_side = min(2*i+2, n)
+                    module.weight.data[2*i:right_side,2*i:right_side] = torch.eye(right_side-2*i) / (right_side-2*i)
+                return
             std = 0.02
 
             if hasattr(module, 'NANOGPT_SCALE_INIT'):
