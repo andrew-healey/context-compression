@@ -6049,3 +6049,22 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 ```
 
 Result: pretty bad. Not sure what this was, I think I'll just ignore it entirely.
+
+#### Switching attention conv to a more flexible architecture
+
+Let's train a model that should beat the 2-latent-mask, big-few-heads, wd baseline.
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 26 --head_dim 11 --n_embd 264 \
+  --group att_conv_playground \
+  --log_dir att_conv_playground/j_att_conv_n_latent_masks_seed_1339 \
+  --key j_att_conv_n_latent_masks \
+  --selection_head_linear_combo att_conv_n_latent_masks \
+  --n_latent_masks 2 \
+  --random_seed 1339 \
+  --init_latent_masks_to_identity \
+  --latent_mask_precision float32 \
+  --att_conv \
+  --att_conv_init eye
+```

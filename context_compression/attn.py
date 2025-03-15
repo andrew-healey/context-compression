@@ -33,11 +33,13 @@ class SelectionHeadLinearComboKind(StrEnum):
     N_SLICED_MASKS = auto()
     N_LATENT_MASKS = auto()
     NONE_WITH_NO_HEAD = auto()
+    ATT_CONV_N_LATENT_MASKS = auto()
 
 class AttConvInit(StrEnum):
     NONE = auto()
     EYE = auto()
     DOUBLE_EYE = auto()
+    CLIPPED_EYE = auto()
 
 from dataclasses import dataclass
 from typing import Optional
@@ -77,6 +79,18 @@ class CausalSelectiveSelfAttention(nn.Module):
                 self.n_c_attn_heads = config.n_head + 1
         else:
             self.n_c_attn_heads = config.n_head
+        
+
+        if self.att_conv:
+            assert self.att_conv == (self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ATT_CONV_N_LATENT_MASKS), "att_conv must be True iff selection_head_linear_combo is ATT_CONV_N_LATENT_MASKS"
+            if config.selection_head_linear_combo == SelectionHeadLinearComboKind.ATT_CONV_N_LATENT_MASKS:
+                assert config.n_head == self.n_c_attn_heads, "n_head must be equal to n_c_attn_heads"
+
+                self.att_conv_heads = config.n_head + config.n_latent_masks
+            else:
+                self.att_conv_heads = config.n_head
+        else:
+            self.att_conv_heads = None
 
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * self.n_c_attn_heads * config.head_dim)
@@ -101,7 +115,7 @@ class CausalSelectiveSelfAttention(nn.Module):
 
         if self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.ONE_MASK_PER_HEAD, SelectionHeadLinearComboKind.TWO_MASKS, SelectionHeadLinearComboKind.N_SLICED_MASKS]:
             self.selection_head = None
-        elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
+        elif self.config.selection_head_linear_combo in [SelectionHeadLinearComboKind.N_LATENT_MASKS, SelectionHeadLinearComboKind.ATT_CONV_N_LATENT_MASKS]:
             self.selection_head = nn.Linear(config.n_latent_masks, config.n_head, bias=not self.config.disable_selection_head_linear_combo_bias)
             if self.config.init_latent_masks_to_identity:
                 self.selection_head.NANOGPT_ONES_INIT = True
@@ -155,11 +169,15 @@ class CausalSelectiveSelfAttention(nn.Module):
     
         if self.config.att_conv:
             # make a linear from n_c_attn_heads to n_c_attn_heads
-            self.att_conv = nn.Linear(self.n_c_attn_heads * self.head_split_factor, self.n_c_attn_heads * self.head_split_factor, bias=False)
+            assert self.head_split_factor == 1, "head_split_factor must be 1 for att_conv"
+            assert self.n_c_attn_heads == config.n_head
+            self.att_conv = nn.Linear(config.n_heads, self.att_conv_heads, bias=False)
             if self.config.att_conv_init == AttConvInit.EYE:
                 self.att_conv.EYE_INIT = 1
             elif self.config.att_conv_init == AttConvInit.DOUBLE_EYE:
                 self.att_conv.DOUBLE_EYE_INIT = 1
+            elif self.config.att_conv_init == AttConvInit.CLIPPED_EYE:
+                self.att_conv.CLIPPED_EYE_INIT = 1
         else:
             self.att_conv = None
     
@@ -249,6 +267,23 @@ class CausalSelectiveSelfAttention(nn.Module):
                         v = v[:, self.config.n_sliced_masks:, :, :]
                     else:
                         v = v[:, 1:, :, :]
+
+            elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ATT_CONV_N_LATENT_MASKS:
+                with torch.autocast(device_type=att.device.type,dtype=self.latent_mask_precision):
+
+                    S_latent = att[:, -self.config.n_latent_masks:, :, :] # shape: (B, n_latent_masks, T, T')
+                    T_seq = S_latent.shape[2]
+                    S_latent = S_latent.masked_fill(self.bias[:,:,:T_seq,:T_seq] == 0, 0) # shape: (B, T, T', n_latent_masks)
+                    S_latent = S_latent.transpose(1, 3) # shape: (B, T, T', n_latent_masks)
+
+                    S = self.n_latent_masks_linear(S_latent)
+
+                    if self.config.latent_mask_runtime_multiplier is not None:
+                        S = S * self.config.latent_mask_runtime_multiplier
+
+                    att = att[:, :-self.config.n_latent_masks, :, :] # shape: (B, nh*(n_latent_masks-1), T, T')
+                    # we're keeping this sum in - I think it might improve numerics?
+                    att = att.view(B, self.n_head, self.head_split_factor, T, T).sum(dim=2) # shape: (B, nh, T, T')
             
             elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_LATENT_MASKS:
                 with torch.autocast(device_type=att.device.type,dtype=self.latent_mask_precision):

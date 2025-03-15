@@ -154,6 +154,23 @@ class GPT(nn.Module):
                     right_side = min(2*i+2, n)
                     module.weight.data[2*i:right_side,2*i:right_side] = torch.eye(right_side-2*i) / (right_side-2*i)
                 return
+            elif hasattr(module, 'CLIPPED_EYE_INIT'):
+                print("running clipped eye init")
+                # so it's not a square matrix. but we want to make sure every row and every column adds up to 1.
+                # so here's what we're gonna do.
+                with_more_rows_than_cols = module.weight.T if module.weight.shape[0] < module.weight.shape[1] else module.weight
+                assert with_more_rows_than_cols.shape[0] >= with_more_rows_than_cols.shape[1], "with_more_rows_than_cols must have more rows than columns"
+                for i in range(with_more_rows_than_cols.shape[0] - 1):
+                    module.weight.data[i,i] = 1
+                for i in range(with_more_rows_than_cols.shape[1],with_more_rows_than_cols.shape[0]):
+                    module.weight.data[-1,i] = 1.0/(with_more_rows_than_cols.shape[0] - with_more_rows_than_cols.shape[1])
+                
+                # sanity check!
+                for i in range(with_more_rows_than_cols.shape[0]):
+                    assert with_more_rows_than_cols[i].sum() == 1.0
+                for j in range(with_more_rows_than_cols.shape[1]):
+                    assert with_more_rows_than_cols[:,i].sum() == 1.0
+
             std = 0.02
 
             if hasattr(module, 'NANOGPT_SCALE_INIT'):
