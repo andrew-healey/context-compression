@@ -24,6 +24,11 @@ from .attn import AttentionKind, ProtectionKind, SelectionHeadLinearComboKind, A
 from .hellaswag import render_example, iterate_examples
 from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head, NewHeadInit
 
+from enum import StrEnum, auto
+
+class ProfileKind(StrEnum):
+    NONE = auto()
+    PYTORCH = auto()
 
 # Parse command-line arguments for custom configuration
 parser = argparse.ArgumentParser(description="Train GPT with context compression.")
@@ -202,6 +207,8 @@ parser.add_argument("--latent_mask_precision", type=str, default="bfloat16",
                     help="Precision for the latent masks")
 parser.add_argument("--att_conv_precision", type=str, default="bfloat16",
                     help="Precision for the attention conv")
+parser.add_argument("--profile_kind", type=lambda x:ProfileKind(x.lower()), default=ProfileKind.NONE,
+                    help="What kind of profiling to do")
 
 args = parser.parse_args()
 
@@ -257,6 +264,21 @@ else:
     elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         device = "mps"
     print(f"using device: {device}")
+
+if args.profile_kind == ProfileKind.PYTORCH and master_process:
+    profiler = torch.profiler.profile(
+        with_stack=True,
+        record_shapes=True,
+        activities=[torch.profiler.ProfilerActivity.CPU,torch.profiler.ProfilerActivity.CUDA],
+        schedule=torch.profiler.schedule(
+            wait=1,
+            warmup=1,
+            active=2
+        ),
+    )
+else:
+    profiler = None
+
 
 device_type = "cuda" if device.startswith("cuda") else "cpu"
 autocast_precision = torch.bfloat16
@@ -736,6 +758,15 @@ for step in range(start_step, max_steps):
     optimizer.step()
     # if device_type == "cuda":
     #     torch.cuda.synchronize()
+
+    if args.profile_kind == ProfileKind.PYTORCH and master_process:
+        profiler.step()
+        if profiler.step_num >= 6:
+            profiler.stop()
+            print("exporting chrome trace...")
+            profiler.export_chrome_trace("small_trace.json")
+            print("finished exporting chrome trace")
+            exit(1)
 
     if args.mup_enable_coord_check_logging:
         for handle in coord_check_handles:
