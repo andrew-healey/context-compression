@@ -6068,3 +6068,48 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --att_conv \
   --att_conv_init eye
 ```
+
+Update: I'm not doing this here. I'd rather get some unified measurements of MHA performance wrt. number of heads and head granularity. If that doesn't work, maybe I'll come back to this!
+
+
+## Understanding MHA scaling laws
+
+#### Finding a strong mini-model MHA baseline
+
+Acc, IDK how head-scaling works. Very scary! Theoretically, mup should make it safe and approachable.
+
+Disappointing that mup hasn't run this exact experiment - they only scale up head count *and hidden state size*, or head dim *and hidden state size*. There's no isolation of just head count scaling, or just head dim scaling.
+
+I'm a little worried this law is diff for diff model scales and sequence lengths. When I find my strong baseline for the small model, I should just try a big model run (on the Yorth 10k step config, I think, or maybe even just the big model 2.5k step config), to see if it generalizes.
+
+OK, on the mini model, let's start w/ 12 heads, head dim 64. And scale the head count to 8,16, and 24.
+
+Augh goddamn. The head dims are not clean. This model has to be either huge or tiny. Maybe we need fewer layers? Oh, but fewer layers is very anti-mup, I think.
+
+IG 12 heads is a weird baseline. Let's fix the baseline head dim to 32 and use 8 heads.
+
+So let's tune the lr for the 8-head setting:
+
+lr=30e-4, seed={1339,1340}:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 8 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_baseline_lr_tuning \
+  --log_dir mha_baseline_lr_tuning/lr_30e-4_seed_1339 \
+  --max_lr 30e-4 \
+  --key lr_30e-4 \
+  --random_seed 1339
+```
+
+```vast
+(repeat for seed 1340)
+```
+
+lr=20e-4, seed={1339,1340}:
+
+TODO
+
+lr=45e-4, seed={1339,1340}:
+
+TODO
