@@ -6054,7 +6054,7 @@ Result: pretty bad. Not sure what this was, I think I'll just ignore it entirely
 
 Let's train a model that should beat the 2-latent-mask, big-few-heads, wd baseline.
 
-```vast
+```
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --max_lr 30e-4 --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --n_heads 26 --head_dim 11 --n_embd 264 \
   --group att_conv_playground \
