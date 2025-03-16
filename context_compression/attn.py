@@ -81,8 +81,8 @@ class CausalSelectiveSelfAttention(nn.Module):
             self.n_c_attn_heads = config.n_head
         
 
-        if self.att_conv:
-            assert self.att_conv == (self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.ATT_CONV_N_LATENT_MASKS), "att_conv must be True iff selection_head_linear_combo is ATT_CONV_N_LATENT_MASKS"
+        if config.att_conv:
+            assert config.att_conv == (config.selection_head_linear_combo == SelectionHeadLinearComboKind.ATT_CONV_N_LATENT_MASKS), "att_conv must be True iff selection_head_linear_combo is ATT_CONV_N_LATENT_MASKS"
             if config.selection_head_linear_combo == SelectionHeadLinearComboKind.ATT_CONV_N_LATENT_MASKS:
                 assert config.n_head == self.n_c_attn_heads, "n_head must be equal to n_c_attn_heads"
 
@@ -163,8 +163,10 @@ class CausalSelectiveSelfAttention(nn.Module):
         else:
             if self.config.one_head_per_latent_mask:
                 self.head_split_factor = 1
-            else:
+            elif self.config.selection_head_linear_combo == SelectionHeadLinearComboKind.N_SLICED_MASKS:
                 self.head_split_factor = self.config.n_sliced_masks
+            else:
+                self.head_split_factor = 1
         assert self.head_dim % self.head_split_factor == 0, "head_dim must be divisible by n_sliced_masks or n_latent_masks"
     
         if self.config.att_conv:
