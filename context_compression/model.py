@@ -91,6 +91,8 @@ class GPTConfig:
     att_conv_precision: str = "bfloat16"
     att_conv_weight_decay: bool = True  # Whether to apply weight decay to attention convolution parameters
 
+    attn_precision: str = "bfloat16"
+
     def __post_init__(self):
         if self.attn_mult is None:
             if self.mup:

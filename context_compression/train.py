@@ -207,6 +207,8 @@ parser.add_argument("--latent_mask_precision", type=str, default="bfloat16",
                     help="Precision for the latent masks")
 parser.add_argument("--att_conv_precision", type=str, default="bfloat16",
                     help="Precision for the attention conv")
+parser.add_argument("--attn_precision", type=str, default="bfloat16",
+                    help="Precision for the attention")
 parser.add_argument("--profile_kind", type=lambda x:ProfileKind(x.lower()), default=ProfileKind.NONE,
                     help="What kind of profiling to do")
 
@@ -364,6 +366,8 @@ def make_config(args):
         readout_zero_init=args.readout_zero_init,
         query_zero_init=args.query_zero_init,
         l1_loss=args.l1_loss,
+
+        attn_precision=args.attn_precision,
     )
 
 config = make_config(args)
