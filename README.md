@@ -6092,7 +6092,7 @@ So let's tune the lr for the 8-head setting:
 
 lr=30e-4, seed={1339,1340}:
 
-```vast
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 8 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_baseline_lr_tuning \
@@ -6102,14 +6102,219 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1339
 ```
 
-```vast
-(repeat for seed 1340)
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 8 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_baseline_lr_tuning \
+  --log_dir mha_baseline_lr_tuning/lr_30e-4_seed_1340 \
+  --max_lr 30e-4 \
+  --key lr_30e-4 \
+  --random_seed 1340
 ```
+
 
 lr=20e-4, seed={1339,1340}:
 
-TODO
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 8 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_baseline_lr_tuning \
+  --log_dir mha_baseline_lr_tuning/lr_20e-4_seed_1339 \
+  --max_lr 20e-4 \
+  --key lr_20e-4 \
+  --random_seed 1339
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 8 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_baseline_lr_tuning \
+  --log_dir mha_baseline_lr_tuning/lr_20e-4_seed_1340 \
+  --max_lr 20e-4 \
+  --key lr_20e-4 \
+  --random_seed 1340
+```
+
 
 lr=45e-4, seed={1339,1340}:
 
-TODO
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 8 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_baseline_lr_tuning \
+  --log_dir mha_baseline_lr_tuning/lr_45e-4_seed_1339 \
+  --max_lr 45e-4 \
+  --key lr_45e-4 \
+  --random_seed 1339
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 8 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_baseline_lr_tuning \
+  --log_dir mha_baseline_lr_tuning/lr_45e-4_seed_1340 \
+  --max_lr 45e-4 \
+  --key lr_45e-4 \
+  --random_seed 1340
+```
+
+#### Scaling up and down the number of 32-dim heads
+
+1 head:
+
+```vast:running/18871454
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_1_seed_1339 \
+  --n_heads 1 \
+  --key n_heads_1 \
+  --random_seed 1339
+```
+
+```vast:running/18871455
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_1_seed_1340 \
+  --n_heads 1 \
+  --key n_heads_1 \
+  --random_seed 1340
+```
+
+
+2 heads:
+
+```vast:running/18871456
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_2_seed_1339 \
+  --n_heads 2 \
+  --key n_heads_2 \
+  --random_seed 1339
+```
+
+```vast:running/18872430
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_2_seed_1340 \
+  --n_heads 2 \
+  --key n_heads_2 \
+  --random_seed 1340
+```
+
+
+4 heads:
+
+```vast:running/18872437
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_4_seed_1339 \
+  --n_heads 4 \
+  --key n_heads_4 \
+  --random_seed 1339
+```
+
+```vast:running/18872438
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_4_seed_1340 \
+  --n_heads 4 \
+  --key n_heads_4 \
+  --random_seed 1340
+```
+
+
+8 heads: (see last experiment, lr=30)
+
+12 heads:
+
+```vast:running/18872440
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_12_seed_1339 \
+  --n_heads 12 \
+  --key n_heads_12 \
+  --random_seed 1339
+```
+
+```vast:running/18872441
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_12_seed_1340 \
+  --n_heads 12 \
+  --key n_heads_12 \
+  --random_seed 1340
+```
+
+16 heads:
+
+```vast:running/18873036
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_16_seed_1339 \
+  --n_heads 16 \
+  --key n_heads_16 \
+  --random_seed 1339
+```
+
+```vast:running/18873037
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_16_seed_1340 \
+  --n_heads 16 \
+  --key n_heads_16 \
+  --random_seed 1340
+```
+
+20 heads:
+
+```vast:running/18873038
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_20_seed_1339 \
+  --n_heads 20 \
+  --key n_heads_20 \
+  --random_seed 1339
+```
+
+```vast:running/18873041
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_20_seed_1340 \
+  --n_heads 20 \
+  --key n_heads_20 \
+  --random_seed 1340
+```
+
+32 heads:
+
+```vast:running/18873042
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_32_seed_1339 \
+  --n_heads 32 \
+  --key n_heads_32 \
+  --random_seed 1339
+```
+
+```vast:running/18873051
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_const_hd_scale_nh \
+  --log_dir mha_const_hd_scale_nh/n_heads_32_seed_1340 \
+  --n_heads 32 \
+  --key n_heads_32 \
+  --random_seed 1340
+```
