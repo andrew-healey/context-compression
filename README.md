@@ -6548,7 +6548,7 @@ Result: 128 is still divergent. Ugh! Let's try just no-compile, with no float32.
 
 128 heads with no compile (to prevent divergence):
 
-```vast:running/18873858
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_hd_scale_nh \
@@ -6559,7 +6559,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --no_use_compile
 ```
 
-```vast:running/18873859
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_hd_scale_nh \
@@ -6588,7 +6588,7 @@ So let's just measure normally now. And we will trust the upscaled head_dim curv
 
 head_dim=2:
 
-```vast:running/18871454
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6599,7 +6599,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --head_dim 2
 ```
 
-```vast:running/18871455
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6612,7 +6612,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 head_dim=4:
 
-```vast:running/18871456
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6623,7 +6623,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --head_dim 4
 ```
 
-```vast:running/18872430
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6637,7 +6637,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 head_dim=8:
 
-```vast:running/18872437
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6648,7 +6648,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --head_dim 8
 ```
 
-```vast:running/18872438
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6663,7 +6663,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 head_dim=16:
 
 
-```vast:running/18872440
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6674,7 +6674,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --head_dim 16
 ```
 
-```vast:running/18872441
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6688,7 +6688,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 head_dim=32 (should match previous experiment results):
 
 
-```vast:running/18873036
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6699,7 +6699,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --head_dim 32
 ```
 
-```vast:running/18873037
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6713,7 +6713,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 head_dim=64:
 
 
-```vast:running/18873038
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6724,7 +6724,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --head_dim 64
 ```
 
-```vast:running/18873041
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6738,7 +6738,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 head_dim=128:
 
 
-```vast:running/18873042
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6749,7 +6749,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --head_dim 128
 ```
 
-```vast:running/18873043
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
