@@ -6570,6 +6570,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --no_use_compile
 ```
 
+Result: didn't fix it. I don't know why 128 heads diverges. I wonder if flashattention would solve this.
 
 Result: Generally, seems like loss is basically log-linear in the number of heads. So doubling the number of heads will decrease the loss by a certain margin.
 
@@ -6782,3 +6783,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1340 \
   --head_dim 256
 ```
+
+Results: yup, more granular is better. Keeps improving through head_dim=8. But head_dim=4 is worse. I bet it's RoPE's fault.
+
+[wandb](https://wandb.ai/sesamestrong/context_compression?nw=hxqcqaoztrj)
