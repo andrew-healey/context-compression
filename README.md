@@ -6762,7 +6762,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 head_dim=256:
 
-```vast:running/18873044
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6773,7 +6773,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --head_dim 256
 ```
 
-```vast:running/18873045
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_const_width_scale_hd \
@@ -6791,3 +6791,8 @@ But head_dim=8 is good, and always beats everything else.
 So I suspect some weird RoPE effect is happening, maybe.
 
 [wandb](https://wandb.ai/sesamestrong/context_compression?nw=hxqcqaoztrj)
+
+#### Representing head_dim=32, n_heads=8 MHA as special case of MLP format
+
+```
+```
