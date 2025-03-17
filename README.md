@@ -6784,6 +6784,10 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --head_dim 256
 ```
 
-Results: yup, more granular is better. Keeps improving through head_dim=8. But head_dim=4 is worse. I bet it's RoPE's fault.
+Results: honestly a little fuzzy. Generally it seems like more granular is better. Except head_dim=16 is high-variance and kinda bad, and head_dim=4 and =2 are both bad.
+
+But head_dim=8 is good, and always beats everything else.
+
+So I suspect some weird RoPE effect is happening, maybe.
 
 [wandb](https://wandb.ai/sesamestrong/context_compression?nw=hxqcqaoztrj)
