@@ -47,13 +47,16 @@ class AProducer(nn.Module):
 class AProducerMHA(AProducer):
     def __init__(self, config):
         super().__init__(config)
+
+        self.attn_mult = config.attn_mult
+
     def forward(self, q: torch.Tensor, k: torch.Tensor):
         B, T, _ = q.shape
         nh = self.config.n_head
         hd = self.config.head_dim
         q = q.view(B, T, nh, hd).transpose(1, 2)
         k = k.view(B, T, nh, hd).transpose(1, 2)
-        A = q @ k.transpose(-2, -1) / hd # following mup, we divide by head_dim, not sqrt(head_dim)
+        A = q @ k.transpose(-2, -1) * self.attn_mult # following mup, we divide by head_dim, not sqrt(head_dim)
         return A
 
 # turn softmax'd attention scores and values into the hidden state residual
