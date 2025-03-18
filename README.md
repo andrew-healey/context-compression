@@ -7082,7 +7082,7 @@ Let's re-run all 3 (mha, sdpa 16, sdpa 128) with another seed to try to repro th
 
 Attention=selective, selection disabled:
 
-```vast:running/18905304
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
   --group mha_numerics \
@@ -7094,7 +7094,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 Custom MHA impl:
 
-```vast:running/18905305
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
   --group mha_numerics \
@@ -7106,7 +7106,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 SDPA, bs=16:
 
-```vast:running/18905640
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group mha_numerics \
@@ -7118,7 +7118,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 SDPA, bs=128:
 
-```vast:running/18905639
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group mha_numerics \
@@ -7129,3 +7129,176 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 ```
 
 Result: yup, it's true. OK, so let's try to match the bs=16 SDPA version with a bs=128 SDPA version, maybe. Then let's try to match both of them with a general (possibly slow) MHA impl.
+
+SDPA, bs=32:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/sdpa_32_seed_1340 \
+  --n_heads 32 \
+  --key sdpa_32 \
+  --random_seed 1340 \
+  --sdpa_iter_size 16
+```
+
+SDPA, bs=64:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/sdpa_64_seed_1340 \
+  --n_heads 32 \
+  --key sdpa_64 \
+  --random_seed 1340 \
+  --sdpa_iter_size 16
+```
+
+
+SDPA, bs=128, split to 16:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/sdpa_128_seed_1340 \
+  --n_heads 32 \
+  --key sdpa_128 \
+  --random_seed 1340 \
+  --sdpa_iter_size 16
+```
+
+Custom MHA impl, stabilized scores:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_stabilized_2_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl_stabilized_2 \
+  --random_seed 1340 \
+  --stabilize_attn_scores
+```
+
+SDPA, bs=64, no compile:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/sdpa_64_no_compile_seed_1340 \
+  --n_heads 32 \
+  --key sdpa_64_no_compile \
+  --random_seed 1340 \
+  --sdpa_iter_size 16 \
+  --no_use_compile
+```
+
+I also notice the SDPA runs and the MHA runs separate immediately (i.e. val loss difference of 0.2 at step 100)
+
+Comparing a few configs:
+
+SDPA:
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl \
+  --random_seed 1340
+```
+val_loss=6.6727.
+
+MHA, mup init zero:
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl \
+  --random_seed 1340
+```
+val_loss=6.7689.
+
+MHA:
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl \
+  --random_seed 1340
+```
+val_loss=6.7754.
+
+
+MHA, but actually using SDPA:
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl \
+  --random_seed 1340 \
+  --override_use_sdpa
+```
+val_loss=6.8320. Hrrm, so is it the init that's killing us? Or maybe smth else...
+
+MHA using SDPA, but with nanogpt c_proj init:
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl \
+  --random_seed 1340 \
+  --override_use_sdpa
+```
+val_loss=6.5995. Great! That was it.
+
+MHA, but with nanogpt c_proj init:
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl \
+  --random_seed 1340
+```
+val_loss=6.6175.
+
+MHA with mup zero init, stabilized scores and nanogpt c_proj init:
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl \
+  --random_seed 1340 \
+  --stabilize_attn_scores
+```
+val_loss=
+
+Great! So let's do another big run of MHA with this change.
+
+Custom MHA impl, stabilized scores and nanogpt c_proj init:
+```vast:running/18905645
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_stabilized_2_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl_stabilized_2 \
+  --random_seed 1340 \
+  --stabilize_attn_scores
+```
