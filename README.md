@@ -7022,6 +7022,16 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 ```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group fix_128_heads_divergence \
+  --log_dir fix_128_heads_divergence/n_heads_32_seed_1339 \
+  --n_heads 32 \
+  --key n_heads_32 \
+  --random_seed 1339
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group fix_128_heads_divergence \
   --log_dir fix_128_heads_divergence/n_heads_128_seed_1339 \
@@ -7062,3 +7072,60 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 ```
 
 Result: sdpa at n_heads=32 beats all my custom mha impls. And more heads makes it worse. We gotta figure out what's wrong w/ my old impl (and what's wrong with sdpa, to give it bad scaling).
+OK, let's check if sdpa matches my impl at inference time.
+
+#### Investigating sdpa vs. naive numeric differences
+
+In the last experiment, I ran sdpa with bs=16 and bs=128. The bs=16 version soundly beat all my custom mha impls. But bs=128 version matches my custom mha impl performance.
+
+Let's re-run all 3 (mha, sdpa 16, sdpa 128) with another seed to try to repro this.
+
+Attention=selective, selection disabled:
+
+```vast:running/18905304
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --n_embd 256 --attention_kind selective --disable_selection \
+  --group mha_numerics \
+  --log_dir mha_numerics/selective_disabled_seed_1340 \
+  --n_heads 32 \
+  --key selective_disabled \
+  --random_seed 1340
+```
+
+Custom MHA impl:
+
+```vast:running/18905305
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/mha_impl_seed_1340 \
+  --n_heads 32 \
+  --key mha_impl \
+  --random_seed 1340
+```
+
+SDPA, bs=16:
+
+```vast:running/18905640
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/sdpa_16_seed_1340 \
+  --n_heads 32 \
+  --key sdpa_16 \
+  --random_seed 1340
+```
+
+SDPA, bs=128:
+
+```vast:running/18905639
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group mha_numerics \
+  --log_dir mha_numerics/sdpa_128_seed_1340 \
+  --n_heads 32 \
+  --key sdpa_128 \
+  --random_seed 1340
+```
+
+Result: yup, it's true. OK, so let's try to match the bs=16 SDPA version with a bs=128 SDPA version, maybe. Then let's try to match both of them with a general (possibly slow) MHA impl.
