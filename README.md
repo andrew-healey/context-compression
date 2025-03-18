@@ -6790,6 +6790,8 @@ But head_dim=8 is good, and always beats everything else.
 
 So I suspect some weird RoPE effect is happening, maybe.
 
+Actually, probably not RopE exactly - since we use the GPT method of learnable embeds.
+
 [wandb](https://wandb.ai/sesamestrong/context_compression?nw=hxqcqaoztrj)
 
 #### Repro-ing this performance on my new dense attention codepath
@@ -6803,3 +6805,239 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --log_dir dense_attention_repro_old_codepath/a_first_try \
   --mup_zero_init
 ```
+
+## TODO fully repeat the two scaleup experiments, run them during breakfast
+
+
+#### Repro-ing the rough outline of scaleup experiments
+
+2 heads:
+
+```vast:running/18905300
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_2_seed_1339 \
+  --n_heads 2 \
+  --key n_heads_2 \
+  --random_seed 1339
+```
+
+```vast:running/18905301
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_2_seed_1340 \
+  --n_heads 2 \
+  --key n_heads_2 \
+  --random_seed 1340
+```
+
+
+4 heads:
+
+```vast:running/18905303
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_4_seed_1339 \
+  --n_heads 4 \
+  --key n_heads_4 \
+  --random_seed 1339
+```
+
+```vast:running/18905304
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_4_seed_1340 \
+  --n_heads 4 \
+  --key n_heads_4 \
+  --random_seed 1340
+```
+
+8 heads:
+
+```vast:running/18905305
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_8_seed_1339 \
+  --n_heads 8 \
+  --key n_heads_8 \
+  --random_seed 1339
+```
+
+```vast:verified
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_8_seed_1340 \
+  --n_heads 8 \
+  --key n_heads_8 \
+  --random_seed 1340
+```
+
+16 heads:
+
+```vast:running/18905309
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_16_seed_1339 \
+  --n_heads 16 \
+  --key n_heads_16 \
+  --random_seed 1339
+```
+
+```vast:running/18905310
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_16_seed_1340 \
+  --n_heads 16 \
+  --key n_heads_16 \
+  --random_seed 1340
+```
+
+32 heads:
+
+```vast:running/18905311
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_32_seed_1339 \
+  --n_heads 32 \
+  --key n_heads_32 \
+  --random_seed 1339
+```
+
+```vast:running/18905313
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_32_seed_1340 \
+  --n_heads 32 \
+  --key n_heads_32 \
+  --random_seed 1340
+```
+
+64 heads:
+
+```vast:running/18905314
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_64_seed_1339 \
+  --n_heads 64 \
+  --key n_heads_64 \
+  --random_seed 1339
+```
+
+```vast:running/18905338
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_64_seed_1340 \
+  --n_heads 64 \
+  --key n_heads_64 \
+  --random_seed 1340
+```
+
+Result: converges!
+
+64 heads with float32 precision (to prevent divergence):
+
+```vast:running/18905481
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_64_fp32_seed_1339 \
+  --n_heads 64 \
+  --key n_heads_64_fp32 \
+  --random_seed 1339 \
+  --attn_precision float32
+```
+
+```vast:running/18905482
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_64_fp32_seed_1340 \
+  --n_heads 64 \
+  --key n_heads_64_fp32 \
+  --random_seed 1340 \
+  --attn_precision float32
+```
+
+128 heads with float32 precision (to prevent divergence):
+
+```vast:running/18905484
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_128_fp32_seed_1339 \
+  --n_heads 128 \
+  --key n_heads_128_fp32 \
+  --random_seed 1339 \
+  --attn_precision float32
+```
+
+```vast:running/18905485
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group new_mha_const_hd_scale_nh \
+  --log_dir new_mha_const_hd_scale_nh/n_heads_128_fp32_seed_1340 \
+  --n_heads 128 \
+  --key n_heads_128_fp32 \
+  --random_seed 1340 \
+  --attn_precision float32
+```
+
+#### Trying to fix the divergence issue
+
+Let's try using att_kind=self.
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group fix_128_heads_divergence \
+  --log_dir fix_128_heads_divergence/n_heads_128_seed_1339 \
+  --n_heads 128 \
+  --key n_heads_128 \
+  --random_seed 1339
+```
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group fix_128_heads_divergence \
+  --log_dir fix_128_heads_divergence/n_heads_256_seed_1339 \
+  --n_heads 256 \
+  --key n_heads_256 \
+  --random_seed 1339
+```
+
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group fix_128_heads_divergence \
+  --log_dir fix_128_heads_divergence/n_heads_512_seed_1339 \
+  --n_heads 512 \
+  --key n_heads_512 \
+  --random_seed 1339
+```
+
+```
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group fix_128_heads_divergence \
+  --log_dir fix_128_heads_divergence/n_heads_1024_seed_1339 \
+  --n_heads 1024 \
+  --key n_heads_1024 \
+  --random_seed 1339
+```
+
+
+## TODO then start increasing densities

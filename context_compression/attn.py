@@ -631,6 +631,7 @@ class CausalSelfAttention(nn.Module):
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.head_dim = config.head_dim
+        self.attn_mult = config.attn_mult
 
     def forward(self, x,ff_cache=None,old_raw_att=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -642,7 +643,7 @@ class CausalSelfAttention(nn.Module):
         k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=True) # flash attention
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True,scale=self.attn_mult) # flash attention
         y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim) # re-assemble all head outputs side by side
         # output projection
         y = self.c_proj(y)
