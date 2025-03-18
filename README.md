@@ -6792,7 +6792,14 @@ So I suspect some weird RoPE effect is happening, maybe.
 
 [wandb](https://wandb.ai/sesamestrong/context_compression?nw=hxqcqaoztrj)
 
-#### Representing head_dim=32, n_heads=8 MHA as special case of MLP format
+#### Repro-ing this performance on my new dense attention codepath
 
-```
+8 heads, head_dim=32:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --n_heads 8 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --max_lr 30e-4 \
+  --group dense_attention_repro_old_codepath \
+  --log_dir dense_attention_repro_old_codepath/a_first_try \
+  --mup_zero_init --no_use_compile
 ```

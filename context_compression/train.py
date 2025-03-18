@@ -19,8 +19,8 @@ from functools import partial
 from pathlib import Path
 
 from .data import DataLoaderLite, get_most_likely_row
-from .model import GPT, GPTConfig
-from .attn import AttentionKind, ProtectionKind, SelectionHeadLinearComboKind, AttConvInit
+from .model import GPT, GPTConfig, DenseAttentionConfig
+from .attn import AttentionKind, ProtectionKind, SelectionHeadLinearComboKind, AttConvInit, DenseAttentionKind
 from .hellaswag import render_example, iterate_examples
 from .add_a_head import AddHeadConfig, AddHeadKind, add_a_head, NewHeadInit
 
@@ -195,6 +195,9 @@ parser.set_defaults(readout_zero_init=False)
 parser.add_argument("--query_zero_init", action="store_true",
                     help="Zero initialize the query")
 parser.set_defaults(query_zero_init=False)
+parser.add_argument("--mup_zero_init", action="store_true",
+                    help="Zero initialize the mup parameters")
+parser.set_defaults(mup_zero_init=False)
 parser.add_argument("--l1_loss", action="store_true",
                     help="Compute L1 loss for debugging purposes")
 parser.set_defaults(l1_loss=False)
@@ -211,6 +214,11 @@ parser.add_argument("--attn_precision", type=str, default="bfloat16",
                     help="Precision for the attention")
 parser.add_argument("--profile_kind", type=lambda x:ProfileKind(x.lower()), default=ProfileKind.NONE,
                     help="What kind of profiling to do")
+
+parser.add_argument("--dense_attention_kind", type=lambda x: DenseAttentionKind(x.lower()), default=DenseAttentionKind.MHA,
+                    help="What kind of dense attention to use")
+parser.add_argument("--head_dim_value", type=int, default=None,
+                    help="Head dimension value for dense attention")
 
 args = parser.parse_args()
 
@@ -368,6 +376,11 @@ def make_config(args):
         l1_loss=args.l1_loss,
 
         attn_precision=args.attn_precision,
+
+        dense_attention_config=DenseAttentionConfig(
+            head_dim_value=args.head_dim_value,
+            dense_attention_kind=args.dense_attention_kind,
+        ),
     )
 
 config = make_config(args)

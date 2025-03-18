@@ -2,8 +2,8 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
-from dataclasses import dataclass
-from .attn import get_attention_cls, AttentionKind, ProtectionKind, SelectionHeadLinearComboKind, AttConvInit
+from dataclasses import dataclass, field
+from .attn import get_attention_cls, AttentionKind, ProtectionKind, SelectionHeadLinearComboKind, AttConvInit, DenseAttentionKind
 import os
 import inspect
 from .attn import CausalSelectiveSelfAttention
@@ -40,6 +40,12 @@ class Block(nn.Module):
         return x, M, raw_att
 
 from typing import Optional
+
+@dataclass
+class DenseAttentionConfig:
+    head_dim_value: int = 64
+    dense_attention_kind: DenseAttentionKind = field(default_factory=lambda: DenseAttentionKind.MHA)
+
 @dataclass
 class GPTConfig:
     attention_kind: AttentionKind
@@ -81,8 +87,9 @@ class GPTConfig:
     use_hf_style_inputs: bool = False
     mup: bool = False
     attn_mult: Optional[float] = None
-    readout_zero_init: bool = False
-    query_zero_init: bool = False
+    readout_zero_init: bool = False # deprecated
+    query_zero_init: bool = False # deprecated
+    mup_zero_init: bool = False
     l1_loss: bool = False
     S_layernorm: bool = False
     att_conv: bool = False
@@ -92,6 +99,8 @@ class GPTConfig:
     att_conv_weight_decay: bool = True  # Whether to apply weight decay to attention convolution parameters
 
     attn_precision: str = "bfloat16"
+
+    dense_attention_config: DenseAttentionConfig = field(default_factory=lambda: DenseAttentionConfig())
 
     def __post_init__(self):
         if self.attn_mult is None:
@@ -191,6 +200,11 @@ class GPT(nn.Module):
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        
+        if hasattr(module,'MUP_INIT_RANGE_TO_ZERO') and type(module.MUP_INIT_RANGE_TO_ZERO) == tuple and self.config.mup_zero_init:
+            start,end = module.MUP_INIT_RANGE_TO_ZERO
+            assert start < end and start >= 0 and end <= module.weight.shape[0]
+            module.weight.data[start:end,:] = 0
         
         if hasattr(module,'IS_CUSTOM_ATTENTION') and self.config.query_zero_init:
             fanout, _ = module.c_attn.weight.shape
