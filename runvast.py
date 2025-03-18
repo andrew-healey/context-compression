@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 for handler in logger.handlers[:]:
     logger.removeHandler(handler)
 logger.propagate = False  # Disable propagation to the root logger
-coloredlogs.install(level="DEBUG", logger=logger)
-logger.setLevel(logging.DEBUG)
+coloredlogs.install(level="INFO", logger=logger)
+logger.setLevel(logging.INFO)
 
 # print(len(logger.handlers),"handlers in the logger")
 # raise Exception("Stop here")
@@ -250,7 +250,7 @@ def run_command_on_instance(block: CommandBlock, instance: Instance) -> None:
         "nohup","bash","-c",
         quoted_remote_command
     ]
-    logger.debug(f"Starting command on instance {instance.instance_id}: {' '.join(ssh_command)}")
+    logger.info(f"Starting command on instance {instance.instance_id}: {' '.join(ssh_command)}")
     try:
         proc = subprocess.Popen(ssh_command)
         time.sleep(5)  # Let the tmux command start.
@@ -269,7 +269,7 @@ def run_phase(blocks: List[CommandBlock], instances: List[Instance], gpus: Optio
     claimed_ids = {block.instance_id for block in blocks
                    if block.instance_id and block.state in {CommandState.RUNNING, CommandState.FAIL, CommandState.SUCCESS}}
     free_started_instances = [inst for inst in instances if inst.instance_id not in claimed_ids and inst.actual_status == "running"]
-    logger.debug(f"{len(free_started_instances)} instances of {len(instances)} were free and started.")
+    logger.info(f"{len(free_started_instances)} instances of {len(instances)} were free and started.")
     num_blocks_run = 0
     for block in blocks:
         if block.state == CommandState.VERIFIED and block.instance_id is None:
@@ -279,18 +279,18 @@ def run_phase(blocks: List[CommandBlock], instances: List[Instance], gpus: Optio
                 logger.debug(f"Assigned block {block.index} to instance {instance.instance_id}. Running command \"{block.content}\".")
                 num_blocks_run += 1
             else:
-                logger.debug(f"No free instances available for block {block.index}. Skipping.")
+                logger.info(f"No free instances available for block {block.index}. Skipping.")
     
     running_blocks = [block for block in blocks if block.state == CommandState.RUNNING]
 
     if len(running_blocks) == 0 or num_blocks_run == 0:
         return
     
-    logger.debug("Sleeping for 20 seconds to allow instances to label themselves as running.")
+    logger.info("Sleeping for 20 seconds to allow instances to label themselves as running.")
     time.sleep(20)
 
     updated_instances = get_autorunning_instances(gpus=gpus)
-    logger.debug(f"Found {len(updated_instances)} updated instances.")
+    logger.info(f"Found {len(updated_instances)} updated instances.")
     for block in running_blocks:
         matching_instances = [inst for inst in updated_instances if inst.instance_id == block.instance_id]
         if matching_instances:
@@ -315,7 +315,7 @@ def run_phase(blocks: List[CommandBlock], instances: List[Instance], gpus: Optio
 def check_phase(blocks: List[CommandBlock], gpus: Optional[int] = None) -> None:
     logger.info("=== Check Phase ===")
     instances = get_autorunning_instances(gpus=gpus)
-    logger.debug(f"Found {len(instances)} instances in check phase.")
+    logger.info(f"Found {len(instances)} instances in check phase.")
     
     for block in blocks:
         if block.state == CommandState.RUNNING and block.instance_id:
@@ -346,7 +346,7 @@ def finish_phase(blocks: List[CommandBlock], delete_finished_instances: bool = T
     api = VastAPIHelper()
     for block in blocks:
          if block.state == CommandState.SUCCESS and block.instance_id:
-              logger.debug(f"Finishing block {block.index} on instance {block.instance_id}.")
+              logger.info(f"Finishing block {block.index} on instance {block.instance_id}.")
               if delete_finished_instances:
                   logger.debug(f"Deleting instance {block.instance_id} for block {block.index}.")
                   try:
@@ -400,8 +400,8 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True,
         instance_count = len(current_instances)
         if instance_count < pending_cmd_count and should_provision:
             needed = (pending_cmd_count) - instance_count
-            print(f"Provisioning Notice: Need {needed} (plus {slack} slack instances) more instance(s).")
-            print("Please provision the required instances manually Now. Attempting to open vast.ai in browser...")
+            logger.info(f"Provisioning Notice: Need {needed} (plus {slack} slack instances) more instance(s).")
+            logger.info("Please provision the required instances manually Now. Attempting to open vast.ai in browser...")
             webbrowser.open("https://vast.ai/create/")
             input("Press Enter to continue...")
         else:
@@ -412,7 +412,7 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True,
     if all_pending_cmds_are_running:
         assigned_ids = {block.instance_id for block in blocks if block.instance_id}
         free_instances = [inst for inst in current_instances if inst.instance_id not in assigned_ids]
-        logger.debug(f"All pending commands are running, so we can deprovision {len(free_instances)}/ {len(current_instances)} extra/total instances.")
+        logger.info(f"All pending commands are running, so we can deprovision {len(free_instances)}/ {len(current_instances)} extra/total instances.")
         if free_instances:
             api = VastAPIHelper()
             for inst in free_instances:
@@ -450,13 +450,13 @@ def main():
         with open(args.filename, "r") as f:
             file_text = f.read()
     except FileNotFoundError:
-        print(f"File {args.filename} not found.")
+        logger.error(f"File {args.filename} not found.")
         sys.exit(1)
     
     with open(args.filename, "w") as fw:
         try:
             blocks = parse_command_blocks(file_text)
-            print(f"Found {len(blocks)} vast command block(s).")
+            logger.info(f"Found {len(blocks)} vast command block(s).")
             writeback_file(fw, file_text, blocks)
 
             # Phase 1: Verification
