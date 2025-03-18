@@ -225,6 +225,9 @@ parser.add_argument("--sdpa_iter_size", type=int, default=None,
 parser.add_argument("--stabilize_attn_scores", action="store_true",
                     help="Stabilize the attention scores")
 parser.set_defaults(stabilize_attn_scores=False)
+parser.add_argument("--override_use_sdpa", action="store_true",
+                    help="Override the use of SDPA")
+parser.set_defaults(override_use_sdpa=False)
 
 args = parser.parse_args()
 
@@ -389,6 +392,7 @@ def make_config(args):
         ),
         sdpa_iter_size=args.sdpa_iter_size,
         stabilize_attn_scores=args.stabilize_attn_scores,
+        override_use_sdpa=args.override_use_sdpa,
     )
 
 config = make_config(args)

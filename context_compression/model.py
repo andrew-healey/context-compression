@@ -104,6 +104,7 @@ class GPTConfig:
 
     sdpa_iter_size: Optional[int] = None
     stabilize_attn_scores: bool = False
+    override_use_sdpa: bool = False
 
     def __post_init__(self):
         if self.attn_mult is None:

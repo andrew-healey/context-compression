@@ -133,6 +133,8 @@ class CausalDenseSelfAttention(nn.Module):
 
         self.precision = torch.float32 if self.config.attn_precision == "float32" else torch.bfloat16
 
+        self.attn_mult = config.attn_mult
+
     def forward(self, x,ff_cache=None,old_raw_att=None):
         with torch.autocast(device_type=x.device.type,dtype=self.precision):
             B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -156,6 +158,23 @@ class CausalDenseSelfAttention(nn.Module):
 
             att = F.softmax(A, dim=-1)
             hidden_state_output = self.av_combiner(att, v)
+
+            # ok now let's sanity check compare this to SDPA
+            if self.config.override_use_sdpa:
+                B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
+                # calculate query, key, values for all heads in batch and move head forward to be the batch dim
+                # nh is "number of heads", hs is "head size", and C (number of channels) = nh * hs
+                # e.g. in GPT-2 (124M), n_head=12, hs=64, so nh*hs=C=768 channels in the Transformer
+                qkv = self.qkv_producer.c_attn(x)
+                q, k, v = qkv.split(self.config.n_head * self.config.head_dim, dim=2)
+                k = k.view(B, T, self.config.n_head, self.config.head_dim).transpose(1, 2) # (B, nh, T, hs)
+                q = q.view(B, T, self.config.n_head, self.config.head_dim).transpose(1, 2) # (B, nh, T, hs)
+                v = v.view(B, T, self.config.n_head, self.config.head_dim).transpose(1, 2) # (B, nh, T, hs)
+                y = F.scaled_dot_product_attention(q, k, v, is_causal=True,scale=self.attn_mult) # flash attention
+                y = y.transpose(1, 2).contiguous().view(B, T, self.config.n_head * self.config.head_dim) # re-assemble all head outputs side by side
+                y = self.av_combiner.c_proj(y)
+                return y, None, None
+
 
             return hidden_state_output, None, None
 
