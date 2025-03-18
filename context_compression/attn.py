@@ -148,6 +148,8 @@ class CausalDenseSelfAttention(nn.Module):
 
             # mup coord checking
             A = self.attn_score(A)
+            if self.config.stabilize_attn_scores:
+                A = A - A.max(dim=-1, keepdim=True)[0]
 
             A = A.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
             att = F.softmax(A, dim=-1)

@@ -222,6 +222,9 @@ parser.add_argument("--head_dim_value", type=int, default=None,
 
 parser.add_argument("--sdpa_iter_size", type=int, default=None,
                     help="SDPA iteration size")
+parser.add_argument("--stabilize_attn_scores", action="store_true",
+                    help="Stabilize the attention scores")
+parser.set_defaults(stabilize_attn_scores=False)
 
 args = parser.parse_args()
 
@@ -385,6 +388,7 @@ def make_config(args):
             dense_attention_kind=args.dense_attention_kind,
         ),
         sdpa_iter_size=args.sdpa_iter_size,
+        stabilize_attn_scores=args.stabilize_attn_scores,
     )
 
 config = make_config(args)
