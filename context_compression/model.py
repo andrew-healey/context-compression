@@ -102,6 +102,8 @@ class GPTConfig:
 
     dense_attention_config: DenseAttentionConfig = field(default_factory=lambda: DenseAttentionConfig())
 
+    sdpa_iter_size: Optional[int] = None
+
     def __post_init__(self):
         if self.attn_mult is None:
             if self.mup:

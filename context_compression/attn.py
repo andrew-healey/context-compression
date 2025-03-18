@@ -632,6 +632,7 @@ class CausalSelfAttention(nn.Module):
         self.n_embd = config.n_embd
         self.head_dim = config.head_dim
         self.attn_mult = config.attn_mult
+        self.sdpa_iter_size = config.sdpa_iter_size
 
     def forward(self, x,ff_cache=None,old_raw_att=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -643,7 +644,16 @@ class CausalSelfAttention(nn.Module):
         k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=True,scale=self.attn_mult) # flash attention
+        if self.sdpa_iter_size is not None and B % self.sdpa_iter_size == 0:
+            # we will handle i.e. 16 batch elements at a time
+            split_q = q.split(self.sdpa_iter_size, dim=0)
+            split_k = k.split(self.sdpa_iter_size, dim=0)
+            split_v = v.split(self.sdpa_iter_size, dim=0)
+            ys = [F.scaled_dot_product_attention(split_q[i], split_k[i], split_v[i], is_causal=True,scale=self.attn_mult) # flash attention
+                  for i in range(len(split_q))]
+            y = torch.cat(ys, dim=0)
+        else:
+            y = F.scaled_dot_product_attention(q, k, v, is_causal=True,scale=self.attn_mult) # flash attention
         y = y.transpose(1, 2).contiguous().view(B, T, self.n_head * self.head_dim) # re-assemble all head outputs side by side
         # output projection
         y = self.c_proj(y)

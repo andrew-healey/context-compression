@@ -220,6 +220,9 @@ parser.add_argument("--dense_attention_kind", type=lambda x: DenseAttentionKind(
 parser.add_argument("--head_dim_value", type=int, default=None,
                     help="Head dimension value for dense attention")
 
+parser.add_argument("--sdpa_iter_size", type=int, default=None,
+                    help="SDPA iteration size")
+
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -381,6 +384,7 @@ def make_config(args):
             head_dim_value=args.head_dim_value,
             dense_attention_kind=args.dense_attention_kind,
         ),
+        sdpa_iter_size=args.sdpa_iter_size,
     )
 
 config = make_config(args)
