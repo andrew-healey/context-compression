@@ -72,6 +72,7 @@ class AVCombinerLinear(AVCombiner):
     def __init__(self, config):
         super().__init__(config)
         self.c_proj = nn.Linear(config.n_head * config.dense_attention_config.head_dim_value, config.n_embd)
+        self.c_proj.NANOGPT_SCALE_INIT = 1
 
     def forward(self, A: torch.Tensor, v: torch.Tensor):
         B, nh, T, T = A.shape
