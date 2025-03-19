@@ -228,6 +228,8 @@ parser.set_defaults(stabilize_attn_scores=False)
 parser.add_argument("--override_use_sdpa", action="store_true",
                     help="Override the use of SDPA")
 parser.set_defaults(override_use_sdpa=False)
+parser.add_argument("--autocast_precision", type=str, default="bfloat16",
+                    help="Precision for the autocast")
 
 args = parser.parse_args()
 
@@ -300,7 +302,7 @@ else:
 
 
 device_type = "cuda" if device.startswith("cuda") else "cpu"
-autocast_precision = torch.bfloat16
+autocast_precision = torch.bfloat16 if args.autocast_precision == "bfloat16" else torch.float32
 
 torch.manual_seed(args.random_seed)
 if torch.cuda.is_available():
