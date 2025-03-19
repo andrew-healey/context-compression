@@ -7764,7 +7764,7 @@ for n_heads in 2 4 8 16 32 64 128; do
 done
 ```
 
-Result: Looks like maybe the attn score gets big when using big n_heads. No idea if that's important - it might not be, since we're stabilizing them. But I'm guessing it's a symptom of smth.
+Result: Looks like maybe the attn score gets big when using big n_heads. No idea if that's important - it might not be, since we're stabilizing them. But I'm guessing it's a symptom of smth. To check it, just switch to `mha_coord_check_4` in the wandb link above.
 
 I think it's maybe just init effects. At init (i.e. step=0), the attn score seems to be linearly dependent on n_heads. Or maybe sqrt-dependent. Hrrm, why is this happening at all? Aren't I setting mup_zero_init to true? So all attention scores should be zero at init!!
 
@@ -7786,7 +7786,7 @@ for n_heads in 2 4 8 16 32 64 128; do
 done
 ```
 
-Result: still fails the coord check. Diverges right after step 0.
+Result: still fails the coord check. Diverges right after step 0. To check it, just switch to `mha_coord_check_5` in the wandb link above.
 
 I think I might have a fix now, replacing a bad expression for `self.head_dim` with a correct one:
 
@@ -7802,4 +7802,44 @@ for n_heads in 2 4 8 16 32 64 128; do
 done
 ```
 
+Result: passes the coord check! To check it, just switch to `mha_coord_check_6` in the wandb link above.
+
 OK, let's re-run the bigger-is-better runs with the new fix.
+
+#### Re-run bigger-is-better runs with the new fix, and nanogpt scale init back on
+
+32
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init --nanogpt_scale_init 1.0 \
+  --group scaling_sdpa_nh_2 \
+  --log_dir scaling_sdpa_nh_2/sdpa_nh_32_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_nh_32 \
+  --random_seed 1339
+```
+
+64 heads:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init --nanogpt_scale_init 1.0 \
+  --group scaling_sdpa_nh_2 \
+  --log_dir scaling_sdpa_nh_2/sdpa_nh_64_seed_1339 \
+  --n_heads 64 \
+  --key sdpa_nh_64 \
+  --random_seed 1339
+```
+
+128 heads:
+
+```vast
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init --nanogpt_scale_init 1.0 \
+  --group scaling_sdpa_nh_2 \
+  --log_dir scaling_sdpa_nh_2/sdpa_nh_128_seed_1339 \
+  --n_heads 128 \
+  --key sdpa_nh_128 \
+  --random_seed 1339
+```
