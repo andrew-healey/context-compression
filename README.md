@@ -7718,8 +7718,6 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 For now, let's just assume that MHA has the same bigger-is-worse problem as SDPA. We're running this locally for 10 steps.
 
-2 heads:
-
 ```
 for n_heads in 2 4 8 16 32 64 128; do
   SKIP_WANDB=false python -m context_compression.train \
@@ -7732,4 +7730,76 @@ for n_heads in 2 4 8 16 32 64 128; do
 done
 ```
 
-Result: coord check [fails](https://wandb.ai/sesamestrong/context_compression?nw=ebyi79pfjid), afaict.
+Result: coord check [fails](https://wandb.ai/sesamestrong/context_compression?nw=ebyi79pfjid). Notice how much the attn magnitude scales with n_heads.
+
+Now with nanogpt scale init disabled: (should just be a constant initialization scaling factor, but idk, maybe it'll fix it)
+
+```
+for n_heads in 2 4 8 16 32 64 128; do
+  SKIP_WANDB=false python -m context_compression.train \
+    --total_batch_size 8192 --seq_len 256 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init --stabilize_attn_scores --random_seed 1339 \
+    --group mha_coord_check_3 \
+    --mup_enable_coord_check_logging --no_decay_lr --max_steps 20 --no_use_compile --no_upload_to_hf \
+    --log_dir mha_coord_check_3/mha_nh_${n_heads} \
+    --n_heads ${n_heads} \
+    --key mha_nh_${n_heads}
+done
+```
+
+Result: seems to [pass](https://wandb.ai/sesamestrong/context_compression?nw=tv8lw8bbny).
+
+I'm kinda confused - the only diff between these two coord checks is a constant init scaling factor. But why does that make a difference?
+
+Let's run the passing coord check once more with more coords checked. Then the failing coord check is next.
+
+```
+for n_heads in 2 4 8 16 32 64 128; do
+  SKIP_WANDB=false python -m context_compression.train \
+    --total_batch_size 8192 --seq_len 256 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init --stabilize_attn_scores --random_seed 1339 \
+    --group mha_coord_check_4 \
+    --mup_enable_coord_check_logging --no_decay_lr --max_steps 20 --no_use_compile --no_upload_to_hf \
+    --log_dir mha_coord_check_4/mha_nh_${n_heads} \
+    --n_heads ${n_heads} \
+    --key mha_nh_${n_heads}
+done
+```
+
+Result: Looks like maybe the attn score gets big when using big n_heads. No idea if that's important - it might not be, since we're stabilizing them. But I'm guessing it's a symptom of smth.
+
+I think it's maybe just init effects. At init (i.e. step=0), the attn score seems to be linearly dependent on n_heads. Or maybe sqrt-dependent. Hrrm, why is this happening at all? Aren't I setting mup_zero_init to true? So all attention scores should be zero at init!!
+
+Hrrm - theoretically, attn score should maybe just be a function of the query and the key values, right? 
+
+OK let's solve this problem. Specifically, make the model pass an attn_score coord check.
+
+I'm still not sure, feeling kinda slow rn. Let's just run it with the fixed query-initted-to-zero code. What if that fixes it? It'll surely hide my other bug.
+
+```
+for n_heads in 2 4 8 16 32 64 128; do
+  SKIP_WANDB=false python -m context_compression.train \
+    --total_batch_size 8192 --seq_len 256 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init --stabilize_attn_scores --random_seed 1339 \
+    --group mha_coord_check_5 \
+    --mup_enable_coord_check_logging --no_decay_lr --max_steps 20 --no_use_compile --no_upload_to_hf \
+    --log_dir mha_coord_check_5/mha_nh_${n_heads} \
+    --n_heads ${n_heads} \
+    --key mha_nh_${n_heads}
+done
+```
+
+Result: still fails the coord check. Diverges right after step 0.
+
+I think I might have a fix now, replacing a bad expression for `self.head_dim` with a correct one:
+
+```
+for n_heads in 2 4 8 16 32 64 128; do
+  SKIP_WANDB=false python -m context_compression.train \
+    --total_batch_size 8192 --seq_len 256 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init --stabilize_attn_scores --random_seed 1339 \
+    --group mha_coord_check_6 \
+    --mup_enable_coord_check_logging --no_decay_lr --max_steps 20 --no_use_compile --no_upload_to_hf \
+    --log_dir mha_coord_check_6/mha_nh_${n_heads} \
+    --n_heads ${n_heads} \
+    --key mha_nh_${n_heads}
+done
+```
+
+OK, let's re-run the bigger-is-better runs with the new fix.
