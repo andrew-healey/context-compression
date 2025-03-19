@@ -105,6 +105,7 @@ class GPTConfig:
     sdpa_iter_size: Optional[int] = None
     stabilize_attn_scores: bool = False
     override_use_sdpa: bool = False
+    simulate_micro_bs: Optional[int] = None
 
     def __post_init__(self):
         if self.attn_mult is None:
@@ -274,7 +275,16 @@ class GPT(nn.Module):
         losses = {}
         if targets is not None:
             # Calculate standard cross-entropy loss (L_ppl)
-            ce_loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            ce_loss = F.cross_entropy(logits.view(-1,logits.size(-1)), targets.view(-1))
+            if self.config.simulate_micro_bs is not None:
+                B = logits.size(0)
+                assert B % self.config.simulate_micro_bs == 0
+                n_repeats = B // self.config.simulate_micro_bs
+                lhs = logits.view(n_repeats,-1, logits.size(-1)).split(1, dim=0)
+                rhs = targets.view(n_repeats,-1).split(1, dim=0)
+                ce_loss_batched = [F.cross_entropy(l.view(-1,l.size(-1)), r.view(-1)) for l, r in zip(lhs, rhs)]
+            else:
+                ce_loss_batched = None
             loss = ce_loss
             losses = {
                 "ce": ce_loss,
@@ -294,9 +304,9 @@ class GPT(nn.Module):
                 raise Exception("Oh no! Loss is nan!")
 
         if self.config.use_hf_style_inputs:
-            return {"logits": logits, "loss": loss, "losses": losses}
+            return {"logits": logits, "loss": loss, "losses": losses, "ce_loss_batched": ce_loss_batched}
         else:
-            return logits, loss, losses
+            return logits, loss, losses, ce_loss_batched
         
     def l1_loss(self):
         with torch.no_grad():

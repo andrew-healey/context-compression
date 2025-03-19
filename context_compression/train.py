@@ -230,6 +230,9 @@ parser.add_argument("--override_use_sdpa", action="store_true",
 parser.set_defaults(override_use_sdpa=False)
 parser.add_argument("--autocast_precision", type=str, default="bfloat16",
                     help="Precision for the autocast")
+parser.add_argument("--simulate_micro_bs", type=int, default=None,
+                    help="Simulate a smaller micro batch size than the one you're using")
+parser.set_defaults(simulate_micro_bs=None)
 
 args = parser.parse_args()
 
@@ -395,6 +398,7 @@ def make_config(args):
         sdpa_iter_size=args.sdpa_iter_size,
         stabilize_attn_scores=args.stabilize_attn_scores,
         override_use_sdpa=args.override_use_sdpa,
+        simulate_micro_bs=args.simulate_micro_bs,
     )
 
 config = make_config(args)
@@ -604,7 +608,7 @@ for step in range(start_step, max_steps):
                 x, y = val_loader.next_batch()
                 x, y = x.to(device), y.to(device)
                 with torch.autocast(device_type=device_type, dtype=autocast_precision):
-                    logits, loss, losses = model(x, y)
+                    logits, loss, losses, _ = model(x, y)
                 loss = loss / val_loss_steps
                 val_loss_accum += loss.detach()
                 for k, v in losses.items():
@@ -664,7 +668,7 @@ for step in range(start_step, max_steps):
             # get the logits
             with torch.no_grad():
                 with torch.autocast(device_type=device_type, dtype=autocast_precision):
-                    logits, loss, losses = non_compiled_model(tokens)
+                    logits, loss, losses, _ = non_compiled_model(tokens)
                 pred_norm = get_most_likely_row(tokens, mask, logits)
             num_total += 1
             num_correct_norm += int(pred_norm == label)
@@ -698,7 +702,7 @@ for step in range(start_step, max_steps):
             # forward the model to get the logits
             with torch.no_grad():
                 with torch.autocast(device_type=device_type, dtype=autocast_precision):
-                    logits, loss, losses = non_compiled_model(xgen) # (B, T, vocab_size)
+                    logits, loss, losses, _ = non_compiled_model(xgen) # (B, T, vocab_size)
                 # take the logits at the last position
                 logits = logits[:, -1, :] # (B, vocab_size)
                 # get the probabilities
@@ -760,14 +764,17 @@ for step in range(start_step, max_steps):
         if ddp:
             model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
         with torch.autocast(device_type=device_type, dtype=autocast_precision):
-            logits, loss, losses = model(x, y)
-        # we have to scale the loss to account for gradient accumulation,
-        # because the gradients just add on each successive backward().
-        # addition of gradients corresponds to a SUM in the objective, but
-        # instead of a SUM we want MEAN. Scale the loss here so it comes out right
-        loss = loss / grad_accum_steps
+            logits, loss, losses, ce_loss_batched = model(x, y)
+        if args.simulate_micro_bs is not None:
+            num_repeats = len(ce_loss_batched)
+            for i in range(num_repeats):
+                ce_loss_repeated = ce_loss_batched[i] / num_repeats
+                retain_graph = i < num_repeats - 1
+                ce_loss_repeated.backward(retain_graph=retain_graph)
+        else:
+            loss = loss / grad_accum_steps
+            loss.backward()
         loss_accum += loss.detach()
-        loss.backward()
     if ddp:
         dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
     
