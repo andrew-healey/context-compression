@@ -21,6 +21,16 @@ class QKVProducer(nn.Module):
     def forward(self, hidden_state) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         raise NotImplementedError("QKVProducer is an abstract class")
 
+class QKVProducerKind(StrEnum):
+    INHERIT = auto()
+    MHA = auto()
+
+    def get_qkv_producer(self) -> Optional[QKVProducer]:
+        if self == QKVProducerKind.MHA:
+            return QKVProducerMHA
+        else:
+            return None
+
 class QKVProducerMHA(QKVProducer):
     def __init__(self, config):
         super().__init__(config)
@@ -43,6 +53,18 @@ class AProducer(nn.Module):
 
     def forward(self, q: torch.Tensor, k: torch.Tensor):
         raise NotImplementedError("AProducer is an abstract class")
+class AProducerKind(StrEnum):
+    INHERIT = auto()
+    MHA = auto()
+    MHA_CONV = auto()
+
+    def get_a_producer(self) -> Optional[AProducer]:
+        if self == AProducerKind.MHA:
+            return AProducerMHA
+        elif self == AProducerKind.MHA_CONV:
+            return AProducerConv
+        else:
+            return None
 
 class AProducerMHA(AProducer):
     def __init__(self, config):
@@ -56,7 +78,26 @@ class AProducerMHA(AProducer):
         hd = self.config.head_dim
         q = q.view(B, T, nh, hd).transpose(1, 2)
         k = k.view(B, T, nh, hd).transpose(1, 2)
-        A = q @ k.transpose(-2, -1) * self.attn_mult # following mup, we divide by head_dim, not sqrt(head_dim)
+        A = q @ k.transpose(-2, -1) * self.attn_mult # shape: (B, nh, T, T)
+        return A
+
+class AProducerConv(AProducer):
+    def __init__(self, config):
+        super().__init__(config)
+
+        self.attn_mult = config.attn_mult
+        self.linear = nn.Linear(config.n_head,config.n_head)
+        # self.linear.EYE_INIT = True
+
+    def forward(self, q: torch.Tensor, k: torch.Tensor):
+        B, T, _ = q.shape
+        nh = self.config.n_head
+        hd = self.config.head_dim
+        q = q.view(B, T, nh, hd).transpose(1, 2)
+        k = k.view(B, T, nh, hd).transpose(1, 2)
+        A_raw = q @ k.transpose(-2, -1) * self.attn_mult # shape: (B, nh, T, T)
+        # dense interaction between all the heads
+        A = self.linear(A_raw.transpose(1,3).contiguous()).transpose(1,3).contiguous() # shape: (B, nh, T, T)
         return A
 
 # turn softmax'd attention scores and values into the hidden state residual
@@ -67,6 +108,16 @@ class AVCombiner(nn.Module):
 
     def forward(self, A: torch.Tensor, v: torch.Tensor):
         raise NotImplementedError("AVCombiner is an abstract class")
+
+class AVCombinerKind(StrEnum):
+    INHERIT = auto()
+    LINEAR = auto()
+
+    def get_av_combiner(self) -> Optional[AVCombiner]:
+        if self == AVCombinerKind.LINEAR:
+            return AVCombinerLinear
+        else:
+            return None
 
 class AVCombinerLinear(AVCombiner):
     def __init__(self, config):
@@ -92,19 +143,38 @@ class DenseAttentionKind(StrEnum):
     TPA_NAIVE = auto()
     TPA_EFFICIENT = auto() # should theoretically match TPA_NAIVE outputs, but be faster and lower memory usage, I think.
 
-    def get_qkv_producer(self):
+    def get_qkv_producer(self,config):
+
+        # check for override
+        overridden_qkv_producer = config.dense_attention_config.qkv_producer.get_qkv_producer()
+        if overridden_qkv_producer is not None:
+            return overridden_qkv_producer(config)
+
         if self == DenseAttentionKind.MHA:
-            return QKVProducerMHA
+            return QKVProducerMHA(config)
         else:
             raise ValueError(f"No QKVProducer for {self}")
-    def get_a_producer(self):
+
+    def get_a_producer(self,config):
+        # check for override
+        overridden_a_producer = config.dense_attention_config.a_producer.get_a_producer()
+
+        if overridden_a_producer is not None:
+            return overridden_a_producer(config)
+
         if self == DenseAttentionKind.MHA:
-            return AProducerMHA
+            return AProducerMHA(config)
         else:
             raise ValueError(f"No AProducer for {self}")
-    def get_av_combiner(self):
+
+    def get_av_combiner(self,config):
+        # check for override
+        overridden_av_combiner = config.dense_attention_config.av_combiner.get_av_combiner()
+        if overridden_av_combiner is not None:
+            return overridden_av_combiner(config)
+
         if self == DenseAttentionKind.MHA:
-            return AVCombinerLinear
+            return AVCombinerLinear(config)
         else:
             raise ValueError(f"No AVCombiner for {self}")
         
@@ -119,9 +189,9 @@ class CausalDenseSelfAttention(nn.Module):
 
         # NOTE: LEFT OFF HERE
 
-        self.qkv_producer = self.dense_attention_kind.get_qkv_producer()(config)
-        self.a_producer = self.dense_attention_kind.get_a_producer()(config)
-        self.av_combiner = self.dense_attention_kind.get_av_combiner()(config)
+        self.qkv_producer = self.dense_attention_kind.get_qkv_producer(config)
+        self.a_producer = self.dense_attention_kind.get_a_producer(config)
+        self.av_combiner = self.dense_attention_kind.get_av_combiner(config)
 
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))

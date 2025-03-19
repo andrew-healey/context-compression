@@ -3,7 +3,7 @@ import torch
 import math
 import torch.nn.functional as F
 from dataclasses import dataclass, field
-from .attn import get_attention_cls, AttentionKind, ProtectionKind, SelectionHeadLinearComboKind, AttConvInit, DenseAttentionKind
+from .attn import get_attention_cls, AttentionKind, ProtectionKind, SelectionHeadLinearComboKind, AttConvInit, DenseAttentionKind, QKVProducerKind, AProducerKind, AVCombinerKind
 import os
 import inspect
 from .attn import CausalSelectiveSelfAttention
@@ -46,6 +46,10 @@ class DenseAttentionConfig:
     head_dim_value: int = 64
     dense_attention_kind: DenseAttentionKind = field(default_factory=lambda: DenseAttentionKind.MHA)
     ckpt_attn: bool = False
+
+    qkv_producer: QKVProducerKind = field(default_factory=lambda: QKVProducerKind.INHERIT)
+    a_producer: AProducerKind = field(default_factory=lambda: AProducerKind.INHERIT)
+    av_combiner: AVCombinerKind = field(default_factory=lambda: AVCombinerKind.INHERIT)
 
 @dataclass
 class GPTConfig:
