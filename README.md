@@ -7530,7 +7530,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 OK, now let's try simulating 16-micro-bs gradient accumulation using the bs=128 run.
 
-```vast:running/18905303
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7545,7 +7545,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun
 
 And with the second method:
 
-```vast:running/18905645
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7558,7 +7558,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun
   --simulate_micro_bs 16
 ```
 
-```vast:running/18905484
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7585,7 +7585,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun
   --no_use_compile
 ```
 
-```vast:running/18905301
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
