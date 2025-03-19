@@ -7354,7 +7354,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 MHA with no mup zero init, bs=16, SDPA impl, seed=1339:
 
-```vast:running/18905645
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha \
   --group sdpa_16_spooky \
@@ -7367,7 +7367,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 MHA, stabilized scores and nanogpt c_proj init, bs=16, seed={1339, 1340}:
 
-```vast:running/18905314
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7378,7 +7378,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --stabilize_attn_scores
 ```
 
-```vast:running/18905338
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7397,7 +7397,7 @@ So let's run the MHA impl with bs=64. I think this will have a bad loss curve.
 
 MHA, stabilized scores and nanogpt c_proj init, bs=64, seed={1339, 1340}:
 
-```vast:running/18905481
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7408,7 +7408,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --stabilize_attn_scores
 ```
 
-```vast:running/18905311
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7422,3 +7422,182 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 Results: these two runs both have bad loss curves. Spoooky!
 
 Theoretically, we can bisect between these two MHA setups to isolate the issue.
+
+Hrrm. Seems kinda hard to debug this in DDP mode. Let's hope the same result holds for one-gpu inference!
+
+Actually, let's verify that so we can run the bisect on a single-GPU machine. For now, let's just check the discrepancy on SDPA 16 vs. 128, since those are the fastest to train.
+
+```vast:running/18905640
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_128_1gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_128_1gpu \
+  --random_seed 1339
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_16_1gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_16_1gpu \
+  --random_seed 1339
+```
+
+Now let's run it on the MHA impl too. We'll stop this early if the SDPA canaries pass.
+
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/mha_64_1gpu_seed_1339 \
+  --n_heads 32 \
+  --key mha_impl_64 \
+  --random_seed 1339 \
+  --stabilize_attn_scores
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/mha_16_1gpu_seed_1339 \
+  --n_heads 32 \
+  --key mha_impl_16 \
+  --random_seed 1339 \
+  --stabilize_attn_scores
+```
+
+Results: there's less degradation from 16 -> 128 on one GPU (for both SDPA and MHA impls). BUT there is still a degradation!!
+
+Hrrrrrrrm. I wonder why this could be happening. We should ask chatgpt when I get back from my run.
+
+Let's try 4-gpu sdpa with float32 precision (for the whole run and the attn part both).
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_64_f32_4gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_64_f32_4gpu \
+  --random_seed 1339 \
+  --attn_precision float32 \
+  --autocast_precision float32
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_16_f32_4gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_16_f32_4gpu \
+  --random_seed 1339 \
+  --attn_precision float32 \
+  --autocast_precision float32
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_64_bf16_4gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_64_bf16_4gpu \
+  --random_seed 1339 \
+  --attn_precision bfloat16 \
+  --autocast_precision bfloat16
+```
+
+Results: I don't notice a difference between the f32 and bf16 64-bs runs. This probably makes sense - I'm guessing the badness comes from the gradient accumulation on the params, not the computed gradients themselves.
+
+However, for some reason, sdpa with bs=64 is less destructive than MHA with bs=64. Let's make sure we didn't accidentally fix sdpa altogether. Specifically, let's do a 128-bs sdpa run.
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_128_4gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_128_4gpu \
+  --random_seed 1339
+```
+
+OK, now let's try simulating 16-micro-bs gradient accumulation using the bs=128 run.
+
+```vast:running/18905303
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_64_16_4gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_64_16_4gpu \
+  --random_seed 1339 \
+  --attn_precision bfloat16 \
+  --autocast_precision bfloat16 \
+  --simulate_micro_bs 16
+```
+
+And with the second method:
+
+```vast:running/18905645
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_64_16_v2_4gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_64_16_v2_4gpu \
+  --random_seed 1339 \
+  --attn_precision bfloat16 \
+  --autocast_precision bfloat16 \
+  --simulate_micro_bs 16
+```
+
+```vast:running/18905484
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_128_16_v2_real_4gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_128_16_v2_real_4gpu \
+  --random_seed 1339 \
+  --attn_precision bfloat16 \
+  --autocast_precision bfloat16 \
+  --simulate_micro_bs_2 16
+```
+
+```vast:running/18905482
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_128_16_v2_real_no_compile_4gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_128_16_v2_real_no_compile_4gpu \
+  --random_seed 1339 \
+  --attn_precision bfloat16 \
+  --autocast_precision bfloat16 \
+  --simulate_micro_bs_2 16 \
+  --no_use_compile
+```
+
+```vast:running/18905301
+cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/sdpa_64_no_compile_4gpu_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_64_no_compile_4gpu \
+  --random_seed 1339 \
+  --attn_precision bfloat16 \
+  --autocast_precision bfloat16 \
+  --no_use_compile
+```
+
+## Update: Looks like the difference is just that different batch sizes lead to different validation sets. I think.
+
+So in the morning, let's try to use a shared, deterministic (and big) valid set between all settings.
