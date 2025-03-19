@@ -233,6 +233,9 @@ parser.add_argument("--autocast_precision", type=str, default="bfloat16",
 parser.add_argument("--simulate_micro_bs", type=int, default=None,
                     help="Simulate a smaller micro batch size than the one you're using")
 parser.set_defaults(simulate_micro_bs=None)
+parser.add_argument("--simulate_micro_bs_2", type=int, default=None,
+                    help="Simulate a smaller micro batch size than the one you're using")
+parser.set_defaults(simulate_micro_bs_2=None)
 
 args = parser.parse_args()
 
@@ -763,15 +766,31 @@ for step in range(start_step, max_steps):
         # added after video, this field is also used by the forward pass.
         if ddp:
             model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
-        with torch.autocast(device_type=device_type, dtype=autocast_precision):
-            logits, loss, losses, ce_loss_batched = model(x, y)
         if args.simulate_micro_bs is not None:
+            with torch.autocast(device_type=device_type, dtype=autocast_precision):
+                logits, loss, losses, ce_loss_batched = model(x, y)
             num_repeats = len(ce_loss_batched)
             for i in range(num_repeats):
                 ce_loss_repeated = ce_loss_batched[i] / num_repeats
                 retain_graph = i < num_repeats - 1
                 ce_loss_repeated.backward(retain_graph=retain_graph)
+        elif args.simulate_micro_bs_2 is not None:
+            n_repeats = x.size(0) // args.simulate_micro_bs_2
+            assert n_repeats * args.simulate_micro_bs_2 == x.size(0)
+            for i in range(n_repeats):
+                loss = 0
+                losses = {}
+                with torch.autocast(device_type=device_type, dtype=autocast_precision):
+                    nano_logits, nano_loss, nano_losses, nano_ce_loss_batched = model(x[i*args.simulate_micro_bs_2:(i+1)*args.simulate_micro_bs_2], y[i*args.simulate_micro_bs_2:(i+1)*args.simulate_micro_bs_2])
+                ce_loss_repeated = nano_loss / n_repeats
+                ce_loss_repeated.backward()
+                loss += ce_loss_repeated.detach()
+                for k, v in nano_losses.items():
+                    losses[k] = losses.get(k, 0) + v.detach() / n_repeats
+                
         else:
+            with torch.autocast(device_type=device_type, dtype=autocast_precision):
+                logits, loss, losses, ce_loss_batched = model(x, y)
             loss = loss / grad_accum_steps
             loss.backward()
         loss_accum += loss.detach()
