@@ -7319,7 +7319,7 @@ Then we'll check, just for seed=1339, whether MHA with impl overridden to SDPA w
 
 SDPA, bs=16, seed={1339, 1340}:
 
-```vast:running/18905482
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7329,7 +7329,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1339
 ```
 
-```vast:running/18905484
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7341,7 +7341,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 MHA, bs=16, SDPA impl, seed=1339:
 
-```vast:running/18905640
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7388,3 +7388,37 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --random_seed 1340 \
   --stabilize_attn_scores
 ```
+
+Results: all five of these runs had similarly great loss curves! Woohoo!
+
+So we don't have to think about spooky SDPA kernel issues. It's just spooky Pytorch gradient-accumulation or DDP issues, maybe.
+
+So let's run the MHA impl with bs=64. I think this will have a bad loss curve.
+
+MHA, stabilized scores and nanogpt c_proj init, bs=64, seed={1339, 1340}:
+
+```vast:running/18905481
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/mha_stabilized_64_seed_1339 \
+  --n_heads 32 \
+  --key mha_stabilized_64 \
+  --random_seed 1339 \
+  --stabilize_attn_scores
+```
+
+```vast:running/18905311
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_spooky \
+  --log_dir sdpa_16_spooky/mha_stabilized_64_seed_1340 \
+  --n_heads 32 \
+  --key mha_stabilized_64 \
+  --random_seed 1340 \
+  --stabilize_attn_scores
+```
+
+Results: these two runs both have bad loss curves. Spoooky!
+
+Theoretically, we can bisect between these two MHA setups to isolate the issue.
