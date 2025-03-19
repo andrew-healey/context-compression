@@ -746,6 +746,10 @@ for step in range(start_step, max_steps):
         coord_check_dict = {
             'token_embedding': [],
             'attn': [],
+            'attn_score': [],
+            'query': [],
+            'key': [],
+            'value': [],
             'mlp': [],
             'lm_head': [],
         }
@@ -761,6 +765,12 @@ for step in range(start_step, max_steps):
                 coord_check_handles.append(module.register_forward_hook(partial(hook, key='token_embedding')))
             elif module_name.endswith('.attn'):
                 coord_check_handles.append(module.register_forward_hook(partial(hook, key='attn')))
+            elif module_name.endswith('.attn_score'):
+                coord_check_handles.append(module.register_forward_hook(partial(hook, key='attn_score')))
+            elif module_name.endswith('.query'):
+                coord_check_handles.append(module.register_forward_hook(partial(hook, key='query')))
+            elif module_name.endswith('.key'):
+                coord_check_handles.append(module.register_forward_hook(partial(hook, key='key')))
             elif module_name.endswith('.mlp'):
                 coord_check_handles.append(module.register_forward_hook(partial(hook, key='mlp')))
             elif module_name == 'lm_head':
