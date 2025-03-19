@@ -7427,7 +7427,7 @@ Hrrm. Seems kinda hard to debug this in DDP mode. Let's hope the same result hol
 
 Actually, let's verify that so we can run the bisect on a single-GPU machine. For now, let's just check the discrepancy on SDPA 16 vs. 128, since those are the fastest to train.
 
-```vast:running/18905640
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7571,7 +7571,7 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun
   --simulate_micro_bs_2 16
 ```
 
-```vast:running/18905482
+```vast:finished
 cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
   --group sdpa_16_spooky \
@@ -7598,6 +7598,138 @@ cd /workspace/context-compression && git pull && CUDA_VISIBLE_DEVICES=0 torchrun
   --no_use_compile
 ```
 
-## Update: Looks like the difference is just that different batch sizes lead to different validation sets. I think.
+Runs are listed in [wandb](https://wandb.ai/sesamestrong/context_compression/panel/ieugzanro?nw=fua6m82uqmc).
+
+Update: Looks like the difference is just that different batch sizes lead to different validation sets. I think.
 
 So in the morning, let's try to use a shared, deterministic (and big) valid set between all settings.
+
+Then let's check if we've fixed the 128-head stability issue. I hope so, but I worry we haven't.
+
+Then let's tune the 32-head init to work with mup.
+
+#### Re-run the 16-head and 128-head SDPA runs with the new validation set.
+
+I predict their curves will basically match.
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 16 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_maybe_fixed \
+  --log_dir sdpa_16_maybe_fixed/sdpa_16_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_16 \
+  --random_seed 1339
+```
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group sdpa_16_maybe_fixed \
+  --log_dir sdpa_16_maybe_fixed/sdpa_128_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_128 \
+  --random_seed 1339
+```
+
+Result: yup, they match. [wandb](https://wandb.ai/sesamestrong/context_compression/panel/ieugzanro?nw=bpki4z4pou9).
+
+#### Re-run SDPA head-count-upscaling
+
+Last time I tried using SDPA, increasing n_heads made performance worse. I wonder why? That would violate the bigger-is-better assumptions of mup, right?
+
+Let's try it again.
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group scaling_sdpa_nh \
+  --log_dir scaling_sdpa_nh/sdpa_nh_32_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_nh_32 \
+  --random_seed 1339
+```
+
+64 heads:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group scaling_sdpa_nh \
+  --log_dir scaling_sdpa_nh/sdpa_nh_64_seed_1339 \
+  --n_heads 64 \
+  --key sdpa_nh_64 \
+  --random_seed 1339
+```
+
+128 heads:
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 64 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind self --dense_attention_kind mha --mup_zero_init \
+  --group scaling_sdpa_nh \
+  --log_dir scaling_sdpa_nh/sdpa_nh_128_seed_1339 \
+  --n_heads 128 \
+  --key sdpa_nh_128 \
+  --random_seed 1339
+```
+
+This time, 128 heads diverges!! I wonder why. Didn't I use the same CLI args as before?
+
+So the same pattern is still happening. Maybe let's try a (local to this machine) coord check. Hrrm, since SDPA is so optimized, maybe we want to coord check MHA impl instead. OK let's do that.
+
+#### MHA head-count-upscaling (should be same as SDPA)
+
+```vast:finished
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init --stabilize_attn_scores \
+  --group scaling_mha_nh \
+  --log_dir scaling_mha_nh/mha_nh_32_seed_1339 \
+  --n_heads 32 \
+  --key sdpa_nh_32 \
+  --random_seed 1339
+```
+
+64 heads:
+
+```vast:running/18924601
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init --stabilize_attn_scores \
+  --group scaling_mha_nh \
+  --log_dir scaling_mha_nh/mha_nh_64_seed_1339 \
+  --n_heads 64 \
+  --key sdpa_nh_64 \
+  --random_seed 1339
+```
+
+128 heads:
+
+```vast:running/18924605
+cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
+  --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init --stabilize_attn_scores \
+  --group scaling_mha_nh \
+  --log_dir scaling_mha_nh/mha_nh_128_seed_1339 \
+  --n_heads 128 \
+  --key sdpa_nh_128 \
+  --random_seed 1339
+```
+
+#### Local coord check - 32 vs. 64 vs. 128
+
+For now, let's just assume that MHA has the same bigger-is-worse problem as SDPA. We're running this locally for 10 steps.
+
+2 heads:
+
+```
+for n_heads in 2 4 8 16 32 64 128; do
+  SKIP_WANDB=false python -m context_compression.train \
+    --total_batch_size 8192 --seq_len 256 --warmup_steps 250 --batch_size 32 --mup --max_lr 30e-4 --head_dim 32 --head_dim_value 32 --n_embd 256 --attention_kind dense --dense_attention_kind mha --mup_zero_init --stabilize_attn_scores --random_seed 1339 \
+    --group mha_coord_check_2 \
+    --mup_enable_coord_check_logging --no_decay_lr --max_steps 20 --no_use_compile --no_upload_to_hf \
+    --log_dir mha_coord_check_2/mha_nh_${n_heads} \
+    --n_heads ${n_heads} \
+    --key mha_nh_${n_heads}
+done
+```
+
+Result: coord check [fails](https://wandb.ai/sesamestrong/context_compression?nw=ebyi79pfjid), afaict.
