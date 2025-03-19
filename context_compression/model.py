@@ -168,6 +168,8 @@ class GPT(nn.Module):
                 return
             elif hasattr(module, 'EYE_INIT'):
                 torch.nn.init.eye_(module.weight)
+                if module.bias is not None:
+                    torch.nn.init.zeros_(module.bias)
                 return
             elif hasattr(module, 'DOUBLE_EYE_INIT'):
                 # blockwise diagonal matrix with 2x2 blocks
@@ -417,7 +419,6 @@ class GPT(nn.Module):
             {'params': selection_head_params, 'weight_decay': 0.0, 'lr': learning_rate * self.config.selection_head_linear_combo_scale},
             {'params': att_conv_params, 'weight_decay': weight_decay if self.config.att_conv_weight_decay else 0.0, 'lr': learning_rate * self.config.att_conv_scale}
         ]
-        print("weight decay for the attention conv: ", weight_decay if self.config.att_conv_weight_decay else 0.0)
         num_decay_params = sum(p.numel() for p in decay_params)
         num_nodecay_params = sum(p.numel() for p in nodecay_params)
         num_low_lr_selection_head_params = sum(p.numel() for p in selection_head_params)
