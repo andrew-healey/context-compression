@@ -237,6 +237,10 @@ parser.add_argument("--simulate_micro_bs_2", type=int, default=None,
                     help="Simulate a smaller micro batch size than the one you're using")
 parser.set_defaults(simulate_micro_bs_2=None)
 
+parser.add_argument("--c_proj_scale_init", type=float, default=None,
+                    help="Scale init for the c_proj")
+parser.set_defaults(c_proj_scale_init=None)
+
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -406,6 +410,7 @@ def make_config(args):
         stabilize_attn_scores=args.stabilize_attn_scores,
         override_use_sdpa=args.override_use_sdpa,
         simulate_micro_bs=args.simulate_micro_bs,
+        c_proj_scale_init=args.c_proj_scale_init,
     )
 
 config = make_config(args)

@@ -106,6 +106,7 @@ class GPTConfig:
     stabilize_attn_scores: bool = False
     override_use_sdpa: bool = False
     simulate_micro_bs: Optional[int] = None
+    c_proj_scale_init: Optional[float] = None
 
     def __post_init__(self):
         if self.attn_mult is None:
@@ -191,6 +192,7 @@ class GPT(nn.Module):
 
             if hasattr(module, 'NANOGPT_SCALE_INIT'):
                 std *= (2 * self.config.n_layer) ** -0.5
+                std *= module.NANOGPT_SCALE_INIT
 
             # set by mup
             if hasattr(module.weight,'infshape'):
