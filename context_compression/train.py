@@ -771,6 +771,8 @@ for step in range(start_step, max_steps):
                 coord_check_handles.append(module.register_forward_hook(partial(hook, key='query')))
             elif module_name.endswith('.key'):
                 coord_check_handles.append(module.register_forward_hook(partial(hook, key='key')))
+            elif module_name.endswith('.value'):
+                coord_check_handles.append(module.register_forward_hook(partial(hook, key='value')))
             elif module_name.endswith('.mlp'):
                 coord_check_handles.append(module.register_forward_hook(partial(hook, key='mlp')))
             elif module_name == 'lm_head':
