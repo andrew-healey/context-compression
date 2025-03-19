@@ -45,6 +45,7 @@ from typing import Optional
 class DenseAttentionConfig:
     head_dim_value: int = 64
     dense_attention_kind: DenseAttentionKind = field(default_factory=lambda: DenseAttentionKind.MHA)
+    ckpt_attn: bool = False
 
 @dataclass
 class GPTConfig:

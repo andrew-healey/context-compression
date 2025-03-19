@@ -136,7 +136,7 @@ class CausalDenseSelfAttention(nn.Module):
 
         self.attn_mult = config.attn_mult
 
-    def forward(self, x,ff_cache=None,old_raw_att=None):
+    def _forward(self, x, ff_cache=None, old_raw_att=None):
         with torch.autocast(device_type=x.device.type,dtype=self.precision):
             B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
@@ -178,6 +178,22 @@ class CausalDenseSelfAttention(nn.Module):
 
 
             return hidden_state_output, None, None
+
+    def forward(self, x, ff_cache=None, old_raw_att=None):
+        if self.config.dense_attention_config.ckpt_attn:
+            # Create a wrapper that only takes x as input since checkpoint doesn't handle None args well
+            def create_custom_forward(module, ff_cache, old_raw_att):
+                def custom_forward(x):
+                    return module._forward(x, ff_cache, old_raw_att)
+                return custom_forward
+            
+            return torch.utils.checkpoint.checkpoint(
+                create_custom_forward(self, ff_cache, old_raw_att),
+                x,
+                use_reentrant=False  # More stable non-reentrant mode
+            )
+        else:
+            return self._forward(x, ff_cache, old_raw_att)
 
 class ProtectionKind(StrEnum):
     HEAD_TWO = auto()

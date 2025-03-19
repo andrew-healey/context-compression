@@ -236,6 +236,9 @@ parser.set_defaults(simulate_micro_bs=None)
 parser.add_argument("--simulate_micro_bs_2", type=int, default=None,
                     help="Simulate a smaller micro batch size than the one you're using")
 parser.set_defaults(simulate_micro_bs_2=None)
+parser.add_argument("--ckpt_attn", action="store_true",
+                    help="Checkpoint the attention")
+parser.set_defaults(ckpt_attn=False)
 
 parser.add_argument("--c_proj_scale_init", type=float, default=None,
                     help="Scale init for the c_proj")
@@ -405,6 +408,7 @@ def make_config(args):
         dense_attention_config=DenseAttentionConfig(
             head_dim_value=args.head_dim_value,
             dense_attention_kind=args.dense_attention_kind,
+            ckpt_attn=args.ckpt_attn,
         ),
         sdpa_iter_size=args.sdpa_iter_size,
         stabilize_attn_scores=args.stabilize_attn_scores,
