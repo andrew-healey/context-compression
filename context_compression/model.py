@@ -273,6 +273,7 @@ class GPT(nn.Module):
         # Calculate losses
         loss = None
         losses = {}
+        ce_loss_batched = None
         if targets is not None:
             # Calculate standard cross-entropy loss (L_ppl)
             ce_loss = F.cross_entropy(logits.view(-1,logits.size(-1)), targets.view(-1))
@@ -283,8 +284,6 @@ class GPT(nn.Module):
                 lhs = logits.view(n_repeats,-1, logits.size(-1)).split(1, dim=0)
                 rhs = targets.view(n_repeats,-1).split(1, dim=0)
                 ce_loss_batched = [F.cross_entropy(l.view(-1,l.size(-1)), r.view(-1)) for l, r in zip(lhs, rhs)]
-            else:
-                ce_loss_batched = None
             loss = ce_loss
             losses = {
                 "ce": ce_loss,
