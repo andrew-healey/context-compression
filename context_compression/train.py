@@ -411,6 +411,7 @@ def make_config(args):
         override_use_sdpa=args.override_use_sdpa,
         simulate_micro_bs=args.simulate_micro_bs,
         c_proj_scale_init=args.c_proj_scale_init,
+        mup_zero_init=args.mup_zero_init,
     )
 
 config = make_config(args)
@@ -848,6 +849,10 @@ for step in range(start_step, max_steps):
     if args.mup_enable_coord_check_logging:
         for handle in coord_check_handles:
             handle.remove()
+        
+        # sanity check our mup_zero_init implementation
+        if step==0 and args.mup_zero_init:
+            assert coord_check_dict['attn_score'][0] == 0
         
         wandb.log({
             "step": step,
