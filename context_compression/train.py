@@ -340,6 +340,10 @@ if master_process:
     print(f"total desired batch size: {total_batch_size}")
     print(f"=> calculated gradient accumulation steps: {grad_accum_steps}")
 
+total_valid_batch_size = 131072
+val_loss_steps = total_valid_batch_size // (B * T)
+assert total_valid_batch_size % (B * T) == 0, "make sure total_valid_batch_size is divisible by B * T"
+
 train_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size, split="train")
 val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size, split="val")
 
@@ -606,7 +610,6 @@ for step in range(start_step, max_steps):
         val_losses_accum = {}
         with torch.no_grad():
             val_loss_accum = 0.0
-            val_loss_steps = 20
             for _ in range(val_loss_steps):
                 x, y = val_loader.next_batch()
                 x, y = x.to(device), y.to(device)
