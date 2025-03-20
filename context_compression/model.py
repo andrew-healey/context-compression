@@ -47,9 +47,9 @@ class DenseAttentionConfig:
     dense_attention_kind: DenseAttentionKind = field(default_factory=lambda: DenseAttentionKind.MHA)
     ckpt_attn: bool = False
 
-    qkv_producer: QKVProducerKind = field(default_factory=lambda: QKVProducerKind.INHERIT)
-    a_producer: AProducerKind = field(default_factory=lambda: AProducerKind.INHERIT)
-    av_combiner: AVCombinerKind = field(default_factory=lambda: AVCombinerKind.INHERIT)
+    qkv_producer_kind: QKVProducerKind = field(default_factory=lambda: QKVProducerKind.INHERIT)
+    a_producer_kind: AProducerKind = field(default_factory=lambda: AProducerKind.INHERIT)
+    av_combiner_kind: AVCombinerKind = field(default_factory=lambda: AVCombinerKind.INHERIT)
 
 @dataclass
 class GPTConfig:

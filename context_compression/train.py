@@ -240,6 +240,15 @@ parser.add_argument("--ckpt_attn", action="store_true",
                     help="Checkpoint the attention")
 parser.set_defaults(ckpt_attn=False)
 
+from .attn import AProducerKind,QKVProducerKind,AVCombinerKind
+parser.add_argument("--a_producer_kind", type=lambda x: AProducerKind(x.lower()), default=AProducerKind.MHA,
+                    help="What kind of a producer to use")
+parser.add_argument("--qkv_producer_kind", type=lambda x: QKVProducerKind(x.lower()), default=QKVProducerKind.MHA,
+                    help="What kind of a qkv producer to use")
+parser.add_argument("--av_combiner_kind", type=lambda x: AVCombinerKind(x.lower()), default=AVCombinerKind.LINEAR,
+                    help="What kind of an av combiner to use")
+
+
 parser.add_argument("--c_proj_scale_init", type=float, default=None,
                     help="Scale init for the c_proj")
 parser.set_defaults(c_proj_scale_init=None)
@@ -409,6 +418,9 @@ def make_config(args):
             head_dim_value=args.head_dim_value,
             dense_attention_kind=args.dense_attention_kind,
             ckpt_attn=args.ckpt_attn,
+            qkv_producer_kind=args.qkv_producer_kind,
+            a_producer_kind=args.a_producer_kind,
+            av_combiner_kind=args.av_combiner_kind,
         ),
         sdpa_iter_size=args.sdpa_iter_size,
         stabilize_attn_scores=args.stabilize_attn_scores,

@@ -146,7 +146,7 @@ class DenseAttentionKind(StrEnum):
     def get_qkv_producer(self,config):
 
         # check for override
-        overridden_qkv_producer = config.dense_attention_config.qkv_producer.get_qkv_producer()
+        overridden_qkv_producer = config.dense_attention_config.qkv_producer_kind.get_qkv_producer()
         if overridden_qkv_producer is not None:
             return overridden_qkv_producer(config)
 
@@ -157,7 +157,7 @@ class DenseAttentionKind(StrEnum):
 
     def get_a_producer(self,config):
         # check for override
-        overridden_a_producer = config.dense_attention_config.a_producer.get_a_producer()
+        overridden_a_producer = config.dense_attention_config.a_producer_kind.get_a_producer()
 
         if overridden_a_producer is not None:
             return overridden_a_producer(config)
@@ -169,7 +169,7 @@ class DenseAttentionKind(StrEnum):
 
     def get_av_combiner(self,config):
         # check for override
-        overridden_av_combiner = config.dense_attention_config.av_combiner.get_av_combiner()
+        overridden_av_combiner = config.dense_attention_config.av_combiner_kind.get_av_combiner()
         if overridden_av_combiner is not None:
             return overridden_av_combiner(config)
 
