@@ -899,25 +899,36 @@ if ddp:
     destroy_process_group()
 
 if master_process and args.upload_to_hf:
-    api = HfApi()
-    log_dir_basename = os.path.basename(log_dir)
-    log_dir_path = Path(log_dir).resolve()
-    cwd_path = Path.cwd()
-    if log_dir_path.is_relative_to(cwd_path):
-        repo_path = str(log_dir_path.relative_to(cwd_path))
-    else:
-        repo_path = log_dir_basename
+    import threading
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
     
-    import debugpy
+    def upload_to_hf():
+        api = HfApi()
+        log_dir_basename = os.path.basename(log_dir)
+        log_dir_path = Path(log_dir).resolve()
+        cwd_path = Path.cwd()
+        if log_dir_path.is_relative_to(cwd_path):
+            repo_path = str(log_dir_path.relative_to(cwd_path))
+        else:
+            repo_path = log_dir_basename
+        
+        api.upload_folder(
+            repo_id="andrew-healey/context-compression",
+            folder_path=log_dir,
+            path_in_repo=repo_path,
+            repo_type="model"
+        )
+
     if args.debugpy:
         debugpy.breakpoint()
 
-    api.upload_folder(
-        repo_id="andrew-healey/context-compression",
-        folder_path=log_dir,
-        path_in_repo=repo_path,
-        repo_type="model"
-    )
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(upload_to_hf)
+        try:
+            future.result(timeout=90)  # 90 second timeout
+        except TimeoutError:
+            print("Warning: HuggingFace upload took longer than 90 seconds! Continuing execution...")
+    
     wandb.finish()
 
 
