@@ -87,7 +87,7 @@ class AProducerConv(AProducer):
 
         self.attn_mult = config.attn_mult
         self.linear = nn.Linear(config.n_head,config.n_head)
-        # self.linear.EYE_INIT = True
+        self.linear.EYE_INIT = True
 
     def forward(self, q: torch.Tensor, k: torch.Tensor):
         B, T, _ = q.shape
