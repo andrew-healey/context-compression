@@ -8283,7 +8283,7 @@ Let's do another head-granularity scaling experiment, but this time with MHA_CON
 
 head_dim=2, seed=1339:
 
-```vast:running/18924606
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --n_embd 256 --attention_kind self --dense_attention_kind mha --a_producer_kind mha_conv --mup_zero_init --c_proj_scale_init 1.0 --ckpt_attn --stabilize_attn \
   --group scaling_mha_conv_granularity_2 \
@@ -8295,7 +8295,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 head_dim=8, seed=1339:
 
-```vast:running/18928508
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --n_embd 256 --attention_kind self --dense_attention_kind mha --a_producer_kind mha_conv --mup_zero_init --c_proj_scale_init 1.0 --ckpt_attn --stabilize_attn \
   --group scaling_mha_conv_granularity_2 \
@@ -8307,7 +8307,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 head_dim=32, seed=1339:
 
-```vast:running/18933703
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --n_embd 256 --attention_kind self --dense_attention_kind mha --a_producer_kind mha_conv --mup_zero_init --c_proj_scale_init 1.0 --ckpt_attn --stabilize_attn \
   --group scaling_mha_conv_granularity_2 \
@@ -8319,7 +8319,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
 
 head_dim=128, seed=1339:
 
-```vast:running/18933774
+```vast:finished
 cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -m context_compression.train \
   --total_batch_size 131072 --seq_len 256 --max_steps 4375 --warmup_steps 250 --batch_size 128 --mup --max_lr 30e-4 --n_embd 256 --attention_kind self --dense_attention_kind mha --a_producer_kind mha_conv --mup_zero_init --c_proj_scale_init 1.0 --ckpt_attn --stabilize_attn \
   --group scaling_mha_conv_granularity_2 \
@@ -8328,3 +8328,7 @@ cd /workspace/context-compression && git pull && torchrun --nproc_per_node=gpu -
   --key hd_128 \
   --random_seed 1339
 ```
+
+Result: it's not much better. And more granular is not better. I wonder if it's init, or there's some inherent source of instability?
+
+I bet it's possible to make it better.
