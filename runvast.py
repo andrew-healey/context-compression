@@ -436,6 +436,10 @@ def provision_phase(blocks: List[CommandBlock], should_deprovision: bool = True,
     return get_autorunning_instances(gpus=gpus)
 
 def main():
+
+    if "VAST_AI_API_KEY" not in os.environ:
+        raise EnvironmentError("VAST_AI_API_KEY environment variable is not set. Please set it before running this script.")
+
     parser = argparse.ArgumentParser(description="Process vast command blocks from a markdown file.")
     parser.add_argument("filename", help="Markdown file containing vast command blocks")
     parser.add_argument("--deprovision", action="store_true", help="Deprovision extra instances", dest="deprovision")
