@@ -1,6 +1,6 @@
 ## Experiments with context compression
 
-Inspired by [Selective Attention](https://arxiv.org/abs/2410.02703).
+Measuring variations on [Selective Attention](https://arxiv.org/abs/2410.02703).
 
 Explores modifications to the selective attention algorithm.
 
